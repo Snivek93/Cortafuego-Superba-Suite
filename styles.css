@@ -133,6 +133,14 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 }
 .header-project-fields input[type="date"] { width: 130px; }
 .header-actions { margin-left: 0; display: flex; justify-content: flex-start; gap: 8px; align-items: center; flex-wrap: wrap; row-gap: 6px; width: 100%; }
+/* Orden en desktop: Archivo, PDF, Compartir, Estado de guardado, Configuración.
+   Misma especificidad (selector simple por id) que las reglas de order de la
+   media query móvil de abajo, para que esta se sobrescriba correctamente ahí. */
+#dropdown-proyecto { order: 1; }
+#dropdown-pdf { order: 2; }
+#btn-compartir { order: 3; }
+#save-status { order: 4; }
+#btn-configuracion { order: 5; }
 
 .lev-launch-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; gap: 10px; flex-wrap: wrap; }
 .lev-launch-btn {
