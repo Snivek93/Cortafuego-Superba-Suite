@@ -140,7 +140,9 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
   border: none; background: var(--hilti-red); color: white; font-size: var(--fs-lg); font-weight: 700;
   padding: 14px; border-radius: var(--radius); cursor: pointer;
 }
-.lev-launch-btn:hover { background: var(--hilti-red-dark); }
+@media (hover: hover) and (pointer: fine) {
+  .lev-launch-btn:hover { background: var(--hilti-red-dark); }
+}
 .lev-launch-btn .icon { width: 20px; height: 20px; }
 
 .config-bar-wrap { background: var(--surface); border-bottom: 1px solid var(--border); }
@@ -148,7 +150,9 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
   width: 100%; display: flex; align-items: center; gap: 8px; border: none; background: transparent;
   padding: 9px 20px; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); cursor: pointer; text-align: left;
 }
-.config-toggle:hover { color: var(--ink); }
+@media (hover: hover) and (pointer: fine) {
+  .config-toggle:hover { color: var(--ink); }
+}
 .config-toggle .icon-chevron { width: 15px; height: 15px; transition: transform 0.15s ease; }
 .config-toggle.open .icon-chevron { transform: rotate(180deg); }
 .config-bar {
@@ -187,7 +191,9 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
   display: flex; align-items: center; border: none; background: transparent; text-align: left;
   padding: 10px 12px; border-radius: var(--radius-sm); font-size: var(--fs-base); cursor: pointer; color: var(--ink);
 }
-.dropdown-item:hover { background: var(--grey-1); }
+@media (hover: hover) and (pointer: fine) {
+  .dropdown-item:hover { background: var(--grey-1); }
+}
 .dropdown-sep { height: 1px; background: var(--border); margin: 6px 4px; }
 
 @media (max-width: 700px) {
@@ -236,7 +242,9 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
   color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
 }
 .tab-btn.active { color: var(--ink); border-bottom-color: var(--hilti-red); }
-.tab-btn:hover { color: var(--ink); }
+@media (hover: hover) and (pointer: fine) {
+  .tab-btn:hover { color: var(--ink); }
+}
 
 main { padding: 16px 20px 60px; }
 .tab-panel { display: none; }
@@ -254,11 +262,17 @@ button.primary, button.secondary, label.file-btn {
   border: none; border-radius: var(--radius-sm); padding: 8px 14px; font-size: var(--fs-base); font-weight: 600; cursor: pointer;
 }
 label.file-btn { background: var(--surface); color: var(--ink); border: 1px solid var(--border); }
-label.file-btn:hover { background: var(--grey-1); }
+@media (hover: hover) and (pointer: fine) {
+  label.file-btn:hover { background: var(--grey-1); }
+}
 button.primary { background: var(--hilti-red); color: white; }
-button.primary:hover { background: var(--hilti-red-dark); }
+@media (hover: hover) and (pointer: fine) {
+  button.primary:hover { background: var(--hilti-red-dark); }
+}
 button.secondary { background: var(--surface-raised); color: var(--ink); border: 1px solid var(--border); }
-button.secondary:hover { background: var(--grey-1); }
+@media (hover: hover) and (pointer: fine) {
+  button.secondary:hover { background: var(--grey-1); }
+}
 .icon-only-btn {
   width: 38px; height: 38px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
@@ -277,7 +291,9 @@ table.calc-table thead th {
   position: sticky; top: 0; white-space: nowrap; font-size: var(--fs-2xs); letter-spacing: 0.2px; text-transform: uppercase;
 }
 table.calc-table tbody td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-table.calc-table tbody tr:hover { background: #fff7f7; }
+@media (hover: hover) and (pointer: fine) {
+  table.calc-table tbody tr:hover { background: #fff7f7; }
+}
 .rownum { color: var(--text-muted); text-align: center; width: 28px; font-size: var(--fs-sm); }
 .cell-with-hint { min-width: 70px; }
 .frac-hint { display: block; font-size: var(--fs-2xs); color: var(--text-muted); text-align: center; margin-top: 1px; line-height: 1.2; }
@@ -298,8 +314,12 @@ select.cell-input { min-width: 130px; }
 .row-actions { white-space: nowrap; }
 .icon-btn { border: none; background: transparent; cursor: pointer; color: var(--text-muted); padding: 3px 5px; display: inline-flex; }
 .icon-btn .icon { margin-right: 0; }
-.icon-btn:hover { color: var(--ink); }
-.icon-danger:hover { color: var(--hilti-red); }
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn:hover { color: var(--ink); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .icon-danger:hover { color: var(--hilti-red); }
+}
 .empty-state { text-align: center; color: var(--text-muted); padding: 28px; font-size: var(--fs-base); }
 .col-disabled select.cell-input { background: var(--grey-2, #ececec); color: var(--text-muted); opacity: 0.55; cursor: not-allowed; }
 .detalle-col { font-size: var(--fs-2xs); color: var(--text-muted); min-width: 220px; white-space: normal; }
@@ -309,7 +329,9 @@ select.cell-input { min-width: 130px; }
 .row-hidden-filter { display: none !important; }
 .qty-stepper { display: inline-flex; align-items: center; gap: 4px; }
 .qty-stepper button { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); width: 32px; height: 32px; line-height: 1; cursor: pointer; color: var(--ink); font-size: 17px; font-weight: 600; }
-.qty-stepper button:hover { background: var(--grey-1); }
+@media (hover: hover) and (pointer: fine) {
+  .qty-stepper button:hover { background: var(--grey-1); }
+}
 .qty-stepper button:active { background: var(--grey-2); }
 .qty-stepper .qty-val { min-width: 26px; text-align: center; font-size: var(--fs-base); font-weight: 700; }
 .save-status { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); color: var(--text-muted); white-space: nowrap; cursor: default; }
@@ -360,7 +382,9 @@ select.cell-input { min-width: 130px; }
   border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 4px;
   display: inline-flex; align-items: center; border-radius: 6px;
 }
-.btn-quitar-manual:hover { color: var(--hilti-red); background: rgba(0,0,0,0.05); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-quitar-manual:hover { color: var(--hilti-red); background: rgba(0,0,0,0.05); }
+}
 .btn-quitar-manual .icon { width: 16px; height: 16px; }
 
 table.resumen-table { width: auto; max-width: 100%; border-collapse: collapse; font-size: var(--fs-base); min-width: 560px; }
@@ -427,7 +451,9 @@ body.modo-levantamiento #levantamiento-fullscreen {
   display: inline-flex; align-items: center; border: 1px solid rgba(255,255,255,0.3); background: transparent;
   color: white; font-size: var(--fs-sm); font-weight: 600; padding: 7px 12px; border-radius: var(--radius-sm); cursor: pointer;
 }
-.lev-exit-btn:hover { background: rgba(255,255,255,0.1); }
+@media (hover: hover) and (pointer: fine) {
+  .lev-exit-btn:hover { background: rgba(255,255,255,0.1); }
+}
 .lev-fullscreen-title { font-size: var(--fs-base); font-weight: 600; }
 
 .lev-wrap { padding: 14px 14px 40px; max-width: 640px; margin: 0 auto; width: 100%; }
@@ -548,7 +574,9 @@ body.modo-levantamiento #levantamiento-fullscreen {
   font-size: var(--fs-sm); font-weight: 600; padding: 11px 13px; cursor: pointer; min-width: 44px;
 }
 .qty-btn-group button:last-child { border-right: none; }
-.qty-btn-group button:hover { background: var(--grey-1); }
+@media (hover: hover) and (pointer: fine) {
+  .qty-btn-group button:hover { background: var(--grey-1); }
+}
 .qty-btn-group button:active { background: var(--grey-2); }
 .lev-stepper-full input {
   flex: 0 0 76px; border: 1px solid var(--border); border-radius: var(--radius); text-align: center;
@@ -576,7 +604,9 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .lev-recent-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
 .lev-recent-actions button { border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 9px 10px; display: inline-flex; border-radius: var(--radius-sm); }
 .lev-recent-actions button .icon { margin-right: 0; width: 21px; height: 21px; }
-.lev-recent-actions button:hover { color: var(--hilti-red); background: var(--grey-1); }
+@media (hover: hover) and (pointer: fine) {
+  .lev-recent-actions button:hover { color: var(--hilti-red); background: var(--grey-1); }
+}
 
 @media (max-width: 560px) {
   .lev-sticky-bar { flex-wrap: wrap; }
@@ -606,7 +636,9 @@ body.modo-levantamiento #levantamiento-fullscreen {
   background: var(--hilti-red); color: white; font-size: var(--fs-lg); font-weight: 700;
   box-shadow: 0 4px 14px rgba(0,0,0,0.3); cursor: pointer;
 }
-.help-bubble:hover { background: var(--hilti-red-dark); }
+@media (hover: hover) and (pointer: fine) {
+  .help-bubble:hover { background: var(--hilti-red-dark); }
+}
 
 .instr-modal-overlay {
   display: none; position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.5);
