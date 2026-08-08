@@ -2,15 +2,22 @@
  * sw.js — Service Worker de la Calculadora Cortafuego Hilti.
  *
  * Qué hace: guarda una copia local (offline) de la app para que abra rápido
- * y funcione aunque no haya internet. Cuando hay una versión nueva, la
- * descarga en segundo plano y la aplica la próxima vez que se abre la app.
+ * y funcione aunque no haya internet.
  *
- * IMPORTANTE al actualizar la app: cambiar el número de CACHE_VERSION de
- * abajo (ej. "v1" -> "v2") cada vez que se suba una versión nueva a GitHub.
- * Eso obliga a los teléfonos/computadoras que ya tienen la app instalada a
- * bajar los archivos nuevos en vez de seguir usando los viejos guardados.
+ * Estrategia por tipo de archivo:
+ * - HTML / CSS / JS propios de la app (lo que cambia seguido): "red primero".
+ *   Cada vez que hay internet, se pide la versión más nueva directo del
+ *   servidor y se muestra esa. Si no hay internet, se usa la copia guardada.
+ *   Con esto, NO hace falta acordarse de subir CACHE_VERSION cada vez que se
+ *   edita un archivo — el celular siempre pide la versión actual solo.
+ * - Todo lo demás (vendor/, icons/ — cambia poco y pesa más): "caché primero"
+ *   con actualización en segundo plano, para que abra rápido.
+ *
+ * CACHE_VERSION solo hay que subirla cuando cambia la LISTA de archivos
+ * (se agrega o se saca un archivo de ARCHIVOS_PRECACHE) — no por ediciones
+ * normales de contenido.
  */
-const CACHE_VERSION = "v1.0.62";
+const CACHE_VERSION = "v1.0.63";
 const CACHE_NAME = `cortafuego-hilti-${CACHE_VERSION}`;
 
 const ARCHIVOS_PRECACHE = [
@@ -76,11 +83,37 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Peticiones: responde primero con lo guardado (rápido, funciona offline),
-// y en paralelo pide la versión nueva a internet para la próxima vez.
+// Un archivo es "de la app" (cambia seguido, prioridad = siempre lo más
+// nuevo) si es HTML/CSS/JS del propio sitio, o si es la navegación misma.
+function esArchivoDeLaApp(request) {
+  if (request.mode === "navigate") return true;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return false;
+  return /\.(html|css|js)$/.test(url.pathname);
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  // Red primero: HTML/CSS/JS propios. Siempre se pide la versión actual del
+  // servidor; si no hay internet, se cae a la copia guardada como respaldo.
+  if (esArchivoDeLaApp(event.request)) {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" })
+        .then((respuestaRed) => {
+          if (respuestaRed && respuestaRed.status === 200) {
+            const copia = respuestaRed.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copia));
+          }
+          return respuestaRed;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Caché primero (con actualización en segundo plano): vendor/ e icons/,
+  // que pesan más y cambian poco — priorizamos velocidad de carga.
   event.respondWith(
     caches.match(event.request).then((respuestaGuardada) => {
       const buscarEnRed = fetch(event.request)

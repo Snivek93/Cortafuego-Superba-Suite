@@ -1,8 +1,7 @@
 // ============================================================================
 // calc-engine.js
 // Motor de cálculo — réplica de la hoja CALCULADORA del Excel Hilti: computeRow, computeResumen, y las funciones de apoyo (dbKey/dbLookup, longitud de cinta y collar).
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 function dbKey(N, L, M, AP, P) {

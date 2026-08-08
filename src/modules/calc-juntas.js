@@ -1,8 +1,7 @@
 // ============================================================================
 // calc-juntas.js
 // Motor de cálculo de Juntas — helpers de combinaciones disponibles y cálculo de sellador/lana para juntas.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // JUNTAS — helpers de combinaciones disponibles y motor de cálculo

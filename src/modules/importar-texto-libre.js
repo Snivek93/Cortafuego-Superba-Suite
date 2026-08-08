@@ -1,8 +1,7 @@
 // ============================================================================
 // importar-texto-libre.js
 // Importar un levantamiento desde un archivo de texto libre (.txt).
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // Importar un levantamiento desde un archivo de texto libre (.txt)

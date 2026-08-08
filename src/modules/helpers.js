@@ -1,8 +1,7 @@
 // ============================================================================
 // helpers.js
 // Funciones genéricas de propósito general (comparar texto, redondear tipo Excel, detectar vacío) — sin dependencias, usadas por todos los demás módulos.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // ============================================================================

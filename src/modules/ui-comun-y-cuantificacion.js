@@ -1,8 +1,7 @@
 // ============================================================================
 // ui-comun-y-cuantificacion.js
 // Modal/Toast propios (compatibilidad con navegadores móviles) y productos agregados a mano en Cuantificación de Materiales.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // Modal / Toast propios — algunos navegadores móviles bloquean o ignoran

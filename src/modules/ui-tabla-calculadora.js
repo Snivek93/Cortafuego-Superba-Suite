@@ -1,8 +1,7 @@
 // ============================================================================
 // ui-tabla-calculadora.js
 // UI: estado de filas (ROWS) y render de la tabla Calculadora + Resumen en pantalla.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // ============================================================================

@@ -1,8 +1,7 @@
 // ============================================================================
 // excel-export-import.js
 // Exportar a Excel (hoja CALCULADORA, Levantamiento de Penetrantes y de Juntas), exportar/importar matrices maestras de Base de Datos, comparación de cambios antes de aplicar una matriz importada, e importar un levantamiento desde el Excel original.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // Exportar el levantamiento actual al formato de la hoja CALCULADORA del

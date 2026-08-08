@@ -1,8 +1,7 @@
 // ============================================================================
 // data-ul-systems.js
 // Datos puros: MAIN_TABLE (sistemas UL por combinación), PVC_TABLES, tablas de vueltas de cinta CP 648-E, base de datos de sistemas UL para Juntas.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 

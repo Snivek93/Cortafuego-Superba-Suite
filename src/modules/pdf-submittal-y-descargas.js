@@ -1,8 +1,7 @@
 // ============================================================================
 // pdf-submittal-y-descargas.js
 // Descarga de fichas técnicas/certificados reales, PDF Submittal (índice + fichas + sistemas UL + certificados), y links internos dentro del PDF.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // Descarga de archivos reales (no solo enlaces): sistemas UL, fichas técnicas,

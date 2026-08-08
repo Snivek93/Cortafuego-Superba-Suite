@@ -1,8 +1,7 @@
 // ============================================================================
 // pdf-memoria.js
 // Memoria de Cálculo — fórmulas con formato tipo Word (subíndices, fracciones, símbolos), desglose geométrico por subcaso, y todas las secciones por material (Pasta, Lana, Cinta, Collar, Almohadilla CFS-BL, Juntas).
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // Memoria de Cálculo — para cada producto usado (Penetrantes y Juntas) explica

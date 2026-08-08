@@ -1,8 +1,7 @@
 // ============================================================================
 // ui-levantamiento.js
 // Levantamiento ('Modo campo') — captura rápida en sitio de Penetrantes y de Juntas, un elemento a la vez.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // LEVANTAMIENTO ("Modo campo"): captura rápida en sitio, un penetrante a la vez

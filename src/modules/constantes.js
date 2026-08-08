@@ -1,8 +1,7 @@
 // ============================================================================
 // constantes.js
 // Vocabulario compartido de toda la app: mensajes de error/aviso, tipos de penetrante (TIPO_*), materiales Hilti (MAT_*), y las tablas de familias/fichas asociadas a cada material.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 const ERR_MATERIAL = "¡ELIJA OTRO MATERIAL HILTI!";

@@ -1,8 +1,7 @@
 // ============================================================================
 // archivo-guardar-cargar.js
 // Guardar/Cargar proyecto como archivo .json — memoria portátil del proyecto.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // Guardar / Cargar proyecto (.json) — memoria portátil, sin guardado local

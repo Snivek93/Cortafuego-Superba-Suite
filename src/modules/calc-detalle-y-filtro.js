@@ -1,8 +1,7 @@
 // ============================================================================
 // calc-detalle-y-filtro.js
 // Detalle de cálculo por línea (para revisar cantidades fila por fila) y filtro de la tabla Calculadora (por zona, nivel, tipo, material, nota).
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // Detalle de cálculo por línea (para revisar cantidades extrañas fila por fila)

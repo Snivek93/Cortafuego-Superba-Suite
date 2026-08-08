@@ -1,8 +1,7 @@
 // ============================================================================
 // pdf-comun.js
 // Letterhead PDF — fondo de hoja membretada Superba (logo + banda + pie de página), reutilizado por todos los PDF.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver src/app.js para
-// el archivo original sin dividir, y README.md para el mapa completo de módulos.)
+// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
 // Letterhead PDF -- dibuja el fondo de hoja membretada SUPERBA (logo + banda +
