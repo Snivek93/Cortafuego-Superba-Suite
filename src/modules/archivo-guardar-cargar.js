@@ -35,6 +35,7 @@ function aplicarProyectoImportado(data) {
   sincronizarCamposConfig();
   renderTable();
   if (ACTIVE_TAB === "resumen") renderResumen();
+  if (ACTIVE_TAB === "levantamiento-tab") renderLevantamientoTab();
   marcarCambio();
   mostrarToast(`Proyecto cargado: ${ROWS.length} fila(s).`);
 }

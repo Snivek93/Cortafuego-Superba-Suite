@@ -13,7 +13,7 @@ let ROWS = [];
 let ROW_SEQ = 1;
 let ROWS_J = [];
 let ROW_J_SEQ = 1;
-let ACTIVE_TAB = "calculadora";
+let ACTIVE_TAB = "levantamiento-tab";
 
 const CONFIG = { C13: 15, C14: 12.5, C15: 20, C17: 0.10, C17_JUNTAS: 0.10, UMB_FS: 17, UMB_CP606: 17, UMB_SILGG: 17 };
 const CONFIG_DEFAULT = { C13: 15, C14: 12.5, C15: 20, C17: 0.10, C17_JUNTAS: 0.10, UMB_FS: 17, UMB_CP606: 17, UMB_SILGG: 17 };

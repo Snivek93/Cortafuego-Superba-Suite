@@ -282,6 +282,7 @@ function restaurarMatricesOriginales() {
     try { localStorage.removeItem("hiltiMainTableOverride"); localStorage.removeItem("hiltiJuntasTableOverride"); } catch (e) { /* noop */ }
     renderTable();
     if (ACTIVE_TAB === "resumen") renderResumen();
+    if (ACTIVE_TAB === "levantamiento-tab") renderLevantamientoTab();
     mostrarToast("Matrices restauradas a los valores originales.");
   });
 }
@@ -341,6 +342,7 @@ async function importarMatrizPenetrantesExcel(file) {
       guardarMatricesLocalStorage();
       renderTable();
       if (ACTIVE_TAB === "resumen") renderResumen();
+      if (ACTIVE_TAB === "levantamiento-tab") renderLevantamientoTab();
       marcarCambio();
       mostrarToast(`Matriz de Penetrantes actualizada: ${ok} combinación(es).`);
     });
@@ -449,6 +451,7 @@ function importarExcel(file) {
       sincronizarCamposConfig();
       renderTable();
       if (ACTIVE_TAB === "resumen") renderResumen();
+      if (ACTIVE_TAB === "levantamiento-tab") renderLevantamientoTab();
       marcarCambio();
       mostrarToast(`Levantamiento importado: ${nuevas.length} fila(s) cargadas desde "${sheetName}".`);
     };

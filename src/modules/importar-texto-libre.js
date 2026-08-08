@@ -168,6 +168,7 @@ function importarTxt(file) {
       sincronizarCamposConfig();
       renderTable();
       if (ACTIVE_TAB === "resumen") renderResumen();
+      if (ACTIVE_TAB === "levantamiento-tab") renderLevantamientoTab();
       marcarCambio();
       let msg = `Levantamiento importado: ${parsed.filas.length} fila(s).`;
       if (parsed.warnings.length > 0) msg += ` ${parsed.warnings.length} línea(s) no se pudieron interpretar — revisá la consola o el archivo original.`;

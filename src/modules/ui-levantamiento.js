@@ -799,7 +799,7 @@ function renderLevantamiento() {
           <button type="button" class="lev-chip ${LEV.vacioModo === "diametro" ? "lev-chip-active" : ""}" data-lev-grupo="vacioModo" data-lev-valor="diametro">Redondo (diámetro)</button>
         </div>` : ""}
         ${levUsaDiametroLibre(LEV.tipo) ? `
-        <input type="text" inputmode="decimal" id="lev-diametro-libre" placeholder='Diámetro en pulgadas (ej. 24 o 1/2)' class="lev-input-otro" style="margin-top:0;" value="${LEV.diametroLibre}">
+        <input type="text" inputmode="decimal" id="lev-diametro-libre" placeholder='Diámetro en pulgadas (ej. 24 o 1/2)' class="lev-input-otro" style="margin-top:0;" value="${LEV.diametroLibre}" >
         ` : tipoVisible ? `
         ${LEV.tipo === "Caja Electromecánica UL" ? `
         <div class="lev-toggle-group" style="margin-bottom:8px; flex-wrap:wrap;">
@@ -824,7 +824,7 @@ function renderLevantamiento() {
           ${levDiametrosParaTipo(LEV.tipo).map(d => levChip("diametro", d.v, d.label, LEV.diametro === d.v)).join("")}
           ${levChip("diametro", "otro", "Otro", LEV.diametro === "otro")}
         </div>
-        ${LEV.diametro === "otro" ? `<input type="text" inputmode="decimal" id="lev-diametro-otro" placeholder="Diámetro en pulgadas (ej. 1/2)" class="lev-input-otro" value="${LEV.diametroOtroValor || ""}">` : ""}`}
+        ${LEV.diametro === "otro" ? `<input type="text" inputmode="decimal" id="lev-diametro-otro" placeholder="Diámetro en pulgadas (ej. 1/2)" class="lev-input-otro" value="${LEV.diametroOtroValor || ""}" >` : ""}`}
       </div>` : ""}
 
       ${LEV.tipo === "Caja Electromecánica UL" ? `
@@ -1278,8 +1278,50 @@ function agregarDesdeLevantamiento() {
   mostrarToast(fueEdicion ? "Cambios guardados." : `Agregado: ${nueva.C}x ${nueva.L}`);
 }
 
+// Productos válidos en MAIN_TABLE para cada tipo de penetrante
+// (pre-calculado para no iterar la tabla en cada render de fila)
+const PRODUCTOS_POR_TIPO = {
+  "Tubería Metal": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
+  "Tubería Metal Aislado": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
+  "Tubería Cobre Aislado HVAC": ["Cinta con Collar Metálico CP 648-E/ER","Cinta sin Collar Metálico CP 648-E","Collarín CP 643N/644"],
+  "Tubería EMT": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
+  "Tubería Combustible (PVC, CPVC, PEX, PP-R)": ["Pasta FS ONE MAX","Cinta con Collar Metálico CP 648-E/ER","Cinta sin Collar Metálico CP 648-E","Collarín CP 643N/644","Sellador CP 606","Sellador CFS SIL GG"],
+  "Tubería Combustible Aislada (PVC, CPVC, PEX, PP-R)": ["Pasta FS ONE MAX","Cinta con Collar Metálico CP 648-E/ER","Cinta sin Collar Metálico CP 648-E","Collarín CP 643N/644","Sellador CP 606","Sellador CFS SIL GG"],
+  "Bandeja de Cables": ["Pasta FS ONE MAX","Espuma CP 620","Almohadilla CFS-BL","Sellador CFS SIL GG"],
+  "Cable Armado": ["Pasta FS ONE MAX"],
+  "Cables en Paso Repenetrable": ['Manga CP 653 4"','Paso de cables MSL M 3"x4"','Paso de cables MSL L 6"x4"'],
+  "Cables Sueltos": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
+  "Caja Electromecánica UL": ["Putty Pad CP 617"],
+  "Ducto Rectangular": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
+  "Ducto Rectangular Aislado": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
+  "Ducto Redondo": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
+  "Ducto Redondo Aislado": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
+  "Pasante Múltiple": ["Pasta FS ONE MAX","Espuma CP 620","Almohadilla CFS-BL","Mortero CP 637","Sellador CP 606","Sellador CFS SIL GG"],
+  "Vacío": ["Pasta FS ONE MAX","Espuma CP 620","Almohadilla CFS-BL","Mortero CP 637","Sellador CP 606","Sellador CFS SIL GG"],
+  "Viga W": ["Pasta FS ONE MAX"],
+  "Viga Canal": ["Pasta FS ONE MAX","Sellador CP 606"],
+  "Viga Tubo Rectangular": ["Pasta FS ONE MAX"],
+};
+
+// Etiquetas cortas para el selector de producto
+const PROD_LABEL = {
+  "Pasta FS ONE MAX": "Pasta FS ONE MAX",
+  "Cinta con Collar Metálico CP 648-E/ER": "Cinta + Collar",
+  "Cinta sin Collar Metálico CP 648-E": "Cinta sin Collar",
+  "Collarín CP 643N/644": "Collarín 643N/644",
+  "Sellador CP 606": "Sellador CP 606",
+  "Sellador CFS SIL GG": "Sellador SIL GG",
+  "Espuma CP 620": "Espuma CP 620",
+  "Almohadilla CFS-BL": "Almohadilla CFS-BL",
+  "Mortero CP 637": "Mortero CP 637",
+  'Manga CP 653 4"': 'Manga CP 653 4"',
+  'Paso de cables MSL M 3"x4"': 'MSL M 3"x4"',
+  'Paso de cables MSL L 6"x4"': 'MSL L 6"x4"',
+  "Putty Pad CP 617": "Putty Pad CP 617",
+};
+
 function renderTablaAgrupadaHTML(grupos) {
-  if (grupos.length === 0) return `<div class="hint" style="margin:16px 0 0;">Todavía no hay penetrantes registrados. Usá "Levantamiento" arriba, o cargá filas directo en la pestaña Calculadora.</div>`;
+  if (grupos.length === 0) return `<div class="hint" style="margin:16px 0 0;">Todavía no hay penetrantes registrados. Usá "Levantamiento" arriba.</div>`;
 
   const filas = [];
   grupos.forEach(g => {
@@ -1288,31 +1330,73 @@ function renderTablaAgrupadaHTML(grupos) {
 
   return `
     <div class="table-scroll">
-      <table class="resumen-table">
+      <table class="resumen-table lev-tabla-resultados">
         <thead><tr>
-          <th>Zona</th><th>Nivel</th><th class="num">Cant.</th><th>Penetrante</th><th>Dimensión</th><th>Anular</th>
-          <th>Barrera</th><th>Producto</th><th class="num">Espesor</th><th class="num">Vueltas Cinta</th><th>F Rating</th><th>Nota</th><th></th>
+          <th>Zona</th><th>Nivel</th><th class="num">Cant.</th><th>Penetrante</th><th>Dimensión</th><th>Anular</th><th>%</th>
+          <th>Barrera</th><th>Producto</th>
+          <th>Sistema UL</th>
+          <th class="num">Espesor</th><th class="num">Vueltas</th><th colspan="2">Resultados</th>
+          <th>F Rating</th><th>Nota</th><th></th>
         </tr></thead>
         <tbody>
           ${filas.map(({ r, esInicioZona, zona }) => {
-            const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
-            const dim = r.D !== "" ? formatFraccionPulgadas(r.D)
-              : esRedondoLibre ? `⌀${formatFraccionPulgadas(n(r.F) / 2.54)}`
-              : r.F !== "" ? `${r.F}×${r.G}${r.H !== "" ? "×" + r.H : ""} cm` : "—";
             const c = computeRow(r, CONFIG);
+
+            // — Dimensión con detalle de aislamiento —
+            const esAisl = n(r.E) > 0;
+            const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
+            let dimBase, dimAisl = "";
+            if (r.D !== "") {
+              dimBase = formatFraccionPulgadas(r.D);
+              if (esAisl) dimAisl = ` (+${formatFraccionPulgadas(r.E)} aisl)`;
+            } else if (esRedondoLibre) {
+              dimBase = `⌀${formatFraccionPulgadas(n(r.F)/2.54)}`;
+            } else if (r.F !== "") {
+              dimBase = `${r.F}×${r.G}${r.H !== "" ? "×"+r.H : ""} cm`;
+              if (esAisl) dimAisl = ` (+${formatFraccionPulgadas(r.E)} aisl)`;
+            } else { dimBase = "—"; }
+            const dimHtml = dimBase + (dimAisl ? `<br><span class="lev-dim-aisl">${dimAisl.trim()}</span>` : "");
+
+            // — % ocupación —
+            const pctOcup = levUsaOcupacion(r.L) && r.J ? Math.round(n(r.J)*100)+"%" : "—";
+
+            // — Caja electromecánica: dentro/fuera —
+            const esCaja = r.L === "Caja Electromecánica UL";
+            const tipoLabel = escapeHtml(TIPO_LABEL_CORTO[r.L] || r.L)
+              + (esCaja ? `<br><span class="lev-sub-label">${r.PPINST === "Dentro" ? "Por dentro" : "Por fuera"}</span>` : "");
+
+            // — Sistema UL —
+            const ulBadge = (c.Qtext && c.Qtext !== "-" && !["Sin sistema","Cambiar material a Pasta FS ONE MAX","Cambiar material a pasta FS ONE MAX"].includes(c.Qtext))
+              ? `<a href="${escapeHtml(c.Qlink||"")}" target="_blank" rel="noopener" class="badge badge-ok" title="${escapeHtml(c.Qtext)}">${escapeHtml(c.Qtext.split(" ")[0])}</a>`
+              : "—";
+
+            // — Resultados: usar el mismo formato que la columna detalle de la Calculadora —
             const esCinta = r.P === MAT_CINTA_CON || r.P === MAT_CINTA_SIN;
             const vueltas = esCinta ? vueltasCintaPenetrante(r) : null;
+            const detalleRes = detalleCalculoTexto(c);
+
+            // — Selector de producto —
+            const opcs = PRODUCTOS_POR_TIPO[r.L] || [];
+            const prodCell = opcs.length <= 1
+              ? `<span>${escapeHtml(r.P) || "—"}</span>`
+              : `<select class="cell-input lev-prod-select" data-lev-prod-id="${r._id}">
+                  ${opcs.map(p => `<option value="${escapeHtml(p)}" ${p===r.P?"selected":""}>${escapeHtml(PROD_LABEL[p]||p)}</option>`).join("")}
+                </select>`;
+
             return `<tr class="${esInicioZona ? "lev-tabla-nueva-zona" : ""}">
               <td>${esInicioZona ? `<strong>${escapeHtml(zona)}</strong>` : ""}</td>
               <td>${escapeHtml(r.B) || "—"}</td>
               <td class="num">${r.C}</td>
-              <td>${escapeHtml(TIPO_LABEL_CORTO[r.L] || r.L)}</td>
-              <td>${dim}</td>
+              <td>${tipoLabel}</td>
+              <td>${dimHtml}</td>
               <td>${levOcultaAnular(r.L) ? "—" : formatFraccionPulgadas(r.I)}</td>
-              <td>${escapeHtml(r.M)} ${escapeHtml(r.N)}${r.MEM ? " (membrana)" : ""}</td>
-              <td>${escapeHtml(r.P) || "—"}</td>
+              <td class="num">${pctOcup}</td>
+              <td>${escapeHtml(r.M)}<br><span class="lev-sub-label">${escapeHtml(r.N)}${r.MEM ? " · membrana" : ""}</span></td>
+              <td>${prodCell}</td>
+              <td>${ulBadge}</td>
               <td class="num">${c.V !== "-" && c.V !== undefined ? formatFraccionPulgadas(c.V) : "—"}</td>
               <td class="num">${vueltas !== null ? vueltas : "—"}</td>
+              <td colspan="2" class="lev-col-resultado" style="font-size:var(--fs-xs)">${detalleRes}</td>
               <td>${escapeHtml(r.O)}</td>
               <td>${escapeHtml(r.R) || "—"}</td>
               <td class="row-actions">
@@ -1337,7 +1421,7 @@ function renderLevantamientoTab() {
 
   statsBox.innerHTML = `
     <div class="lev-stat"><span class="lev-stat-num">${totalItems}</span><span class="lev-stat-label">Filas</span></div>
-    <div class="lev-stat"><span class="lev-stat-num">${totalUnidades}</span><span class="lev-stat-label">Unidades</span></div>
+    <div class="lev-stat"><span class="lev-stat-num">${totalUnidades}</span><span class="lev-stat-label">Penetrantes</span></div>
     <div class="lev-stat"><span class="lev-stat-num">${grupos.length}</span><span class="lev-stat-label">Zonas</span></div>
   `;
 
@@ -1356,6 +1440,19 @@ function renderLevantamientoTab() {
     btn.addEventListener("click", () => {
       const id = Number(btn.dataset.levEditBtn);
       editarItemLevantamiento(id, true);
+    });
+  });
+
+  // Selector de producto inline en la tabla del levantamiento
+  listaBox.querySelectorAll(".lev-prod-select").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const id = Number(sel.dataset.levProdId);
+      const row = ROWS.find(r => r._id === id);
+      if (row) {
+        row.P = sel.value;
+        marcarCambio();
+        renderLevantamientoTab();
+      }
     });
   });
 

@@ -367,8 +367,9 @@ function abrirModalCollar(collarCode, filasCollar) {
 
   // Crear overlay
   const overlay = document.createElement("div");
-  overlay.className = "instr-modal-overlay";
+  overlay.className = "instr-modal-overlay open";
   overlay.style.zIndex = "9999";
+  overlay.style.display = "flex";
 
   const box = document.createElement("div");
   box.className = "instr-modal";

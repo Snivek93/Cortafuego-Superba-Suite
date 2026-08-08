@@ -10,7 +10,7 @@
  * Eso obliga a los teléfonos/computadoras que ya tienen la app instalada a
  * bajar los archivos nuevos en vez de seguir usando los viejos guardados.
  */
-const CACHE_VERSION = "v1.0.16";
+const CACHE_VERSION = "v1.0.58";
 const CACHE_NAME = `cortafuego-hilti-${CACHE_VERSION}`;
 
 const ARCHIVOS_PRECACHE = [
@@ -26,6 +26,7 @@ const ARCHIVOS_PRECACHE = [
   "./src/modules/calc-detalle-y-filtro.js",
   "./src/modules/calc-engine.js",
   "./src/modules/calc-juntas.js",
+  "./src/modules/compartir-tabla-imagen.js",
   "./src/modules/constantes.js",
   "./src/modules/data-ul-systems.js",
   "./src/modules/excel-export-import.js",

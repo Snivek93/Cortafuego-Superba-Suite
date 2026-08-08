@@ -274,24 +274,7 @@ function initApp() {
 
   document.getElementById("btn-abrir-levantamiento").addEventListener("click", abrirLevantamiento);
 
-  // Configuración: acordeón colapsado por defecto (se recuerda la preferencia).
-  const cfgToggle = document.getElementById("btn-config-toggle");
-  const cfgContent = document.getElementById("config-bar-content");
-  if (cfgToggle && cfgContent) {
-    const setAbierto = (open) => {
-      cfgContent.hidden = !open;
-      cfgContent.style.display = open ? "flex" : "none";
-      cfgToggle.classList.toggle("open", open);
-    };
-    let abierto = false;
-    try { abierto = localStorage.getItem("hiltiConfigAbierta") === "1"; } catch (e) { /* ignorar */ }
-    setAbierto(abierto);
-    cfgToggle.addEventListener("click", () => {
-      const nowOpen = cfgContent.hidden;
-      setAbierto(nowOpen);
-      try { localStorage.setItem("hiltiConfigAbierta", nowOpen ? "1" : "0"); } catch (e) { /* ignorar */ }
-    });
-  }
+  // Configuración ahora es un modal — ver tema-claro-oscuro.js
   document.getElementById("btn-abrir-levantamiento-juntas").addEventListener("click", abrirLevantamientoJuntas);
   document.getElementById("btn-cerrar-levantamiento").addEventListener("click", cerrarLevantamiento);
   document.getElementById("btn-lev-tab-abrir").addEventListener("click", abrirLevantamiento);
@@ -396,10 +379,9 @@ function initApp() {
     return panel;
   }
   const menuPdfPanel = registrarDropdown("btn-menu-pdf", "dropdown-panel-pdf");
-  const menuBdPanel = registrarDropdown("btn-menu-bd", "dropdown-panel-bd");
   const menuPanel = registrarDropdown("btn-menu-proyecto", "dropdown-panel-proyecto");
   document.addEventListener("click", (e) => {
-    [["dropdown-pdf", menuPdfPanel], ["dropdown-bd", menuBdPanel], ["dropdown-proyecto", menuPanel]].forEach(([contId, panel]) => {
+    [["dropdown-pdf", menuPdfPanel], ["dropdown-proyecto", menuPanel]].forEach(([contId, panel]) => {
       if (!document.getElementById(contId).contains(e.target)) panel.classList.remove("open");
     });
   });
@@ -464,6 +446,7 @@ function initApp() {
 
   if (cargoEmbebido) {
     renderTable();
+    renderLevantamientoTab();
     mostrarToast(`Proyecto cargado automáticamente: ${ROWS.length} fila(s).`);
   } else {
     const auto = cargarAutoguardado();
@@ -478,11 +461,13 @@ function initApp() {
       const pc = document.getElementById("proj-cliente"); if (pc) pc.value = PROJECT_INFO.cliente;
       const pf = document.getElementById("proj-fecha"); if (pf) pf.value = PROJECT_INFO.fecha;
       renderTable();
+      renderLevantamientoTab();
       mostrarToast(`Se restauró tu último autoguardado: ${ROWS.length} fila(s).`);
     } else {
       // Filas iniciales de ejemplo
       for (let i = 0; i < 3; i++) ROWS.push(nuevaFila());
       renderTable();
+      renderLevantamientoTab();
     }
   }
 }

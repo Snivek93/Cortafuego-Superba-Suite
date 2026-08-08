@@ -2,18 +2,19 @@
 :root {
   --hilti-red: #E2001A;
   --hilti-red-dark: #B40014;
-  --ink: #1a1a1a;
-  --text-secondary: #6b6b70;
-  --text-muted: #9a9a9e;
-  --grey-1: #f5f5f7;
-  --grey-2: #e5e5ea;
+  --ink: #111111;
+  --text-secondary: #555558;
+  --text-muted: #8a8a90;
+  --grey-1: #f8f8fa;
+  --grey-2: #ebebef;
   --grey-3: #9a9a9e;
-  --border: #e5e5ea;
+  --border: #d1d1d6;
   --ok: #1a7f37;
   --ok-bg: #e6f4ea;
   --err: #B40014;
   --err-bg: #fdecec;
-  --surface: #ffffff;
+  --surface: #f8f8fa;
+  --surface-raised: #ffffff;
   --bar-bg: #1a1a1a;
 
   --radius-sm: 6px;
@@ -50,7 +51,8 @@
   --border: #333338;
   --ok-bg: #163521;
   --err-bg: #3a1616;
-  --surface: #222225;
+  --surface: #1e1e21;
+  --surface-raised: #28282c;
 }
 @media (prefers-color-scheme: dark) {
   :root[data-theme="auto"], :root:not([data-theme]) {
@@ -63,11 +65,38 @@
     --border: #333338;
     --ok-bg: #163521;
     --err-bg: #3a1616;
-    --surface: #222225;
+    --surface: #1e1e21;
+    --surface-raised: #28282c;
   }
+}
+/* Tema claro forzado — usar body como selector para máxima especificidad */
+html[data-theme="light"],
+html[data-theme="light"] body {
+  --ink: #111111;
+  --text-secondary: #555558;
+  --text-muted: #8a8a90;
+  --grey-1: #f8f8fa;
+  --grey-2: #ebebef;
+  --grey-3: #9a9a9e;
+  --border: #d1d1d6;
+  --ok-bg: #e6f4ea;
+  --err-bg: #fdecec;
+  --surface: #f8f8fa;
+  --surface-raised: #ffffff;
+  color-scheme: light;
+}
+html[data-theme="light"] body {
+  background: #f8f8fa !important;
+  color: #111111 !important;
 }
 
 * { box-sizing: border-box; }
+/* Eliminar highlight azul/gris nativo en tap móvil para todos los botones */
+button, [role="button"], .btn-tema-opt, .btn-calc-vis, .btn-collar-talla,
+.lev-launch-btn, .tab-btn, .icon-btn, .dropdown-item {
+  -webkit-tap-highlight-color: transparent;
+  tap-highlight-color: transparent;
+}
 html, body { max-width: 100%; overflow-x: hidden; }
 body { margin: 0; background: var(--grey-1); color: var(--ink); font-size: var(--fs-base); line-height: 1.45; -webkit-font-smoothing: antialiased; transition: background-color .15s ease, color .15s ease; }
 h1, h2, h3 { font-family: inherit; }
@@ -90,12 +119,8 @@ header.app-header {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   border-bottom: 3px solid var(--hilti-red);
 }
-header.app-header .header-logos { display: flex; align-items: center; gap: 10px; }
-header.app-header .logo-img { display: block; height: 24px; width: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.35); }
-header.app-header .logo-hilti { border-radius: 3px; }
-header.app-header .logo-superba { height: 28px; }
-header.app-header .header-cartridge { width: 26px; height: 26px; flex-shrink: 0; }
-header.app-header .header-title-block { display: flex; align-items: center; }
+header.app-header .header-banner { display: flex; align-items: center; }
+header.app-header .header-banner-img { display: block; height: 44px; width: auto; }
 header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; letter-spacing: -0.1px; white-space: nowrap; }
 .version-badge {
   display: inline-block; background: rgba(255,255,255,0.14); color: #d8d8dc;
@@ -135,7 +160,7 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
   font-size: var(--fs-2xs); color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
 }
 .cfg-field input {
-  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 9px; font-size: 16px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 9px; font-size: 16px; color: var(--ink); background: var(--surface-raised);
 }
 .config-bar input { width: 100px; max-width: 100%; }
 
@@ -154,7 +179,7 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 .dropdown { position: relative; }
 .dropdown-panel {
   display: none; position: fixed; z-index: 500;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: 0 10px 28px rgba(0,0,0,0.16); min-width: 250px; padding: 6px; flex-direction: column;
 }
 .dropdown-panel.open { display: flex; }
@@ -166,12 +191,17 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 .dropdown-sep { height: 1px; background: var(--border); margin: 6px 4px; }
 
 @media (max-width: 700px) {
+  /* Banner ocupa todo el ancho de la pantalla en móvil, header más alto */
+  header.app-header { padding: 0 0 10px; }
+  .header-banner { width: 100%; order: 0; padding-right: 48px; box-sizing: border-box; }
+  header.app-header .header-banner-img { width: 100%; height: auto; }
+  .header-project-fields { order: 1; padding: 0 14px; }
   .dropdown-panel {
     max-width: calc(100vw - 24px); max-height: 70vh; overflow-y: auto; min-width: 0;
   }
   .config-bar { padding: 4px 14px 14px; gap: 12px; }
   .config-toggle { padding: 9px 14px; }
-  .header-actions { width: 100%; margin-left: 0; flex-wrap: nowrap; gap: 6px; }
+  .header-actions { width: 100%; margin-left: 0; flex-wrap: nowrap; gap: 6px; order: 2; padding: 0 14px; }
   .header-actions .btn-label { display: none; }
   .header-actions .icon-chevron { display: none; }
   .header-actions button.secondary { padding: 10px 13px; }
@@ -182,19 +212,18 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
   /* Orden en móvil: Archivo, PDF, Base de Datos, Compartir, Estado de guardado */
   #dropdown-proyecto { order: 1; }
   #dropdown-pdf { order: 2; }
-  #dropdown-bd { order: 3; }
   #btn-compartir { order: 4; }
   #save-status { order: 5; flex-shrink: 0; }
   /* El botón PDF mantiene su ícono de descarga + el texto "PDF" (no queda solo-ícono) */
   #btn-menu-pdf .btn-label { display: inline; }
   #btn-menu-pdf .icon:first-child { margin-right: 5px; }
-  /* Botón de tema: fijo en la esquina superior derecha del header,
-     fuera del flujo del header-actions para que no empuje los otros botones.
-     El header ya es position: relative (o se le agrega acá). */
+  /* Configuración pasa a la fila de acciones (ya no flota sobre el banner,
+     para no tapar el logo de Superba que ahora ocupa todo el ancho) */
+  /* Configuración fija en la esquina superior derecha del header, tanto en desktop como en móvil */
   header.app-header { position: relative; }
-  #btn-tema {
+  #btn-configuracion {
     position: absolute; top: 10px; right: 10px;
-    z-index: 10; padding: 8px 10px;
+    z-index: 10;
   }
 }
 
@@ -228,16 +257,20 @@ label.file-btn { background: var(--surface); color: var(--ink); border: 1px soli
 label.file-btn:hover { background: var(--grey-1); }
 button.primary { background: var(--hilti-red); color: white; }
 button.primary:hover { background: var(--hilti-red-dark); }
-button.secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--border); }
+button.secondary { background: var(--surface-raised); color: var(--ink); border: 1px solid var(--border); }
 button.secondary:hover { background: var(--grey-1); }
-.icon-only-btn { padding: 8px 10px; }
-.icon-only-btn .icon { margin-right: 0; }
+.icon-only-btn {
+  width: 38px; height: 38px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.icon-only-btn .icon { margin-right: 0; width: 19px; height: 19px; }
 .dropdown-note { font-size: var(--fs-2xs); color: var(--text-muted); padding: 8px 12px 6px; line-height: 1.4; max-width: 260px; }
 
 /* ============================================================
    TABLA CALCULADORA
    ============================================================ */
-.table-scroll { overflow-x: auto; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); }
+.table-scroll { overflow-x: auto; background: var(--surface-raised); border-radius: var(--radius); border: 1px solid var(--border); }
 table.calc-table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); min-width: 1700px; }
 table.calc-table thead th {
   background: var(--bar-bg); color: white; padding: 8px 6px; text-align: left; font-weight: 600;
@@ -294,7 +327,7 @@ select.cell-input { min-width: 130px; }
 /* ============================================================
    SECCIONES / TABLAS DE RESUMEN E INSTRUCCIONES
    ============================================================ */
-.resumen-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; }
+.resumen-section { background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; }
 .resumen-section h2 { font-size: var(--fs-md); font-weight: 600; margin: 0 0 12px; letter-spacing: -0.1px; }
 .resumen-section h2:not(:first-child) { margin-top: 4px; }
 
@@ -558,7 +591,7 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .lev-tab-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 .lev-tab-stats { display: flex; gap: 10px; }
 .lev-stat {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px;
+  background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px;
   display: flex; flex-direction: column; align-items: center; min-width: 70px;
 }
 .lev-stat-num { font-size: var(--fs-xl); font-weight: 800; color: var(--hilti-red); line-height: 1.1; }
@@ -578,11 +611,21 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .instr-modal-overlay {
   display: none; position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.5);
   align-items: center; justify-content: center; padding: 16px;
+  /* Bloquear scroll de la página de fondo */
+  overflow: hidden;
 }
 .instr-modal-overlay.open { display: flex; }
+/* Cuando un overlay está abierto, bloquear scroll del body */
+body.modal-open { overflow: hidden; position: fixed; width: 100%; }
 .instr-modal-box {
-  background: var(--surface); border-radius: var(--radius-lg); max-width: 720px; width: 100%; max-height: 88vh;
+  background: var(--surface-raised); border-radius: var(--radius-lg); max-width: 720px; width: 100%; max-height: 88vh;
   display: flex; flex-direction: column; overflow: hidden;
+}
+/* .instr-modal sin -box también necesita fondo (usado en modales más simples) */
+.instr-modal {
+  background: var(--surface-raised); border-radius: var(--radius-lg); width: 100%; max-height: 88vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
 }
 .instr-modal-header {
   display: flex; align-items: center; justify-content: space-between; padding: 14px 18px;
@@ -607,7 +650,7 @@ body.modo-levantamiento #levantamiento-fullscreen {
   position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9998;
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
-.modal-box { background: var(--surface); border-radius: var(--radius); padding: 20px; max-width: 380px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+.modal-box { background: var(--surface-raised); border-radius: var(--radius); padding: 20px; max-width: 380px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
 .modal-box p { margin: 0 0 16px; font-size: var(--fs-base); line-height: 1.5; color: var(--ink); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .modal-box-wide { max-width: 520px; }
@@ -628,6 +671,131 @@ body.modo-levantamiento #levantamiento-fullscreen {
 
 
 /* Botón de talla activo en el modal de collarín */
-.btn-collar-talla.active {
-  background: var(--hilti-red); color: white; border-color: var(--hilti-red);
+.btn-collar-talla.active,
+.btn-collar-talla.active:hover,
+.btn-collar-talla.active:focus,
+.btn-collar-talla.active:active {
+  background: var(--hilti-red) !important;
+  color: white !important;
+  border-color: var(--hilti-red) !important;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* ── Tabla levantamiento: columnas de resultado y detalle ── */
+.lev-dim-aisl {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+.lev-sub-label {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+.lev-col-resultado {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.cell-input.lev-prod-select {
+  font-size: var(--fs-xs);
+  padding: 2px 4px;
+  min-width: 100px;
+  max-width: 140px;
+}
+/* Ocultar columnas de resultado en el PDF de levantamiento */
+@media print {
+  .lev-tabla-resultados .lev-col-resultado,
+  .lev-tabla-resultados th:nth-child(13),
+  .lev-tabla-resultados th:nth-child(14) {
+    display: none !important;
+  }
+}
+
+/* ── Modal de configuración ── */
+#modal-config-overlay { align-items: center; justify-content: center; }
+
+.config-bar-visible {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.btn-tema-opt.active,
+.btn-calc-vis.active,
+.btn-tema-opt.active:hover,
+.btn-calc-vis.active:hover,
+.btn-tema-opt.active:focus,
+.btn-calc-vis.active:focus,
+.btn-tema-opt.active:active,
+.btn-calc-vis.active:active {
+  background: var(--hilti-red) !important;
+  color: white !important;
+  border-color: var(--hilti-red) !important;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+
+
+/* ── Teclado fraccionario personalizado ── */
+#teclado-fraccion {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 10000;
+  background: var(--surface-raised); border-top: 2px solid var(--border);
+  padding: 10px 12px 24px;
+  transform: translateY(100%); transition: transform .22s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
+}
+#teclado-fraccion.tf-visible { transform: translateY(0); }
+
+.tf-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px; padding: 0 4px;
+}
+.tf-valor {
+  font-size: 1.4em; font-weight: 700; color: var(--ink);
+  min-width: 80px; letter-spacing: 0.02em;
+}
+.tf-btn-ok {
+  background: var(--hilti-red); color: white; border: none;
+  border-radius: var(--radius-sm); padding: 8px 20px;
+  font-size: 1.1em; font-weight: 700; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tf-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.tf-key {
+  background: var(--grey-2); color: var(--ink); border: none;
+  border-radius: var(--radius-sm); padding: 14px 0; font-size: 1.2em;
+  font-weight: 600; cursor: pointer; text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .1s;
+}
+.tf-key:active { background: var(--border); }
+.tf-key-del { font-size: 1.1em; }
+/* "/" resaltado en rojo para que sea fácil de encontrar */
+.tf-key[data-key="/"] {
+  background: var(--hilti-red); color: white;
+}
+.tf-key[data-key="/"]:active { background: var(--hilti-red-dark); }
+/* Empujar contenido hacia arriba cuando el teclado está visible */
+body.tf-open .lev-form-sticky,
+body.tf-open #levantamiento-fullscreen {
+  padding-bottom: 260px;
+}
+
+/* ── Sección Base de Datos dentro del modal de Configuración (compacta) ── */
+.cfg-bd-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+}
+.cfg-bd-btn {
+  font-size: var(--fs-xs); padding: 8px 10px;
+  display: flex; align-items: center; gap: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cfg-bd-btn .icon { width: 15px; height: 15px; flex-shrink: 0; margin-right: 0; }
+@media (max-width: 420px) {
+  .cfg-bd-grid { grid-template-columns: 1fr; }
 }

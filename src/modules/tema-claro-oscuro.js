@@ -1,31 +1,8 @@
-// Modo claro / oscuro — por defecto "Automático" (sigue la preferencia del
-// sistema operativo/navegador). El botón del header permite forzarlo a
-// Claro u Oscuro; un clic más vuelve a Automático. La preferencia se guarda
-// en localStorage aparte del autoguardado del proyecto (clave propia), así
-// que es independiente de "Guardar"/"Guardar como" y no se mezcla con los
-// datos del proyecto.
-//
-// El atributo data-theme="auto|light|dark" se pone en <html> y todo el
-// cambio visual lo resuelve el CSS (ver :root[data-theme="dark"] y
-// @media (prefers-color-scheme: dark) en styles.css). Este módulo solo se
-// encarga de: leer/guardar la preferencia, actualizar el ícono/título del
-// botón, actualizar <meta name="theme-color"> (color de la barra del
-// navegador/PWA), y reaccionar si el sistema cambia de tema mientras la
-// preferencia está en "Automático".
-//
-// Nota: el atributo data-theme ya se pone una vez, muy temprano, en un
-// <script> chiquito dentro de <head> (antes de este archivo) para evitar el
-// parpadeo de tema claro al cargar en modo oscuro — acá se repite la misma
-// lectura para no depender de ese script y además completar lo que falta
-// (meta theme-color, botón).
+// Módulo: Configuración (tema + calculadora)
+// Maneja el modal de Configuración que reemplazó al botón de tema.
 const TEMA_CLAVE_STORAGE = "cf-hilti-tema";
 const TEMA_ORDEN = ["auto", "light", "dark"];
-const TEMA_ICONOS = { auto: "#i-tema-auto", light: "#i-tema-claro", dark: "#i-tema-oscuro" };
-const TEMA_TITULOS = {
-  auto: "Tema: Automático (según el sistema) — clic para forzar Claro",
-  light: "Tema: Claro (forzado) — clic para forzar Oscuro",
-  dark: "Tema: Oscuro (forzado) — clic para volver a Automático",
-};
+const CALC_VIS_STORAGE = "cf-hilti-calc-vis";
 
 function temaLeerPreferencia() {
   try { return localStorage.getItem(TEMA_CLAVE_STORAGE) || "auto"; } catch (e) { return "auto"; }
@@ -39,26 +16,34 @@ function temaSistemaEsOscuro() {
 function temaEstaOscuroActivo(pref) {
   return pref === "dark" || (pref === "auto" && temaSistemaEsOscuro());
 }
-function temaActualizarBoton(pref) {
-  const btn = document.getElementById("btn-tema");
-  if (!btn) return;
-  const use = btn.querySelector("use");
-  if (use) use.setAttribute("href", TEMA_ICONOS[pref] || TEMA_ICONOS.auto);
-  btn.title = TEMA_TITULOS[pref] || TEMA_TITULOS.auto;
-}
 function temaAplicar(pref) {
   document.documentElement.setAttribute("data-theme", pref);
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) metaTheme.setAttribute("content", temaEstaOscuroActivo(pref) ? "#1a1a1a" : "#ffffff");
-  temaActualizarBoton(pref);
+  // Resaltar botón activo en el modal
+  document.querySelectorAll(".btn-tema-opt").forEach(b =>
+    b.classList.toggle("active", b.dataset.tema === pref)
+  );
+}
+
+function calcVisLeer() {
+  try { return localStorage.getItem(CALC_VIS_STORAGE) || "oculta"; } catch (e) { return "oculta"; }
+}
+function calcVisGuardar(val) {
+  try { localStorage.setItem(CALC_VIS_STORAGE, val); } catch (e) {}
+}
+function calcVisAplicar(val) {
+  const btn = document.querySelector(".tab-btn[data-tab=\"calculadora\"]");
+  if (btn) btn.style.display = val === "visible" ? "" : "none";
+  document.querySelectorAll(".btn-calc-vis").forEach(b =>
+    b.classList.toggle("active", b.dataset.vis === val)
+  );
 }
 
 let temaActual = temaLeerPreferencia();
 temaAplicar(temaActual);
 
-// Si la preferencia es "Automático" y el sistema cambia de tema en vivo
-// (ej. el celular pasa a modo oscuro al anochecer), la app lo sigue sin
-// necesidad de recargar.
+// Seguir cambio de tema del sistema cuando está en "auto"
 if (window.matchMedia) {
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
     if (temaActual === "auto") temaAplicar("auto");
@@ -66,13 +51,50 @@ if (window.matchMedia) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("btn-tema");
-  if (!btn) return;
-  temaActualizarBoton(temaActual);
-  btn.addEventListener("click", () => {
-    const siguiente = TEMA_ORDEN[(TEMA_ORDEN.indexOf(temaActual) + 1) % TEMA_ORDEN.length];
-    temaActual = siguiente;
-    temaGuardarPreferencia(siguiente);
-    temaAplicar(siguiente);
+  // Aplicar visibilidad de calculadora guardada
+  calcVisAplicar(calcVisLeer());
+
+  const overlay = document.getElementById("modal-config-overlay");
+  const btnAbrir = document.getElementById("btn-configuracion");
+  const btnCerrar = document.getElementById("btn-cerrar-config");
+
+  const abrirConfig = () => {
+    if (!overlay) return;
+    temaAplicar(temaActual);          // resalta el botón activo
+    calcVisAplicar(calcVisLeer());    // resalta el botón activo
+    overlay.style.display = "flex";
+    document.body.classList.add("modal-open");
+  };
+  const cerrarConfig = () => {
+    if (!overlay) return;
+    overlay.style.display = "none";
+    document.body.classList.remove("modal-open");
+  };
+
+  if (btnAbrir) btnAbrir.addEventListener("click", abrirConfig);
+  if (btnCerrar) btnCerrar.addEventListener("click", cerrarConfig);
+  if (overlay) overlay.addEventListener("click", e => { if (e.target === overlay) cerrarConfig(); });
+
+  // Botones de tema
+  document.querySelectorAll(".btn-tema-opt").forEach(btn => {
+    btn.addEventListener("click", () => {
+      temaActual = btn.dataset.tema;
+      temaGuardarPreferencia(temaActual);
+      temaAplicar(temaActual);
+    });
+  });
+
+  // Botones de visibilidad calculadora
+  document.querySelectorAll(".btn-calc-vis").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const val = btn.dataset.vis;
+      calcVisGuardar(val);
+      calcVisAplicar(val);
+      // Si se oculta y está activa, cambiar a levantamiento
+      if (val === "oculta") {
+        const tabCalc = document.querySelector(".tab-btn[data-tab=\"calculadora\"]");
+        if (tabCalc && tabCalc.classList.contains("active")) switchTab("levantamiento-tab");
+      }
+    });
   });
 });
