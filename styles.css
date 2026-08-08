@@ -115,24 +115,24 @@ p { margin: 0 0 8px; }
    ENCABEZADO
    ============================================================ */
 header.app-header {
-  background: var(--bar-bg); color: white; padding: 10px 20px;
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--bar-bg); color: white; padding: 14px 20px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
   border-bottom: 3px solid var(--hilti-red);
 }
-header.app-header .header-banner { display: flex; align-items: center; }
-header.app-header .header-banner-img { display: block; height: 44px; width: auto; }
+header.app-header .header-banner { display: flex; align-items: center; width: 100%; }
+header.app-header .header-banner-img { display: block; height: 64px; width: auto; }
 header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; letter-spacing: -0.1px; white-space: nowrap; }
 .version-badge {
   display: inline-block; background: rgba(255,255,255,0.14); color: #d8d8dc;
   font-size: 9.5px; font-weight: 600; padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: 1px;
 }
-.header-project-fields { display: flex; gap: 8px; flex-wrap: wrap; }
+.header-project-fields { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
 .header-project-fields input {
   border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.95); border-radius: var(--radius-sm);
   padding: 6px 9px; font-size: 13px; color: #1a1a1a; width: 150px; max-width: 100%;
 }
 .header-project-fields input[type="date"] { width: 130px; }
-.header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; row-gap: 6px; }
+.header-actions { margin-left: 0; display: flex; justify-content: flex-start; gap: 8px; align-items: center; flex-wrap: wrap; row-gap: 6px; width: 100%; }
 
 .lev-launch-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; gap: 10px; flex-wrap: wrap; }
 .lev-launch-btn {
@@ -394,7 +394,7 @@ tr.lev-tabla-nueva-zona:first-child td { border-top: none; }
 
 /* --- Instrucciones (dentro del modal de ayuda) --- */
 .instr-disclaimer {
-  background: #fff4f4; border: 1px solid #f3c6c6; border-radius: var(--radius); padding: 12px 14px;
+  background: var(--err-bg); border: 1px solid var(--err); border-radius: var(--radius); padding: 12px 14px;
   font-size: var(--fs-sm); line-height: 1.55; margin-bottom: 20px; color: var(--ink);
 }
 .instr-modal-content h2 {
