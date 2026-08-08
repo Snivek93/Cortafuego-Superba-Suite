@@ -385,6 +385,12 @@ function initApp() {
       if (!document.getElementById(contId).contains(e.target)) panel.classList.remove("open");
     });
   });
+  // Los paneles usan position:fixed calculado al abrirse; si la página (o cualquier
+  // contenedor interno) hace scroll, el panel queda "flotando" desconectado del botón.
+  // Se cierran ambos ante cualquier scroll (capture:true para detectar scroll de listas internas).
+  window.addEventListener("scroll", () => {
+    [menuPdfPanel, menuPanel].forEach(p => p.classList.remove("open"));
+  }, { capture: true, passive: true });
 
   document.getElementById("btn-pdf-completo").addEventListener("click", () => descargarPDF("completo"));
   document.getElementById("btn-pdf-levantamiento").addEventListener("click", () => descargarPDF("levantamiento"));
