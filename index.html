@@ -144,8 +144,8 @@
         <button class="dropdown-item" id="btn-archivo-guardar"><svg class="icon"><use href="#i-download"/></svg>Guardar</button>
         <button class="dropdown-item" id="btn-archivo-guardar-como"><svg class="icon"><use href="#i-download"/></svg>Guardar como&hellip;</button>
         <div class="dropdown-sep"></div>
-        <button class="dropdown-item" id="btn-export-json"><svg class="icon"><use href="#i-download"/></svg>Exportar copia (.json)</button>
-        <button class="dropdown-item" id="btn-import-json"><svg class="icon"><use href="#i-upload"/></svg>Importar copia (.json)</button>
+        <button class="dropdown-item" id="btn-export-json"><svg class="icon"><use href="#i-download"/></svg>Exportar datos (.fss)</button>
+        <button class="dropdown-item" id="btn-import-json"><svg class="icon"><use href="#i-upload"/></svg>Importar datos (.fss)</button>
         <div class="dropdown-sep"></div>
         <button class="dropdown-item" id="btn-import-excel"><svg class="icon"><use href="#i-upload"/></svg>Cargar desde Excel</button>
         <button class="dropdown-item" id="btn-export-excel"><svg class="icon"><use href="#i-download"/></svg>Exportar Penetrantes en Excel</button>
@@ -154,7 +154,7 @@
         <button class="dropdown-item" id="btn-import-txt"><svg class="icon"><use href="#i-upload"/></svg>Cargar desde texto</button>
       </div>
       <input type="file" id="file-abrir-proyecto" accept=".html,text/html,.json,application/json" hidden>
-      <input type="file" id="file-import-json" accept=".json,application/json" hidden>
+      <input type="file" id="file-import-json" accept=".fss,.json,application/json" hidden>
       <input type="file" id="file-import-excel" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12,application/vnd.ms-excel" hidden>
       <input type="file" id="file-import-txt" accept=".txt,text/plain" hidden>
     </div>
@@ -162,7 +162,8 @@
       <button class="secondary" id="btn-menu-pdf" title="PDF"><svg class="icon"><use href="#i-download"/></svg><span class="btn-label">PDF</span> <svg class="icon icon-chevron"><use href="#i-chevron-down"/></svg></button>
       <div class="dropdown-panel" id="dropdown-panel-pdf">
         <button class="dropdown-item" id="btn-pdf-completo"><svg class="icon"><use href="#i-download"/></svg>Informe completo</button>
-        <button class="dropdown-item" id="btn-pdf-levantamiento"><svg class="icon"><use href="#i-download"/></svg>Solo levantamiento</button>
+        <button class="dropdown-item" id="btn-pdf-levantamiento"><svg class="icon"><use href="#i-download"/></svg>Levantamiento detallado</button>
+        <button class="dropdown-item" id="btn-pdf-levantamiento-resumido"><svg class="icon"><use href="#i-download"/></svg>Levantamiento resumido</button>
         <button class="dropdown-item" id="btn-pdf-resumen"><svg class="icon"><use href="#i-download"/></svg>Solo resumen</button>
         <div class="dropdown-sep"></div>
         <button class="dropdown-item" id="btn-pdf-memoria"><svg class="icon"><use href="#i-download"/></svg>Memoria de Cálculo</button>
@@ -176,8 +177,8 @@
 </header>
 
 <div class="lev-launch-bar">
-  <button type="button" id="btn-abrir-levantamiento" class="lev-launch-btn"><svg class="icon"><use href="#i-plus"/></svg>Levantamiento Penetrantes</button>
-  <button type="button" id="btn-abrir-levantamiento-juntas" class="lev-launch-btn"><svg class="icon"><use href="#i-plus"/></svg>Levantamiento Juntas</button>
+  <button type="button" id="btn-abrir-levantamiento" class="lev-launch-btn"><svg class="icon"><use href="#i-clipboard"/></svg><span class="lev-launch-label-full">Levantamiento Penetrantes</span><span class="lev-launch-label-short">Penetrantes</span></button>
+  <button type="button" id="btn-abrir-levantamiento-juntas" class="lev-launch-btn"><svg class="icon"><use href="#i-clipboard"/></svg><span class="lev-launch-label-full">Levantamiento Juntas</span><span class="lev-launch-label-short">Juntas</span></button>
 </div>
 
 <div class="config-bar-wrap">
@@ -241,13 +242,22 @@
       <div class="cfg-group">
         <div class="cfg-group-title">Base de Datos — matrices maestras</div>
         <p class="hint" style="margin:0 0 8px;font-size:var(--fs-xs)">Editar sistemas UL, links o espesores. Se muestra un resumen antes de aplicar cambios.</p>
-        <div class="cfg-bd-grid">
-          <button class="secondary cfg-bd-btn" id="btn-bd-export-penetrantes"><svg class="icon"><use href="#i-download"/></svg>Exportar Penetrantes</button>
-          <button class="secondary cfg-bd-btn" id="btn-bd-import-penetrantes"><svg class="icon"><use href="#i-upload"/></svg>Importar Penetrantes</button>
-          <button class="secondary cfg-bd-btn" id="btn-bd-export-juntas"><svg class="icon"><use href="#i-download"/></svg>Exportar Juntas</button>
-          <button class="secondary cfg-bd-btn" id="btn-bd-import-juntas"><svg class="icon"><use href="#i-upload"/></svg>Importar Juntas</button>
-        </div>
-        <button class="secondary cfg-bd-btn" id="btn-bd-restaurar" style="width:100%;margin-top:6px;justify-content:center"><svg class="icon"><use href="#i-close"/></svg>Restaurar matrices originales</button>
+        <table class="cfg-bd-table">
+          <thead><tr><th></th><th>Exportar</th><th>Importar</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Penetrantes</td>
+              <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-export-penetrantes" title="Exportar Penetrantes"><svg class="icon"><use href="#i-download"/></svg></button></td>
+              <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-import-penetrantes" title="Importar Penetrantes"><svg class="icon"><use href="#i-upload"/></svg></button></td>
+            </tr>
+            <tr>
+              <td>Juntas</td>
+              <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-export-juntas" title="Exportar Juntas"><svg class="icon"><use href="#i-download"/></svg></button></td>
+              <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-import-juntas" title="Importar Juntas"><svg class="icon"><use href="#i-upload"/></svg></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="secondary cfg-bd-restaurar" id="btn-bd-restaurar"><svg class="icon"><use href="#i-close"/></svg>Restaurar matrices originales</button>
         <input type="file" id="file-import-matriz-penetrantes" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
         <input type="file" id="file-import-matriz-juntas" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
       </div>
@@ -311,10 +321,14 @@
 
   <section id="panel-levantamiento-tab" class="tab-panel active">
     <div class="lev-tab-wrap">
+      <div class="lev-vista-toggle" id="lev-vista-toggle-global">
+        <button type="button" class="lev-chip lev-chip-active" data-lev-vista-global="detallado">Detallado</button>
+        <button type="button" class="lev-chip" data-lev-vista-global="resumido">Resumido</button>
+      </div>
+
       <h3 class="lev-tab-subtitle">Penetrantes</h3>
       <div class="lev-tab-header">
         <div id="lev-tab-stats" class="lev-tab-stats"></div>
-        <button type="button" class="primary" id="btn-lev-tab-abrir"><svg class="icon"><use href="#i-plus"/></svg>Seguir capturando</button>
       </div>
       <div id="lev-tab-lista"></div>
 
@@ -323,7 +337,6 @@
       <h3 class="lev-tab-subtitle">Juntas</h3>
       <div class="lev-tab-header">
         <div id="levj-tab-stats" class="lev-tab-stats"></div>
-        <button type="button" class="primary" id="btn-levj-tab-abrir"><svg class="icon"><use href="#i-plus"/></svg>Seguir capturando</button>
       </div>
       <div id="levj-tab-lista"></div>
       <div id="levj-tab-calculo"></div>

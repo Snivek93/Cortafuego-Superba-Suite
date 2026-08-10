@@ -273,11 +273,22 @@ function initApp() {
 
   document.getElementById("btn-abrir-levantamiento").addEventListener("click", abrirLevantamiento);
 
+  // Toggle único Detallado/Resumido: controla a la vez la tabla de
+  // Penetrantes y la de Juntas dentro del tab Levantamiento.
+  document.querySelectorAll("#lev-vista-toggle-global [data-lev-vista-global]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      VISTA_LEVANTAMIENTO_TAB = btn.dataset.levVistaGlobal;
+      document.querySelectorAll("#lev-vista-toggle-global [data-lev-vista-global]").forEach(b => {
+        b.classList.toggle("lev-chip-active", b.dataset.levVistaGlobal === VISTA_LEVANTAMIENTO_TAB);
+      });
+      renderLevantamientoTab();
+      renderLevantamientoTabJuntas();
+    });
+  });
+
   // Configuración ahora es un modal — ver tema-claro-oscuro.js
   document.getElementById("btn-abrir-levantamiento-juntas").addEventListener("click", abrirLevantamientoJuntas);
   document.getElementById("btn-cerrar-levantamiento").addEventListener("click", cerrarLevantamiento);
-  document.getElementById("btn-lev-tab-abrir").addEventListener("click", abrirLevantamiento);
-  document.getElementById("btn-levj-tab-abrir").addEventListener("click", abrirLevantamientoJuntas);
 
   document.getElementById("btn-abrir-instrucciones").addEventListener("click", () => {
     document.getElementById("instrucciones-modal").classList.add("open");
@@ -393,6 +404,7 @@ function initApp() {
 
   document.getElementById("btn-pdf-completo").addEventListener("click", () => descargarPDF("completo"));
   document.getElementById("btn-pdf-levantamiento").addEventListener("click", () => descargarPDF("levantamiento"));
+  document.getElementById("btn-pdf-levantamiento-resumido").addEventListener("click", () => descargarPDF("levantamiento-resumido"));
   document.getElementById("btn-pdf-resumen").addEventListener("click", () => descargarPDF("resumen"));
   document.getElementById("btn-pdf-memoria").addEventListener("click", descargarMemoriaCalculoPDF);
 

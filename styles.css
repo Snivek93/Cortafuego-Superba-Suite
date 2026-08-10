@@ -152,6 +152,7 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
   .lev-launch-btn:hover { background: var(--hilti-red-dark); }
 }
 .lev-launch-btn .icon { width: 20px; height: 20px; }
+.lev-launch-label-short { display: none; }
 
 .config-bar-wrap { background: var(--surface); border-bottom: 1px solid var(--border); }
 .config-toggle {
@@ -185,6 +186,15 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 @media (max-width: 700px) {
   .cfg-divider { display: none; }
   .cfg-hint { margin: 4px 0 0; max-width: none; }
+  /* Botones de Levantamiento: en vez de apilarse uno sobre el otro, quedan
+     lado a lado, más "cuadrados" (ícono grande arriba, texto corto abajo). */
+  .lev-launch-bar { flex-wrap: nowrap; padding: 10px 14px; }
+  .lev-launch-btn {
+    flex: 1 1 0; flex-direction: column; gap: 6px; padding: 14px 8px; font-size: var(--fs-sm);
+  }
+  .lev-launch-btn .icon { width: 26px; height: 26px; }
+  .lev-launch-label-full { display: none; }
+  .lev-launch-label-short { display: inline; }
 }
 
 /* --- Menú desplegable "Proyecto" --- */
@@ -404,6 +414,10 @@ table.resumen-table th.num, table.resumen-table td.num { text-align: right; }
 table.resumen-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
 table.resumen-table tbody tr:last-child td { border-bottom: none; }
 table.resumen-table .num { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Tablas de Levantamiento (Detallado y Resumido, Penetrantes y Juntas):
+   todas las columnas de datos centradas, incluidas las numéricas. */
+table.lev-tabla-resultados th, table.lev-tabla-resultados td,
+table.lev-tabla-resultados th.num, table.lev-tabla-resultados td.num { text-align: center; }
 #tabla-normativa th:nth-child(2), #tabla-normativa td:nth-child(2) { white-space: nowrap; }
 #tabla-fichas td:nth-child(2), #tabla-fichas th:nth-child(2) { white-space: nowrap; text-align: right; }
 /* Fichas Técnicas: siempre ocupa el ancho disponible (desktop y móvil). */
@@ -563,6 +577,8 @@ body.modo-levantamiento #levantamiento-fullscreen {
 
 .lev-toggle-group { display: flex; gap: 6px; }
 .lev-toggle-group .lev-chip { flex: 1; padding: 10px 4px; font-size: var(--fs-sm); }
+.lev-vista-toggle { display: flex; gap: 6px; margin-bottom: 12px; max-width: 280px; }
+.lev-vista-toggle .lev-chip { padding: 8px 16px; font-size: var(--fs-sm); }
 .lev-section > label.lev-checkbox-row {
   display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: var(--fs-sm); font-weight: 600;
   color: var(--ink); cursor: pointer; text-transform: none; letter-spacing: normal;
@@ -576,23 +592,53 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .lev-stepper button:active { background: var(--grey-2); }
 .lev-stepper input { flex: 1; min-width: 0; border: none; text-align: center; font-size: 16px; font-weight: 600; padding: 10px 4px; color: var(--ink); background: var(--surface); }
 .lev-stepper-full { max-width: none; flex-wrap: wrap; border: none; overflow: visible; gap: 10px; justify-content: center; }
-.qty-btn-group { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; flex-shrink: 0; }
+/* Botones agrupados de Cantidad (Levantamiento Penetrantes y Juntas):
+   el salto de 1 (el más usado) es el más grande y con más contraste;
+   5 y 10 se van achicando y aclarando hacia afuera. Un tinte de color
+   separa restar (gris) de sumar (rojo, tenue para no competir con las
+   alertas reales de la app). */
+.qty-btn-group { display: flex; border-radius: var(--radius); overflow: hidden; flex-shrink: 0; }
 .qty-btn-group button {
-  border: none; border-right: 1px solid var(--border); background: var(--surface); color: var(--ink);
-  font-size: var(--fs-sm); font-weight: 600; padding: 11px 13px; cursor: pointer; min-width: 44px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; cursor: pointer; font-weight: 700; color: #fff; letter-spacing: 0.3px;
 }
-.qty-btn-group button:last-child { border-right: none; }
 @media (hover: hover) and (pointer: fine) {
-  .qty-btn-group button:hover { background: var(--grey-1); }
+  .qty-btn-group button:hover { filter: brightness(0.94); }
 }
-.qty-btn-group button:active { background: var(--grey-2); }
+.qty-btn-group button:active { filter: brightness(0.85); }
+.qty-btn-group-minus button:nth-child(1) { background: var(--grey-2); color: var(--text-secondary); font-size: var(--fs-sm); padding: 12px 18px; }
+.qty-btn-group-minus button:nth-child(2) { background: #a8a8ae; color: #fff; font-size: var(--fs-base); padding: 13px 20px; }
+.qty-btn-group-minus button:nth-child(3) { background: #6b6b70; color: #fff; font-size: var(--fs-lg); padding: 14px 24px; }
+.qty-btn-group-plus button:nth-child(1) { background: var(--hilti-red); color: #fff; font-size: var(--fs-lg); padding: 14px 24px; }
+.qty-btn-group-plus button:nth-child(2) { background: #ec5a68; color: #fff; font-size: var(--fs-base); padding: 13px 20px; }
+.qty-btn-group-plus button:nth-child(3) { background: #f4a3ac; color: #7a0010; font-size: var(--fs-sm); padding: 12px 18px; }
+/* Valor central: claramente distinto de los botones — borde marcado,
+   fondo propio, sombra interna sutil, más grande y más alto. Se lee
+   como campo editable, no como un botón más de la fila. */
 .lev-stepper-full input {
-  flex: 0 0 76px; border: 1px solid var(--border); border-radius: var(--radius); text-align: center;
-  font-size: 18px; font-weight: 700; padding: 10px 4px; color: var(--ink); background: var(--surface);
+  flex: 0 0 84px; border: 2px solid var(--ink); border-radius: var(--radius); text-align: center;
+  font-size: 22px; font-weight: 800; padding: 10px 6px; color: var(--ink); background: var(--surface-raised);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.12);
 }
 
 .lev-add-btn { width: 100%; padding: 15px; font-size: var(--fs-md); font-weight: 700; margin-bottom: 24px; border-radius: var(--radius); }
 .lev-add-btn:disabled { background: var(--grey-3); cursor: not-allowed; }
+@media (max-width: 700px) {
+  /* Stepper de Cantidad: en móvil ocupa todo el ancho disponible (no se
+     achica ni queda apretado) pero sin pasar a una segunda fila. Los
+     botones se estiran con flex-grow — ±1 crece más porque es el que más
+     se toca, ±10 crece menos — en vez de usar paddings fijos. */
+  .lev-stepper-full { flex-wrap: nowrap; gap: 6px; width: 100%; }
+  .qty-btn-group { flex: 1 1 0; min-width: 0; }
+  .qty-btn-group button { flex: 1 1 0; min-width: 0; padding: 12px 2px; white-space: nowrap; overflow: hidden; }
+  .qty-btn-group-minus button:nth-child(1),
+  .qty-btn-group-plus button:nth-child(3) { flex-grow: 0.85; font-size: var(--fs-2xs); }
+  .qty-btn-group-minus button:nth-child(2),
+  .qty-btn-group-plus button:nth-child(2) { flex-grow: 1; font-size: var(--fs-xs); }
+  .qty-btn-group-minus button:nth-child(3),
+  .qty-btn-group-plus button:nth-child(1) { flex-grow: 1.3; font-size: var(--fs-sm); }
+  .lev-stepper-full input { flex: 0 1 78px; font-size: 18px; padding: 8px 2px; }
+}
 
 .lev-zona-group { margin-bottom: 14px; }
 .lev-tab-subtitle { margin: 0 0 10px; font-size: var(--fs-lg); color: var(--text); }
@@ -632,7 +678,8 @@ body.modo-levantamiento #levantamiento-fullscreen {
   background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px;
   display: flex; flex-direction: column; align-items: center; min-width: 70px;
 }
-.lev-stat-num { font-size: var(--fs-xl); font-weight: 800; color: var(--hilti-red); line-height: 1.1; }
+.lev-stat-num { font-size: var(--fs-xl); font-weight: 800; color: var(--ink); line-height: 1.1; }
+.lev-stat-num.is-zero { color: var(--text-muted); font-weight: 700; }
 .lev-stat-label { font-size: var(--fs-2xs); color: var(--text-muted); text-transform: uppercase; margin-top: 3px; }
 
 /* ============================================================
@@ -826,16 +873,24 @@ body.tf-open #levantamiento-fullscreen {
   padding-bottom: 260px;
 }
 
-/* ── Sección Base de Datos dentro del modal de Configuración (compacta) ── */
-.cfg-bd-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+/* ── Sección Base de Datos dentro del modal de Configuración (compacta) ──
+   Tabla: "Exportar"/"Importar" como encabezado de columna, "Penetrantes"/
+   "Juntas" como fila — evita repetir cada palabra dos veces. */
+.cfg-bd-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+.cfg-bd-table th {
+  font-size: var(--fs-2xs); color: var(--text-muted); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.3px; padding-bottom: 8px; text-align: center;
 }
-.cfg-bd-btn {
-  font-size: var(--fs-xs); padding: 8px 10px;
-  display: flex; align-items: center; gap: 6px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.cfg-bd-table th:first-child { text-align: left; }
+.cfg-bd-table td { padding: 6px 0; border-top: 1px solid var(--border); }
+.cfg-bd-table td:first-child { font-size: var(--fs-base); font-weight: 700; color: var(--ink); padding-right: 10px; }
+.cfg-bd-table td:not(:first-child) { text-align: center; }
+.cfg-bd-icon-btn {
+  width: 38px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
 }
-.cfg-bd-btn .icon { width: 15px; height: 15px; flex-shrink: 0; margin-right: 0; }
-@media (max-width: 420px) {
-  .cfg-bd-grid { grid-template-columns: 1fr; }
+.cfg-bd-icon-btn .icon { width: 15px; height: 15px; margin-right: 0; }
+.cfg-bd-restaurar {
+  width: 100%; justify-content: center; font-size: var(--fs-xs); padding: 8px 10px;
+  display: flex; align-items: center; gap: 6px; border-style: dashed; color: var(--text-muted);
 }
+.cfg-bd-restaurar .icon { width: 15px; height: 15px; margin-right: 0; }

@@ -4,8 +4,26 @@
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
 // ============================================================================
 
-// Guardar / Cargar proyecto (.json) — memoria portátil, sin guardado local
+// Guardar / Cargar proyecto (.fss) — memoria portátil, sin guardado local
 // ============================================================================
+// El .fss es un .json "enmascarado": mismo contenido, pero en base64 con un
+// prefijo identificador, para que no se abra/edite por error como texto
+// plano. Los .json exportados con versiones anteriores se siguen aceptando
+// al importar (se detecta por la ausencia del prefijo FSS_MAGIC).
+const FSS_MAGIC = "FSS1:";
+
+function enmascararFSS(jsonString) {
+  return FSS_MAGIC + btoa(unescape(encodeURIComponent(jsonString)));
+}
+
+function desenmascararFSS(contenido) {
+  if (contenido.startsWith(FSS_MAGIC)) {
+    const b64 = contenido.slice(FSS_MAGIC.length);
+    return decodeURIComponent(escape(atob(b64)));
+  }
+  return contenido; // compatibilidad: .json plano exportado antes del formato .fss
+}
+
 function descargarArchivo(filename, content, mime) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -18,8 +36,9 @@ function descargarArchivo(filename, content, mime) {
 function exportarProyectoJSON() {
   const payload = datosProyectoActual();
   const nombre = (PROJECT_INFO.nombre || "proyecto").replace(/[^a-z0-9\-_ ]/gi, "").trim().replace(/\s+/g, "-") || "proyecto";
-  descargarArchivo(`${nombre}-cortafuego.json`, JSON.stringify(payload, null, 1), "application/json");
-  mostrarToast("Proyecto descargado como archivo .json");
+  const jsonStr = JSON.stringify(payload, null, 1);
+  descargarArchivo(`${nombre}-cortafuego.fss`, enmascararFSS(jsonStr), "application/octet-stream");
+  mostrarToast("Proyecto descargado como archivo .fss");
 }
 
 function aplicarProyectoImportado(data) {
@@ -45,10 +64,11 @@ function importarProyectoJSON(file) {
   reader.onload = () => {
     let data;
     try {
-      data = JSON.parse(reader.result);
+      const contenido = desenmascararFSS(reader.result);
+      data = JSON.parse(contenido);
       if (!data || !Array.isArray(data.filas)) throw new Error("Formato no reconocido");
     } catch (err) {
-      mostrarToast("No se pudo leer el archivo. Verificá que sea un .json exportado desde esta calculadora.", "error");
+      mostrarToast("No se pudo leer el archivo. Verificá que sea un .fss (o .json) exportado desde esta calculadora.", "error");
       return;
     }
     if (ROWS.length > 0) {

@@ -396,16 +396,16 @@ function renderLevantamientoJuntas(cont) {
       <div class="lev-section">
         <label>Cantidad</label>
         <div class="lev-stepper lev-stepper-full">
-          <div class="qty-btn-group">
-            <button type="button" data-levj-cant="-10">−10</button>
-            <button type="button" data-levj-cant="-5">−5</button>
-            <button type="button" data-levj-cant="-1">−1</button>
+          <div class="qty-btn-group qty-btn-group-minus">
+            <button type="button" data-levj-cant="-10">− 10</button>
+            <button type="button" data-levj-cant="-5">− 5</button>
+            <button type="button" data-levj-cant="-1">− 1</button>
           </div>
           <input type="number" inputmode="numeric" id="levj-cantidad" value="${LEV_J.cantidad}" min="1">
-          <div class="qty-btn-group">
-            <button type="button" data-levj-cant="1">+1</button>
-            <button type="button" data-levj-cant="5">+5</button>
-            <button type="button" data-levj-cant="10">+10</button>
+          <div class="qty-btn-group qty-btn-group-plus">
+            <button type="button" data-levj-cant="1">+ 1</button>
+            <button type="button" data-levj-cant="5">+ 5</button>
+            <button type="button" data-levj-cant="10">+ 10</button>
           </div>
         </div>
       </div>
@@ -922,16 +922,16 @@ function renderLevantamiento() {
       <div class="lev-section">
         <label>Cantidad</label>
         <div class="lev-stepper lev-stepper-full">
-          <div class="qty-btn-group">
-            <button type="button" data-lev-cant-delta="-10">−10</button>
-            <button type="button" data-lev-cant-delta="-5">−5</button>
-            <button type="button" data-lev-cant-delta="-1">−1</button>
+          <div class="qty-btn-group qty-btn-group-minus">
+            <button type="button" data-lev-cant-delta="-10">− 10</button>
+            <button type="button" data-lev-cant-delta="-5">− 5</button>
+            <button type="button" data-lev-cant-delta="-1">− 1</button>
           </div>
           <input type="number" inputmode="numeric" id="lev-cantidad" value="${LEV.cantidad}" min="1" step="1">
-          <div class="qty-btn-group">
-            <button type="button" data-lev-cant-delta="1">+1</button>
-            <button type="button" data-lev-cant-delta="5">+5</button>
-            <button type="button" data-lev-cant-delta="10">+10</button>
+          <div class="qty-btn-group qty-btn-group-plus">
+            <button type="button" data-lev-cant-delta="1">+ 1</button>
+            <button type="button" data-lev-cant-delta="5">+ 5</button>
+            <button type="button" data-lev-cant-delta="10">+ 10</button>
           </div>
         </div>
       </div>
@@ -1409,6 +1409,87 @@ function renderTablaAgrupadaHTML(grupos) {
     </div>`;
 }
 
+// Clase CSS para los números de las tarjetas de estado del Levantamiento:
+// gris/atenuado cuando todavía no hay datos (0), color normal cuando sí hay.
+function claseStatNum(valor) {
+  return valor > 0 ? "lev-stat-num" : "lev-stat-num is-zero";
+}
+
+// Vista de las tablas de Levantamiento (Penetrantes y Juntas a la vez):
+// "detallado" (una fila por elemento, editable) o "resumido" (agrupado por
+// características, de solo lectura). Un solo toggle controla ambas tablas.
+let VISTA_LEVANTAMIENTO_TAB = "detallado";
+
+// Agrupa penetrantes que comparten: tipo, dimensión, espacio anular,
+// producto Hilti, tipo de barrera y material de barrera — sin importar
+// zona/nivel ni F Rating (el F Rating solo cambia en cajas electromecánicas
+// grandes, que ya son casos muy puntuales/únicos).
+function agruparPenetrantesPorCaracteristicas() {
+  const grupos = [];
+  const idxPorClave = new Map();
+  ROWS.filter(tieneDatosMinimos).forEach(r => {
+    const key = [r.L, r.D, r.F, r.G, r.H, r.I, r.P, r.M, r.N].join("‖");
+    if (!idxPorClave.has(key)) {
+      idxPorClave.set(key, grupos.length);
+      grupos.push({ rep: r, cantidad: 0, filas: 0 });
+    }
+    const g = grupos[idxPorClave.get(key)];
+    g.cantidad += n(r.C);
+    g.filas += 1;
+  });
+  return grupos;
+}
+
+function renderTablaResumidaPenetrantesHTML(grupos) {
+  if (grupos.length === 0) return `<div class="hint" style="margin:16px 0 0;">Todavía no hay penetrantes registrados. Usá "Levantamiento" arriba.</div>`;
+
+  return `
+    <div class="table-scroll">
+      <table class="resumen-table lev-tabla-resultados">
+        <thead><tr>
+          <th class="num">Cant. Total</th>
+          <th>Penetrante</th><th>Dimensión</th><th>Anular</th>
+          <th>Barrera</th><th>Producto</th><th>Sistema UL</th>
+          <th colspan="2">Resultados</th>
+        </tr></thead>
+        <tbody>
+          ${grupos.map(({ rep: r, cantidad, filas }) => {
+            const filaSintetica = Object.assign({}, r, { C: cantidad });
+            const c = computeRow(filaSintetica, CONFIG);
+
+            const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
+            let dimBase;
+            if (r.D !== "") dimBase = formatFraccionPulgadas(r.D);
+            else if (esRedondoLibre) dimBase = `⌀${formatFraccionPulgadas(n(r.F)/2.54)}`;
+            else if (r.F !== "") dimBase = `${r.F}×${r.G}${r.H !== "" ? "×"+r.H : ""} cm`;
+            else dimBase = "—";
+            const esAisl = n(r.E) > 0;
+            const dimHtml = dimBase + (esAisl ? `<br><span class="lev-dim-aisl">+${formatFraccionPulgadas(r.E)} aisl</span>` : "");
+
+            const tipoLabel = escapeHtml(TIPO_LABEL_CORTO[r.L] || r.L);
+
+            const ulBadge = (c.Qtext && c.Qtext !== "-" && !["Sin sistema","Cambiar material a Pasta FS ONE MAX","Cambiar material a pasta FS ONE MAX"].includes(c.Qtext))
+              ? `<a href="${escapeHtml(c.Qlink||"")}" target="_blank" rel="noopener" class="badge badge-ok" title="${escapeHtml(c.Qtext)}">${escapeHtml(c.Qtext.split(" ")[0])}</a>`
+              : "—";
+
+            const detalleRes = detalleCalculoTexto(c);
+
+            return `<tr>
+              <td class="num"><strong>${cantidad}</strong></td>
+              <td>${tipoLabel}</td>
+              <td>${dimHtml}</td>
+              <td>${levOcultaAnular(r.L) ? "—" : formatFraccionPulgadas(r.I)}</td>
+              <td>${escapeHtml(r.M)}<br><span class="lev-sub-label">${escapeHtml(r.N)}${r.MEM ? " · membrana" : ""}</span></td>
+              <td>${escapeHtml(PROD_LABEL[r.P] || r.P) || "—"}</td>
+              <td>${ulBadge}</td>
+              <td colspan="2" class="lev-col-resultado" style="font-size:var(--fs-xs)">${detalleRes}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
 function renderLevantamientoTab() {
   const statsBox = document.getElementById("lev-tab-stats");
   const listaBox = document.getElementById("lev-tab-lista");
@@ -1419,14 +1500,16 @@ function renderLevantamientoTab() {
   const totalUnidades = grupos.reduce((acc, g) => acc + g.items.reduce((sum, r) => sum + n(r.C), 0), 0);
 
   statsBox.innerHTML = `
-    <div class="lev-stat"><span class="lev-stat-num">${totalItems}</span><span class="lev-stat-label">Filas</span></div>
-    <div class="lev-stat"><span class="lev-stat-num">${totalUnidades}</span><span class="lev-stat-label">Penetrantes</span></div>
-    <div class="lev-stat"><span class="lev-stat-num">${grupos.length}</span><span class="lev-stat-label">Zonas</span></div>
+    <div class="lev-stat"><span class="${claseStatNum(totalItems)}">${totalItems}</span><span class="lev-stat-label">Filas</span></div>
+    <div class="lev-stat"><span class="${claseStatNum(totalUnidades)}">${totalUnidades}</span><span class="lev-stat-label">Penetrantes</span></div>
+    <div class="lev-stat"><span class="${claseStatNum(grupos.length)}">${grupos.length}</span><span class="lev-stat-label">Zonas</span></div>
   `;
 
   listaBox.innerHTML = totalItems === 0
     ? `<div class="hint" style="margin:16px 0 0;">Todavía no hay penetrantes registrados. Usá "Levantamiento" arriba, o cargá filas directo en la pestaña Calculadora.</div>`
-    : renderTablaAgrupadaHTML(grupos);
+    : (VISTA_LEVANTAMIENTO_TAB === "detallado"
+        ? renderTablaAgrupadaHTML(grupos)
+        : renderTablaResumidaPenetrantesHTML(agruparPenetrantesPorCaracteristicas()));
 
   listaBox.querySelectorAll("[data-lev-del-btn]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1483,7 +1566,7 @@ function renderTablaJuntasHTML(grupos) {
 
   return `
     <div class="table-scroll">
-      <table class="resumen-table">
+      <table class="resumen-table lev-tabla-resultados">
         <thead><tr>
           <th>Zona</th><th>Nivel</th><th class="num">Cant.</th><th>Junta</th><th>Barreras</th><th>Producto</th>
           <th class="num">Longitud (cm)</th><th class="num">Ancho (cm)</th><th class="num">Espesor</th><th class="num">Sellador (cm³)</th><th class="num">Lana (unid.)</th><th>Nota</th><th></th>
@@ -1516,6 +1599,64 @@ function renderTablaJuntasHTML(grupos) {
     </div>`;
 }
 
+// (La vista Detallado/Resumido de Juntas usa la misma variable compartida
+// VISTA_LEVANTAMIENTO_TAB, definida arriba junto a Penetrantes — un solo
+// toggle controla ambas tablas.)
+
+// Agrupa juntas que comparten: tipo de junta, barreras, producto y ancho
+// (criterio pedido). También se separa por lados/posición porque esos sí
+// cambian la fórmula de cálculo por unidad de longitud (mezclarlos daría
+// un resultado incorrecto, no solo una simplificación visual). Se suma la
+// longitud total (longitud × cantidad de cada fila) para que el cálculo
+// de sellador/lana sobre el grupo dé exactamente lo mismo que sumar cada
+// fila por separado.
+function agruparJuntasPorCaracteristicas() {
+  const grupos = [];
+  const idxPorClave = new Map();
+  ROWS_J.filter(tieneDatosMinimosJunta).forEach(r => {
+    const key = [r.junta, r.tipo, r.barreras, r.producto, r.ancho, r.lados, r.posicion, r.posicionPI].join("‖");
+    if (!idxPorClave.has(key)) {
+      idxPorClave.set(key, grupos.length);
+      grupos.push({ rep: r, longitudTotal: 0, filas: 0 });
+    }
+    const g = grupos[idxPorClave.get(key)];
+    g.longitudTotal += n(r.longitud) * (n(r.cantidad) || 1);
+    g.filas += 1;
+  });
+  return grupos;
+}
+
+function renderTablaResumidaJuntasHTML(grupos) {
+  if (grupos.length === 0) return `<div class="hint" style="margin:16px 0 0;">Todavía no hay juntas registradas. Usá "Levantamiento Juntas" arriba.</div>`;
+
+  return `
+    <div class="table-scroll">
+      <table class="resumen-table lev-tabla-resultados">
+        <thead><tr>
+          <th>Junta</th><th>Barreras</th><th>Producto</th>
+          <th class="num">Longitud Total (cm)</th><th class="num">Ancho (cm)</th>
+          <th class="num">Sellador (cm³)</th><th class="num">Lana (unid.)</th>
+        </tr></thead>
+        <tbody>
+          ${grupos.map(({ rep: r, longitudTotal }) => {
+            const filaSintetica = Object.assign({}, r, { longitud: longitudTotal, cantidad: 1 });
+            const f = computeJuntaRow(filaSintetica);
+            const lanaUnid = r.calcularLana ? lanaUnidadesSinRedondear(f) : 0;
+            return `<tr>
+              <td>${escapeHtml(juntaLabelCorta(r, f.superiorInferior))}</td>
+              <td>${escapeHtml(barrerasLabelCorto(r.barreras))}</td>
+              <td>${escapeHtml(r.producto)}</td>
+              <td class="num"><strong>${Math.round(longitudTotal)}</strong></td>
+              <td class="num">${r.ancho}</td>
+              <td class="num">${roundup(f.volumenSellador, 0)}</td>
+              <td class="num">${r.calcularLana ? (lanaUnid > 0 ? lanaUnid.toFixed(2) : "—") : "No"}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
 function renderLevantamientoTabJuntas() {
   const statsBox = document.getElementById("levj-tab-stats");
   const listaBox = document.getElementById("levj-tab-lista");
@@ -1526,14 +1667,16 @@ function renderLevantamientoTabJuntas() {
   const totalUnidades = grupos.reduce((acc, g) => acc + g.items.reduce((sum, r) => sum + n(r.cantidad), 0), 0);
 
   statsBox.innerHTML = `
-    <div class="lev-stat"><span class="lev-stat-num">${totalItems}</span><span class="lev-stat-label">Filas</span></div>
-    <div class="lev-stat"><span class="lev-stat-num">${totalUnidades}</span><span class="lev-stat-label">Juntas</span></div>
-    <div class="lev-stat"><span class="lev-stat-num">${grupos.length}</span><span class="lev-stat-label">Zonas</span></div>
+    <div class="lev-stat"><span class="${claseStatNum(totalItems)}">${totalItems}</span><span class="lev-stat-label">Filas</span></div>
+    <div class="lev-stat"><span class="${claseStatNum(totalUnidades)}">${totalUnidades}</span><span class="lev-stat-label">Juntas</span></div>
+    <div class="lev-stat"><span class="${claseStatNum(grupos.length)}">${grupos.length}</span><span class="lev-stat-label">Zonas</span></div>
   `;
 
   listaBox.innerHTML = totalItems === 0
-    ? `<div class="hint" style="margin:16px 0 0;">Todavía no hay juntas registradas. Usá "Seguir capturando" arriba.</div>`
-    : renderTablaJuntasHTML(grupos);
+    ? `<div class="hint" style="margin:16px 0 0;">Todavía no hay juntas registradas. Usá "Levantamiento Juntas" arriba, o cargá filas directo en la pestaña Calculadora.</div>`
+    : (VISTA_LEVANTAMIENTO_TAB === "detallado"
+        ? renderTablaJuntasHTML(grupos)
+        : renderTablaResumidaJuntasHTML(agruparJuntasPorCaracteristicas()));
 
   listaBox.querySelectorAll("[data-levj-tab-del]").forEach(btn => {
     btn.addEventListener("click", () => {

@@ -51,7 +51,7 @@ function dibujarNumeroPaginaPDF(doc, pagina, total) {
 }
 
 function construirReportePDF(opciones) {
-  const opts = Object.assign({ levantamiento: true, resumen: true }, opciones);
+  const opts = Object.assign({ levantamiento: true, levantamientoResumido: false, resumen: true }, opciones);
   const computed = computeAllRows().filter(tieneDatosMinimos);
   const resumen = computeResumen(computed, CONFIG.C17, {
     FS_ONE_MAX: CONFIG.UMB_FS, CP606: CONFIG.UMB_CP606, CFS_SIL_GG: CONFIG.UMB_SILGG
@@ -65,8 +65,9 @@ function construirReportePDF(opciones) {
   const marginR = 40;
   const espacioEntreTablas = 34;
 
-  const tituloReporte = !opts.resumen ? "Levantamiento — Penetrantes y Juntas"
-    : !opts.levantamiento ? "Resumen de Materiales y Normativa"
+  const tituloReporte = !opts.resumen && opts.levantamientoResumido ? "Levantamiento Resumido — Penetrantes y Juntas"
+    : !opts.resumen ? "Levantamiento — Penetrantes y Juntas"
+    : !opts.levantamiento && !opts.levantamientoResumido ? "Resumen de Materiales y Normativa"
     : "Informe Sellos Cortafuego";
 
   const safe = dibujarLetterheadPDF(doc, tituloReporte);
@@ -189,6 +190,71 @@ function construirReportePDF(opciones) {
     y = doc.lastAutoTable.finalY + espacioEntreTablas;
   }
 
+  // Levantamiento resumido: penetrantes agrupados por características
+  // (tipo, dimensión, anular, producto, barrera y material — sin F Rating),
+  // con cantidad total por grupo. Juntas se muestra igual que en el
+  // detallado, ya que hoy no tiene una vista agrupada propia.
+  if (opts.levantamientoResumido) {
+    const gruposPen = agruparPenetrantesPorCaracteristicas();
+    asegurarEspacio(alturaTablaAprox(gruposPen.length, 8, 4));
+    dibujarTituloSeccion("Levantamiento Resumido — Penetrantes");
+    doc.autoTable({
+      startY: y,
+      margin: tableMargin,
+      pageBreak: "avoid",
+      head: [["Cant. Total", "Penetrante", "Dimensión", "Anular", "Barrera", "Producto", "Resultados"]],
+      body: gruposPen.length
+        ? gruposPen.map(({ rep: r, cantidad }) => {
+            const filaSintetica = Object.assign({}, r, { C: cantidad });
+            const c = computeRow(filaSintetica, CONFIG);
+            const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
+            let dim;
+            if (r.D !== "") dim = formatFraccionPulgadas(r.D);
+            else if (esRedondoLibre) dim = `⌀${formatFraccionPulgadas(n(r.F)/2.54)}`;
+            else if (r.F !== "") dim = `${r.F}×${r.G}${r.H !== "" ? "×"+r.H : ""} cm`;
+            else dim = "—";
+            return [
+              String(cantidad), TIPO_LABEL_CORTO[r.L] || r.L, dim,
+              levOcultaAnular(r.L) ? "—" : formatFraccionPulgadas(r.I),
+              `${r.M} / ${r.N}`, PROD_LABEL[r.P] || r.P || "—",
+              detalleCalculoTexto(c, true),
+            ];
+          })
+        : [["", "Sin filas registradas", "", "", "", "", ""]],
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [26, 26, 26], textColor: 255 },
+      didDrawPage: dibujarCabeceraPagina,
+    });
+    y = doc.lastAutoTable.finalY + espacioEntreTablas;
+
+    asegurarEspacio(alturaTablaAprox(computedJ_pdf.length, 8, 4));
+    dibujarTituloSeccion("Levantamiento Resumido — Juntas");
+    const gruposJ = agruparJuntasPorCaracteristicas();
+    doc.autoTable({
+      startY: y,
+      margin: tableMargin,
+      pageBreak: "avoid",
+      head: [["Junta", "Barreras", "Producto", "Longitud Total (cm)", "Ancho (cm)", "Sellador (cm3)", "Lana (unid.)"]],
+      body: gruposJ.length
+        ? gruposJ.map(({ rep: r, longitudTotal }) => {
+            const filaSintetica = Object.assign({}, r, { longitud: longitudTotal, cantidad: 1 });
+            const f = computeJuntaRow(filaSintetica);
+            const lanaUnid = r.calcularLana ? lanaUnidadesSinRedondear(f) : 0;
+            return [
+              juntaLabelCorta(r, f.superiorInferior), barrerasLabelCorto(r.barreras), r.producto,
+              String(Math.round(longitudTotal)),
+              String(r.ancho), String(roundup(f.volumenSellador, 0)),
+              r.calcularLana ? (lanaUnid > 0 ? lanaUnid.toFixed(2) : "—") : "No",
+            ];
+          })
+        : [["Sin filas registradas", "", "", "", "", "", ""]],
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [26, 26, 26], textColor: 255 },
+      didDrawPage: dibujarCabeceraPagina,
+    });
+    y = doc.lastAutoTable.finalY + espacioEntreTablas;
+  }
+
   if (opts.resumen) {
     const itemsConManualesPdf = resumen.items.concat(itemsManualesComoResumen());
     asegurarEspacio(alturaTablaAprox(itemsConManualesPdf.length, 8, 4));
@@ -237,11 +303,14 @@ function construirReportePDF(opciones) {
 function descargarPDF(modo) {
   try {
     const opts = modo === "levantamiento" ? { levantamiento: true, resumen: false }
+      : modo === "levantamiento-resumido" ? { levantamiento: false, levantamientoResumido: true, resumen: false }
       : modo === "resumen" ? { levantamiento: false, resumen: true }
       : { levantamiento: true, resumen: true };
     const doc = construirReportePDF(opts);
     const nombre = (PROJECT_INFO.nombre || "proyecto").replace(/[^a-z0-9\-_ ]/gi, "").trim().replace(/\s+/g, "-") || "proyecto";
-    const sufijo = modo === "levantamiento" ? "-levantamiento" : modo === "resumen" ? "-resumen" : "-reporte-completo";
+    const sufijo = modo === "levantamiento" ? "-levantamiento-detallado"
+      : modo === "levantamiento-resumido" ? "-levantamiento-resumido"
+      : modo === "resumen" ? "-resumen" : "-reporte-completo";
     doc.save(`${nombre}${sufijo}.pdf`);
     mostrarToast("PDF descargado.");
   } catch (err) {
