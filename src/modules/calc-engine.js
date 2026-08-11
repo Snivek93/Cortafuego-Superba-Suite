@@ -323,18 +323,15 @@ function computeRow(row, config) {
   out.Qtext = Qtext;
   out.Qlink = (typeof Q === "object" && Q) ? Q.link : null;
 
-  // V: espesor de sellador (según Base de datos, col espesor=offset2=idx0)
+  // V: espesor de sellador / espesor de espuma (según Base de datos, col
+  // espesor=offset2=idx0) — para Espuma CP 620 este valor es el espesor de
+  // espuma (E_ESPUMA) definido por sistema UL, no el espesor de pared/losa
+  // del proyecto (T). Antes había una rama especial que sustituía por T;
+  // se retiró el 10/08/2026 a pedido de Kevin — cada sistema UL ahora trae
+  // su propio E_ESPUMA en la base de datos.
   let V;
   const dbEsp = dbEspesor(key);
-  if (eq(P, MAT_ESPUMA)) {
-    if (dbEsp !== null && dbEsp === T) {
-      V = (dbEsp === null || dbEsp === undefined) ? "-" : dbEsp;
-    } else {
-      V = T;
-    }
-  } else {
-    V = (dbEsp === null || dbEsp === undefined) ? "-" : dbEsp;
-  }
+  V = (dbEsp === null || dbEsp === undefined) ? "-" : dbEsp;
   out.V = V;
 
   // Lana mineral: si la pared es delgada (T ≤ 12.5cm) se calcula por ÁREA

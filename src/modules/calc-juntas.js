@@ -137,6 +137,8 @@ function computeJuntaRow(row) {
     volumenSellador, lanaVolumenCm3, lanaAreaCm2,
     sistemasUsados, superiorInferior,
     espesorProductoIn: filasUsadas.length > 0 ? filasUsadas[0].esp : null,
+    espesorCm: filasUsadas.length > 0 ? filasUsadas[0].esp * 2.54 : null,
+    traslapeCm: filasUsadas.length > 0 ? filasUsadas[0].tras * 2.54 : null,
   };
 }
 function computeSingleJuntaRow(row) {
@@ -367,6 +369,19 @@ function camposRequeridos(L) {
 }
 
 function tieneDatosMinimos(row) {
+  // Caso especial "Vacío": puede ser rectangular (DIM.A/DIM.B) o redondo
+  // (DIÁM., guardado en D con F/G en blanco — ver agregarDesdeLevantamiento()
+  // y el cálculo de U en computeRow()). camposRequeridos() no distingue el
+  // modo porque solo conoce el tipo (L), no el modo elegido en Levantamiento
+  // — se infiere acá por la forma del dato: si F está vacío, es redondo.
+  // Bug reportado por Kevin (10/08/2026): antes esto exigía F/G siempre
+  // para "Vacío", así que las filas redondas quedaban invisibles en
+  // estadísticas, Resumen y todos los PDF aunque sí se agregaban a ROWS.
+  if (row.L === TIPO_VACIO) {
+    const esRedondo = row.F === "" || row.F === null;
+    if (esRedondo) return !(row.D === "" || row.D === null || n(row.D) <= 0);
+    return !(row.F === "" || row.F === null || n(row.F) <= 0) && !(row.G === "" || row.G === null || n(row.G) <= 0);
+  }
   const req = camposRequeridos(row.L);
   if (req.D && (row.D === "" || row.D === null || n(row.D) <= 0)) return false;
   if (req.F && (row.F === "" || row.F === null || n(row.F) <= 0)) return false;
@@ -410,6 +425,21 @@ function formatFraccionPulgadas(v) {
     }
   }
   return (neg ? "-" : "") + abs.toFixed(3) + "\""; // no calzó en una fracción común
+}
+// Espesor de sellador/espuma (V) para mostrar en tablas de Levantamiento y
+// PDFs: casi todos los materiales lo guardan en pulgadas (formatFraccionPulgadas).
+// Espuma CP 620 lo guarda en cm (E_ESPUMA, propio de cada sistema UL) — para
+// que la columna se vea igual que el resto, acá se convierte a pulgadas y se
+// redondea a 1/4" más cercano (12,1cm → 4-3/4", 14cm → 5-1/2"), ya que el
+// valor guardado en cm ya viene con un solo decimal, no exacto al milímetro.
+// Kevin, 10/08/2026.
+function formatEspesorPenetrante(producto, v) {
+  if (v === "-" || v === undefined || v === null || v === "") return "—";
+  if (producto === MAT_ESPUMA) {
+    const pulgadas = Math.round((Number(v) / 2.54) * 4) / 4;
+    return formatFraccionPulgadas(pulgadas);
+  }
+  return formatFraccionPulgadas(v);
 }
 // Igual que formatFraccionPulgadas pero sin la comilla final — para el valor
 // que se muestra/edita dentro de un input (la comilla ahí solo estorbaría al

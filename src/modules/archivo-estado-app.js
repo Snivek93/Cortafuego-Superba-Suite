@@ -222,8 +222,15 @@ function pushUndo() {
   actualizarBotonDeshacer();
 }
 function actualizarBotonDeshacer() {
-  const btn = document.getElementById("btn-deshacer");
-  if (btn) btn.disabled = UNDO_STACK.length === 0;
+  // Hay 3 botones "Deshacer" en la app apuntando al mismo UNDO_STACK: el
+  // original en el toolbar de Calculadora (pestaña oculta hoy, se deja por
+  // compatibilidad), y los dos agregados en Levantamiento (vista fullscreen
+  // de captura y tabla del tab) — Kevin pidió poder deshacer un borrado
+  // desde la lista del Levantamiento, que es donde realmente se trabaja.
+  ["btn-deshacer", "btn-deshacer-lev-fs", "btn-deshacer-lev-tab"].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = UNDO_STACK.length === 0;
+  });
 }
 function deshacerCambio() {
   if (UNDO_STACK.length === 0) { mostrarToast("No hay cambios para deshacer.", "error"); return; }
@@ -311,6 +318,8 @@ function initApp() {
     marcarCambio();
   });
   document.getElementById("btn-deshacer").addEventListener("click", deshacerCambio);
+  const btnDeshacerLevTab = document.getElementById("btn-deshacer-lev-tab");
+  if (btnDeshacerLevTab) btnDeshacerLevTab.addEventListener("click", deshacerCambio);
   document.getElementById("btn-borrar-todo").addEventListener("click", borrarTodo);
   const filtroCalcEl = document.getElementById("input-filtro-calc");
   if (filtroCalcEl) filtroCalcEl.addEventListener("input", () => { FILTRO_CALC = filtroCalcEl.value; aplicarFiltroCalc(); });

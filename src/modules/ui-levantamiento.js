@@ -44,6 +44,11 @@ function aplicarPresetCaja(preset) {
 function levOcultaAnular(L) { return ["Pasante Múltiple", "Vacío", "Caja Electromecánica UL"].includes(L); }
 function levPermiteVacioRedondo(L) { return L === "Vacío"; }
 function levUsaDiametroLibre(L) { return ["Ducto Redondo", "Ducto Redondo Aislado"].includes(L); }
+// Cables en Paso Repenetrable (Manga CP 653 / Paso MSL): el diámetro del
+// cable no calza con los diámetros de tubería predefinidos (DIAMETROS_COMUNES
+// son tamaños de tubería estándar) — se ingresa directo en un campo de texto,
+// sin chips predefinidos. Kevin, 10/08/2026.
+function levUsaDiametroCable(L) { return L === "Cables en Paso Repenetrable"; }
 const UMBRAL_CAJA_PUTTY_CM2 = 444.1775; // caja 4-11/16" x 4-11/16" x 2-1/2" — igual que en engine.js
 function levAreaCajaActualCm2() {
   const factor = LEV.dimUnidad === "in" ? 2.54 : 1;
@@ -819,11 +824,14 @@ function renderLevantamiento() {
         </div>` : `
         <p class="hint" style="margin:0;">Dimensión: ${LEV.dimA} × ${LEV.dimB} × ${LEV.profCaja} ${LEV.dimUnidad}</p>`}
         ` : `
+        ${levUsaDiametroCable(LEV.tipo) ? `
+        <input type="text" inputmode="decimal" id="lev-diametro-otro" placeholder="Diámetro del cable en pulgadas (ej. 0.25 o 1/4)" class="lev-input-otro" style="margin-top:0;" value="${LEV.diametroOtroValor || ""}" >
+        ` : `
         <div class="lev-chip-grid">
           ${levDiametrosParaTipo(LEV.tipo).map(d => levChip("diametro", d.v, d.label, LEV.diametro === d.v)).join("")}
           ${levChip("diametro", "otro", "Otro", LEV.diametro === "otro")}
         </div>
-        ${LEV.diametro === "otro" ? `<input type="text" inputmode="decimal" id="lev-diametro-otro" placeholder="Diámetro en pulgadas (ej. 1/2)" class="lev-input-otro" value="${LEV.diametroOtroValor || ""}" >` : ""}`}
+        ${LEV.diametro === "otro" ? `<input type="text" inputmode="decimal" id="lev-diametro-otro" placeholder="Diámetro en pulgadas (ej. 1/2)" class="lev-input-otro" value="${LEV.diametroOtroValor || ""}" >` : ""}`}`}
       </div>` : ""}
 
       ${LEV.tipo === "Caja Electromecánica UL" ? `
@@ -944,7 +952,10 @@ function renderLevantamiento() {
       <button type="button" class="primary lev-add-btn" id="lev-btn-agregar" ${LEV.tipo ? "" : "disabled"}>${LEV.editandoId ? "Guardar cambios" : "Añadir"}</button>
 
       <div class="lev-section">
-        <label>Lista del levantamiento (${grupos.reduce((n, g) => n + g.items.length, 0)})</label>
+        <div class="lev-lista-label-row">
+          <label>Lista del levantamiento (${grupos.reduce((n, g) => n + g.items.length, 0)})</label>
+          <button type="button" id="btn-deshacer-lev-fs" class="lev-undo-link" ${UNDO_STACK.length === 0 ? "disabled" : ""}><svg class="icon"><use href="#i-undo"/></svg>Deshacer</button>
+        </div>
         ${renderListaAgrupadaHTML(grupos)}
       </div>
     </div>
@@ -956,6 +967,9 @@ function renderLevantamiento() {
 function attachLevantamientoEvents() {
   const cont = document.getElementById("levantamiento-content");
   if (!cont) return;
+
+  const btnDeshacerFs = document.getElementById("btn-deshacer-lev-fs");
+  if (btnDeshacerFs) btnDeshacerFs.addEventListener("click", deshacerCambio);
 
   const zonaEl = document.getElementById("lev-zona");
   if (zonaEl) zonaEl.addEventListener("input", () => { LEV.zona = zonaEl.value; });
@@ -1112,7 +1126,10 @@ function editarItemLevantamiento(id, abrirFullscreen) {
     LEV.diametroLibre = row.F !== "" ? String(Math.round((n(row.F) / 2.54) * 100) / 100) : "";
     LEV.dimA = ""; LEV.dimB = ""; LEV.diametro = "";
   } else if (usaDim) { LEV.dimA = row.F; LEV.dimB = row.G; LEV.diametro = ""; }
-  else {
+  else if (levUsaDiametroCable(row.L)) {
+    LEV.diametro = "otro"; // fuerza el campo de texto directo, sin chips
+    LEV.diametroOtroValor = row.D;
+  } else {
     const esComun = levDiametrosParaTipo(row.L).some(d => d.v === row.D);
     LEV.diametro = esComun ? row.D : "otro";
     LEV.diametroOtroValor = esComun ? "" : row.D;
@@ -1181,7 +1198,7 @@ function agregarDesdeLevantamiento() {
   } else if (!usaDim) {
     // Nota: antes esta rama excluía modoRedondo (Vacío redondo), así que ese
     // caso nunca leía el diámetro elegido y quedaba en 0 — corregido 05/08/2026.
-    if (LEV.diametro === "otro") {
+    if (LEV.diametro === "otro" || levUsaDiametroCable(LEV.tipo)) {
       diametroVal = parseFraccion(String(document.getElementById("lev-diametro-otro")?.value || ""));
       if (diametroVal === null) { mostrarToast("Ingresá un diámetro válido.", "error"); return; }
     } else if (LEV.diametro !== "") {
@@ -1393,7 +1410,7 @@ function renderTablaAgrupadaHTML(grupos) {
               <td>${escapeHtml(r.M)}<br><span class="lev-sub-label">${escapeHtml(r.N)}${r.MEM ? " · membrana" : ""}</span></td>
               <td>${prodCell}</td>
               <td>${ulBadge}</td>
-              <td class="num">${c.V !== "-" && c.V !== undefined ? formatFraccionPulgadas(c.V) : "—"}</td>
+              <td class="num">${formatEspesorPenetrante(r.P, c.V)}</td>
               <td class="num">${vueltas !== null ? vueltas : "—"}</td>
               <td colspan="2" class="lev-col-resultado" style="font-size:var(--fs-xs)">${detalleRes}</td>
               <td>${escapeHtml(r.O)}</td>
@@ -1634,7 +1651,7 @@ function renderTablaResumidaJuntasHTML(grupos) {
       <table class="resumen-table lev-tabla-resultados">
         <thead><tr>
           <th>Junta</th><th>Barreras</th><th>Producto</th>
-          <th class="num">Longitud Total (cm)</th><th class="num">Ancho (cm)</th>
+          <th class="num">Longitud Total (cm)</th><th class="num">Ancho (cm)</th><th class="num">Espesor</th>
           <th class="num">Sellador (cm³)</th><th class="num">Lana (unid.)</th>
         </tr></thead>
         <tbody>
@@ -1648,6 +1665,7 @@ function renderTablaResumidaJuntasHTML(grupos) {
               <td>${escapeHtml(r.producto)}</td>
               <td class="num"><strong>${Math.round(longitudTotal)}</strong></td>
               <td class="num">${r.ancho}</td>
+              <td class="num">${f.espesorProductoIn !== null ? formatFraccionPulgadas(f.espesorProductoIn) : "—"}</td>
               <td class="num">${roundup(f.volumenSellador, 0)}</td>
               <td class="num">${r.calcularLana ? (lanaUnid > 0 ? lanaUnid.toFixed(2) : "—") : "No"}</td>
             </tr>`;

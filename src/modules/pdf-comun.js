@@ -156,7 +156,7 @@ function construirReportePDF(opciones) {
               r.F !== "" ? `${r.F}×${r.G} cm` : formatFraccionPulgadas(r.D),
               formatFraccionPulgadas(r.I), `${r.M}${r.MEM ? " (membrana)" : ""} / ${r.N}`,
               r.P || "—",
-              r.V !== "-" && r.V !== undefined ? formatFraccionPulgadas(r.V) : "—",
+              formatEspesorPenetrante(r.P, r.V),
               vueltas !== null ? vueltas : "—", r.O, r.R || "",
             ];
           })

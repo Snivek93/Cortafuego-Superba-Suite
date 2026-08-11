@@ -30,13 +30,6 @@ const MEMORIA_VARIABLES_SIMBOLO = {
   Rd: "Rendimiento por diámetro (unidades por pieza, según tabla UL)",
   Ac: "Área de la caja eléctrica (cm2)",
   Ap: "Área efectiva de un Putty Pad (cm2, según tamaño e instalación)",
-  L: "Longitud de la junta (cm)",
-  An: "Ancho medido de la junta (cm)",
-  Tr: "Traslape del producto (cm)",
-  Ep: "Espesor de producto aplicado (cm)",
-  Nl: "N° de lados sellados (1 ó 2)",
-  Ew: "Espesor de pared adyacente a la junta (cm)",
-  Cp: "Factor de compresión de la lana mineral",
 };
 
 // Registro único de variables "estilo documento": símbolo visual (base +
@@ -79,6 +72,22 @@ const SIM = {
   PROF:    { key: "P_ROF",     v: "P",  sub: "ROF",     desc: "Profundidad de la caja eléctrica (cm)" },
   AEF:     { key: "A_EF",      v: "A",  sub: "EF",      desc: "Área efectiva de un Putty Pad, ya restando el traslape entre pads (cm2) — depende del tamaño (7x7\" o 9x9\")" },
   CANTPP:  { key: "CANT_PP",   v: "CANT", sub: "PP",    desc: "Cantidad de Putty Pads" },
+  EESPUMA: { key: "E_ESPUMA",  v: "E",    sub: "ESPUMA", desc: "Espesor de espuma según sistema UL (cm)" },
+  VESPUMA: { key: "V_ESPUMA",  v: "V",    sub: "ESPUMA", desc: "Volumen de espuma CP 620 (cm3)" },
+  EMORTERO: { key: "E_MORTERO", v: "E",   sub: "MORTERO", desc: "Espesor de mortero según sistema UL (in)" },
+  VMORTERO: { key: "V_MORTERO", v: "V",   sub: "MORTERO", desc: "Volumen de mortero CP 637 (cm3)" },
+  CCABLES:  { key: "C_CABLES",  v: "C",   sub: "CABLES",   desc: "Cantidad de cables que caben por pieza, según diámetro (tabla de referencia Hilti)" },
+  CANTPIEZA:{ key: "CANT_PIEZA",v: "CANT",sub: "PIEZA",    desc: "Cantidad de piezas — Manga CP 653 o Paso MSL, según el producto de cada fila" },
+  LJUNTA:   { key: "L_JUNTA",  v: "L",    sub: "JUNTA",   desc: "Longitud de la junta (cm)" },
+  ANJUNTA:  { key: "AN_JUNTA", v: "AN",   sub: "JUNTA",   desc: "Ancho medido de la junta (cm) — 0 en juntas topadas" },
+  TRASLP:   { key: "T_RASLP",  v: "T",    sub: "RASLP",   desc: "Traslape del producto sobre cada borde, según sistema UL (cm)" },
+  EJUNTA:   { key: "E_JUNTA",  v: "E",    sub: "JUNTA",   desc: "Espesor de producto aplicado, según sistema UL (cm)" },
+  NLADO:    { key: "N_LADO",   v: "N",    sub: "LADO",    desc: "N° de lados sellados (1 ó 2)" },
+  CANTJUNTA:{ key: "CANT_JUNTA",v: "CANT",sub: "JUNTA",   desc: "Cantidad de juntas" },
+  EPARED:   { key: "E_PARED",  v: "E",    sub: "PARED",   desc: "Espesor de pared adyacente a la junta (cm)" },
+  FCOMP:    { key: "F_COMP",   v: "F",    sub: "COMP",    desc: "Factor de compresión de la lana mineral, según sistema UL" },
+  VLANA:    { key: "V_LANA",   v: "V",    sub: "LANA",    desc: "Volumen de lana mineral (cm3)" },
+  ALANA:    { key: "A_LANA",   v: "A",    sub: "LANA",    desc: "Área de lana mineral (cm2) — Muro Cortina, Entrepiso-Entrepiso y Pared-Entrepiso Lateral" },
 };
 // Descripciones de SIM también quedan disponibles por su `key` de texto plano,
 // para que dibujarListaVariables funcione igual reciba un string o un objeto SIM.
@@ -100,13 +109,20 @@ const MEMORIA_FORMULAS_PENETRANTES = {
     vars: [SIM.VSELLO, SIM.ASELLO, SIM.ESELLO, SIM.SLADOS, SIM.CANT, SIM.DESP],
     nota: "Si la pared es más gruesa que 12.5cm, la lana mineral de refuerzo se calcula por volumen en vez de por área (ver Lana Mineral, más abajo). El % de desperdicio se aplica una sola vez sobre el total del proyecto — más abajo se detalla el área de sello fila por fila, antes de ese ajuste.",
   },
-  "Sellador CP 606": { resultado: "Volumen de sellador (cm3)", tokens: [mv("U"), mop("×"), mv("V"), mop("×"), mv("S")], vars: ["U", "V", "S"] },
-  "Sellador CFS SIL GG": { resultado: "Volumen de sellador (cm3)", tokens: [mv("U"), mop("×"), mv("V"), mop("×"), mv("S")], vars: ["U", "V", "S"] },
-  "Espuma CP 620": { resultado: "Volumen de espuma (cm3)", tokens: [mv("U"), mop("×"), mv("T")], vars: ["U", "T"] },
-  "Mortero CP 637": { resultado: "Volumen de mortero (cm3)", tokens: [mv("U"), mop("×"), mv("V"), mop("×"), mc("2.54")], vars: ["U", "V"] },
-  "Manga CP 653 4\"": { resultado: "Cantidad de mangas", tokens: [mfrac([mc("C")], [mc("Rd")])], vars: ["C", "Rd"] },
-  "Paso de cables MSL M 3\"x4\"": { resultado: "Cantidad de pasos MSL M", tokens: [mfrac([mc("C")], [mc("Rd")])], vars: ["C", "Rd"] },
-  "Paso de cables MSL L 6\"x4\"": { resultado: "Cantidad de pasos MSL L", tokens: [mfrac([mc("C")], [mc("Rd")])], vars: ["C", "Rd"] },
+  "Sellador CP 606": {
+    resultado: "V_SELLO (cm3)",
+    resultadoSim: [mvs("VSELLO")],
+    tokens: [mvs("ASELLO"), mop("×"), mvs("ESELLO"), mop("×"), mvs("SLADOS"), mop("×"), mvs("CANT"), mop("×"), mop("("), mc("1"), mop("+"), mvs("DESP"), mop(")")],
+    vars: [SIM.VSELLO, SIM.ASELLO, SIM.ESELLO, SIM.SLADOS, SIM.CANT, SIM.DESP],
+    nota: "Si la pared es más gruesa que 12.5cm, la lana mineral de refuerzo se calcula por volumen en vez de por área (ver Lana Mineral, más abajo). El % de desperdicio se aplica una sola vez sobre el total del proyecto — más abajo se detalla el área de sello fila por fila, antes de ese ajuste.",
+  },
+  "Sellador CFS SIL GG": {
+    resultado: "V_SELLO (cm3)",
+    resultadoSim: [mvs("VSELLO")],
+    tokens: [mvs("ASELLO"), mop("×"), mvs("ESELLO"), mop("×"), mvs("SLADOS"), mop("×"), mvs("CANT"), mop("×"), mop("("), mc("1"), mop("+"), mvs("DESP"), mop(")")],
+    vars: [SIM.VSELLO, SIM.ASELLO, SIM.ESELLO, SIM.SLADOS, SIM.CANT, SIM.DESP],
+    nota: "Si la pared es más gruesa que 12.5cm, la lana mineral de refuerzo se calcula por volumen en vez de por área (ver Lana Mineral, más abajo). El % de desperdicio se aplica una sola vez sobre el total del proyecto — más abajo se detalla el área de sello fila por fila, antes de ese ajuste.",
+  },
   "Collarín CP 643N/644": { resultado: "Cantidad de collarines", tokens: [mv("S"), mop("×"), mv("C")], vars: ["S", "C"], nota: "El modelo específico (CP 643N o CP 644) depende del diámetro de la tubería." },
 };
 const MEMORIA_NOTA_CINTA = "La longitud de cinta intumescente (y de collar metálico, cuando aplica) se lee de una tabla de rendimiento por diámetro de tubería según el sistema UL, multiplicada por la cantidad de penetrantes y el N° de lados sellados. No sigue una fórmula algebraica simple — se detalla el resultado ya calculado en la tabla de abajo.";
@@ -254,7 +270,11 @@ const MEMORIA_SUBCASOS_U = {
 // se benefician del desglose geométrico por subcaso, con el formato de
 // variables del documento. Empezamos solo con Pasta FS ONE MAX; CP 606 y
 // CFS SIL GG quedan listos para sumarse con la misma lógica más adelante.
-const MEMORIA_PRODUCTOS_CON_DESGLOSE_U = ["Pasta FS ONE MAX"];
+const MEMORIA_PRODUCTOS_CON_DESGLOSE_U = ["Pasta FS ONE MAX", "Sellador CP 606", "Sellador CFS SIL GG"];
+// Mismo cálculo U×V×S para los 3 — solo cambia en qué columna vive el
+// resultado (Y para Pasta, AM para CP 606, AO para CFS SIL GG), porque
+// calc-engine.js las mantiene separadas para no mezclar selladores.
+const CAMPO_VOLUMEN_SELLO_PENETRANTE = { "Pasta FS ONE MAX": "Y", "Sellador CP 606": "AM", "Sellador CFS SIL GG": "AO" };
 
 // Texto de resultado que muestra SOLO el volumen de sello (V_SELLO) de esta
 // fila — sin mezclar Lana ni ningún otro material, que tendrán su propia
@@ -266,8 +286,6 @@ function resultadoVSelloTexto(row) {
   return `V_SELLO: ${num} cm3`;
 }
 
-const MEMORIA_FORMULA_JUNTAS_SELLADOR = { resultado: "Volumen de sellador (cm3)", tokens: [mv("L"), mop("×"), mop("("), mv("An"), mop("+"), mc("2"), mop("×"), mv("Tr"), mop(")"), mop("×"), mv("Ep"), mop("×"), mv("Nl")], vars: ["L", "An", "Tr", "Ep", "Nl"] };
-const MEMORIA_FORMULA_JUNTAS_LANA = { resultado: "Volumen de lana mineral (cm3)", tokens: [mv("L"), mop("×"), mv("An"), mop("×"), mv("Ew"), mop("×"), mop("("), mc("1"), mop("+"), mv("Cp"), mop(")")], vars: ["L", "An", "Ew", "Cp"], nota: "En Muro Cortina, Entrepiso-Entrepiso y Pared-Entrepiso Lateral se omite el espesor de pared (Ew) — es un cálculo por área, no por volumen." };
 
 // Dibuja una fórmula en una sola línea visual: variables en cursiva, con
 // subíndices y superíndices reales (más chico, desplazado), y fracciones con
@@ -822,7 +840,7 @@ function construirMemoriaCalculoPDF() {
     // abajo ("Cinta Intumescente CP 648-E", con la tabla oficial del Word y
     // N_VUELTAS reales) — se excluyen acá para no duplicar el material con el
     // bloque genérico U/V/S (que además usaba fórmulas que no aplican a cinta).
-    const PRODUCTOS_CON_SECCION_PROPIA = [MAT_CINTA_CON, MAT_CINTA_SIN, MAT_ALMOHADILLA, MAT_PUTTY];
+    const PRODUCTOS_CON_SECCION_PROPIA = [MAT_CINTA_CON, MAT_CINTA_SIN, MAT_ALMOHADILLA, MAT_PUTTY, MAT_ESPUMA, MAT_MORTERO, MAT_MANGA, MAT_MSL_M, MAT_MSL_L];
     const ordenProductosFiltrado = ordenProductos.filter(p => !PRODUCTOS_CON_SECCION_PROPIA.includes(p));
 
     // Índice de productos: lista todo lo que va a aparecer en esta Memoria
@@ -835,6 +853,9 @@ function construirMemoriaCalculoPDF() {
     if (computed.some(r => r.collarLongitudPen !== "-" && r.collarLongitudPen !== null && n(r.collarLongitudPen) > 0)) listaProductosIndice.push("Collar Metálico CP 648-ER");
     if (computed.some(r => n(r.AD) > 0)) listaProductosIndice.push("Almohadilla CFS-BL");
     if (computed.some(r => n(r.AB) > 0)) listaProductosIndice.push("Putty Pad CP 617");
+    if (computed.some(r => n(r.AC) > 0)) listaProductosIndice.push("Espuma CP 620");
+    if (computed.some(r => n(r.AK) > 0)) listaProductosIndice.push("Mortero CP 637");
+    if (computed.some(r => n(r.AE) > 0 || n(r.AF) > 0 || n(r.AG) > 0)) listaProductosIndice.push("Manga CP 653 y Paso de Cables MSL");
 
     doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
     doc.text("A continuación se muestra el listado de productos cortafuego Hilti presentes en el proyecto:", marginL, y);
@@ -883,6 +904,7 @@ function construirMemoriaCalculoPDF() {
       }
 
       const usaDesgloseU = formulaDef && MEMORIA_PRODUCTOS_CON_DESGLOSE_U.includes(producto);
+      const campoVol = CAMPO_VOLUMEN_SELLO_PENETRANTE[producto] || "Y";
 
       if (usaDesgloseU) {
         doc.setFont("helvetica", "italic"); doc.setFontSize(MC_BODY); doc.setTextColor(120, 120, 120);
@@ -972,7 +994,7 @@ function construirMemoriaCalculoPDF() {
           // Fórmula final V_SELLO del ejemplo — A_SELLO ya calculado arriba,
           // más espesor de sellador (en cm), lados, cantidad y % desperdicio
           // de esta fila en particular.
-          const vSelloTxt = ejS.Y !== "-" && ejS.Y !== undefined ? fmtComa(ejS.Y, 1) : "0,0";
+          const vSelloTxt = ejS[campoVol] !== "-" && ejS[campoVol] !== undefined ? fmtComa(ejS[campoVol], 1) : "0,0";
           if (formulaDef) {
             const valoresVSello = Object.assign({}, valoresEjS, {
               "A_SELLO": ejS.A_SELLO !== "-" ? fmtComa(ejS.A_SELLO, 1) : "—",
@@ -986,7 +1008,7 @@ function construirMemoriaCalculoPDF() {
             y += 6;
           }
 
-          const restoTxtS = ejS.Y !== "-" && ejS.Y !== undefined ? ` = ${vSelloTxt} cm3 para ${ejS.C} penetrante(s).` : " = 0 cm3 (no aplica para esta fila).";
+          const restoTxtS = ejS[campoVol] !== "-" && ejS[campoVol] !== undefined ? ` = ${vSelloTxt} cm3 para ${ejS.C} penetrante(s).` : " = 0 cm3 (no aplica para esta fila).";
           y = dibujarResultadoConSimbolo(doc, marginL, y, SIM.VSELLO, restoTxtS, MC_BODY + 0.5, anchoContenido);
 
           const headRow = ["Zona", "Nivel", "Cant.", "Tipo", ...cfg.columnas.map(c => c.header), "A_SELLO (cm2)", "E_SELLO (in)", "S_LADOS", "V_SELLO (cm3)"];
@@ -1000,7 +1022,7 @@ function construirMemoriaCalculoPDF() {
               r.A_SELLO !== "-" ? fmtComa(r.A_SELLO, 1) : "-",
               r.V !== "-" ? formatFraccionPulgadas(r.V) : "-",
               r.S !== "-" ? String(r.S) : "-",
-              r.Y !== "-" && r.Y !== undefined ? fmtComa(r.Y, 1) : "—",
+              r[campoVol] !== "-" && r[campoVol] !== undefined ? fmtComa(r[campoVol], 1) : "—",
             ]),
             styles: { fontSize: MC_TABLA, cellPadding: 2.5, halign: "center" },
             headStyles: { fillColor: [26, 26, 26], textColor: 255, fontStyle: "normal" },
@@ -1686,6 +1708,391 @@ function construirMemoriaCalculoPDF() {
     };
   }
 
+  // ---------------- ESPUMA CP 620 ----------------
+  {
+    const filasEspuma = computed.filter(r => n(r.AC) > 0);
+    if (filasEspuma.length > 0) {
+      doc.addPage(); dibujarCabecera(); y = safe.top;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(MC_TITULO_MAT); doc.setTextColor(226, 0, 26);
+      doc.text("Espuma CP 620", marginL, y); y += 24;
+      doc.setTextColor(20, 20, 20);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+      const introEspuma = "Espuma CP 620 que sella aberturas rectangulares (Bandeja de Cables, Pasante Múltiple, Vacío) o circulares (Vacío redondo) — el área a cubrir (A_SELLO) se calcula distinto según la geometría, ver el desglose de cada caso más abajo. A diferencia de otros materiales, el espesor de espuma (E_ESPUMA) no depende del espesor de pared o losa del proyecto — es un valor propio de cada sistema UL, definido en la base de datos.";
+      y = dibujarParrafoConSimbolos(doc, marginL, y, introEspuma, MC_BODY, anchoContenido, [
+        { marcador: "A_SELLO", sim: SIM.ASELLO },
+        { marcador: "E_ESPUMA", sim: SIM.EESPUMA },
+      ]);
+      y += 20;
+      doc.setTextColor(20, 20, 20);
+
+      const tokensVEspuma = [mvs("ASELLO"), mop("×"), mvs("EESPUMA"), mop("×"), mvs("CANT")];
+      const notaVEspuma = "El % de desperdicio configurado se aplica una sola vez sobre la suma total del proyecto — no fila por fila, por eso no aparece en esta fórmula.";
+
+      const gruposEspuma = [
+        {
+          titulo: "Abertura Rectangular",
+          circular: false,
+          filas: filasEspuma.filter(r => !isBlank(r.F)),
+          formulasPrevias: [
+            { resultadoSim: [mvs("DATOTAL")], tokens: [mvs("DIMA"), mop("+"), mc("2"), mop("×"), mvs("ANUL")], vars: [SIM.DIMA] },
+            { resultadoSim: [mvs("DBTOTAL")], tokens: [mvs("DIMB"), mop("+"), mc("2"), mop("×"), mvs("ANUL")], vars: [SIM.DIMB, SIM_ANUL_CORTO] },
+          ],
+          tokensArea: [mvs("DATOTAL"), mop("×"), mvs("DBTOTAL"), mop("×"), mop("("), mc("1"), mop("-"), mvs("OCUP"), mop(")")],
+          varsArea: [SIM.OCUP],
+          columnas: [
+            { header: "DIM.A (cm)", get: r => fmtComa(r.F, 0) },
+            { header: "DIM.B (cm)", get: r => fmtComa(r.G, 0) },
+            { header: "%_OCUP", get: r => r.J !== "" ? fmtComa(Number(r.J) * 100, 0) + "%" : "0%" },
+          ],
+        },
+        {
+          titulo: "Vacío Redondo",
+          circular: true,
+          filas: filasEspuma.filter(r => isBlank(r.F)),
+          formulasPrevias: [],
+          tokensArea: [mfracPi("4"), mop("×"), mop("("), mvs("DIAM"), mop(")", SQ)],
+          varsArea: [SIM.DIAM],
+          columnas: [
+            { header: "DIÁM. (in)", get: r => formatFraccionPulgadas(r.D) },
+          ],
+        },
+      ];
+
+      gruposEspuma.forEach(grupo => {
+        if (grupo.filas.length === 0) return;
+        saltoDePaginaSiHaceFalta(360);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(MC_TITULO_SUB); doc.setTextColor(20, 20, 20);
+        doc.text(grupo.titulo, marginL, y); y += 22;
+
+        grupo.formulasPrevias.forEach(f => { y = dibujarFormulaCompleta(doc, marginL, y, f.resultadoSim, f.tokens, anchoContenido); y += 8; });
+        y = dibujarFormulaCompleta(doc, marginL, y, [mvs("ASELLO")], grupo.tokensArea, anchoContenido);
+        y += 10;
+        y = dibujarFormulaCompleta(doc, marginL, y, [mvs("VESPUMA")], tokensVEspuma, anchoContenido);
+        y += 8;
+        doc.setFont("helvetica", "italic"); doc.setFontSize(MC_BODY); doc.setTextColor(120, 120, 120);
+        const lsNotaVE = doc.splitTextToSize(notaVEspuma, anchoContenido);
+        doc.text(notaVEspuma, marginL, y, { align: "justify", maxWidth: anchoContenido, lineHeightFactor: 1.35 }); y += lsNotaVE.length * 13 + 10;
+        doc.setFont("helvetica", "normal"); doc.setTextColor(20, 20, 20);
+
+        const todasVarsGrupoE = [];
+        const vistasEspuma = new Set();
+        grupo.formulasPrevias.forEach(f => f.vars.forEach(v => { if (!vistasEspuma.has(v.key)) { vistasEspuma.add(v.key); todasVarsGrupoE.push(v); } }));
+        grupo.varsArea.forEach(v => { if (!vistasEspuma.has(v.key)) { vistasEspuma.add(v.key); todasVarsGrupoE.push(v); } });
+        [SIM.EESPUMA, SIM.CANT].forEach(v => { if (!vistasEspuma.has(v.key)) { vistasEspuma.add(v.key); todasVarsGrupoE.push(v); } });
+        y = dibujarListaVariables(doc, marginL, y, todasVarsGrupoE, null, anchoContenido);
+        y += 16;
+
+        const ejE = grupo.filas[0];
+        doc.setFont("helvetica", "bold"); doc.setFontSize(MC_BODY + 0.5); doc.setTextColor(20, 20, 20);
+        doc.text("Ejemplo de cálculo", marginL, y); y += 15;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+        const dimTxtE = grupo.circular ? formatFraccionPulgadas(ejE.D) : `${fmtComa(ejE.F, 0)}×${fmtComa(ejE.G, 0)} cm`;
+        const lineaCasoE = `Zona "${ejE.A || "—"}", ${TIPO_LABEL_CORTO[ejE.L] || ejE.L}, dimensión ${dimTxtE}, barrera ${ejE.M}/${ejE.N}, cantidad ${ejE.C}.`;
+        const lsCasoE = doc.splitTextToSize(lineaCasoE, anchoContenido);
+        doc.text(lineaCasoE, marginL, y, { align: "justify", maxWidth: anchoContenido }); y += lsCasoE.length * 13 + 16;
+        doc.setTextColor(20, 20, 20);
+
+        const valoresE = {
+          "DIM.A": fmtComa(ejE.F, 0),
+          "DIM.B": fmtComa(ejE.G, 0),
+          "A_NUL": ejE.ANULAR_CM !== "-" ? fmtComa(ejE.ANULAR_CM, 2) : "-",
+          "DA_TOTAL": ejE.DA_TOTAL !== "-" ? fmtComa(ejE.DA_TOTAL, 2) : "-",
+          "DB_TOTAL": ejE.DB_TOTAL !== "-" ? fmtComa(ejE.DB_TOTAL, 2) : "-",
+          "%_OCUP": ejE.J !== "" ? fmtComa(Number(ejE.J) * 100, 0) + "%" : "0%",
+          "DIÁM.": formatFraccionPulgadas(ejE.D),
+          "A_SELLO": ejE.A_SELLO !== "-" ? fmtComa(ejE.A_SELLO, 1) : "—",
+          "E_ESPUMA": ejE.V !== "-" ? fmtComa(ejE.V, 1) : "-",
+          "C_ANT": String(ejE.C),
+        };
+
+        grupo.formulasPrevias.forEach(f => {
+          const key = f.resultadoSim[0].key;
+          const valorFinalF = [mc(valoresE[key] + " cm")];
+          y = dibujarFormulaEjemplo(doc, marginL, y, f.resultadoSim, f.tokens, valoresE, valorFinalF, anchoContenido);
+          y += 6;
+        });
+        const valorFinalAreaE = [mc(valoresE["A_SELLO"] + " "), mc("cm", SQ)];
+        y = dibujarFormulaEjemplo(doc, marginL, y, [mvs("ASELLO")], grupo.tokensArea, valoresE, valorFinalAreaE, anchoContenido);
+        y += 6;
+        const valorFinalVE = [mc((ejE.AC !== "-" ? fmtComa(ejE.AC, 1) : "0") + " "), mc("cm", "3")];
+        y = dibujarFormulaEjemplo(doc, marginL, y, [mvs("VESPUMA")], tokensVEspuma, valoresE, valorFinalVE, anchoContenido);
+        y += 16;
+
+        const headRowE = ["Zona", "Nivel", "Cant.", "Tipo", "Barrera", "Material", ...grupo.columnas.map(c => c.header), "A_SELLO (cm2)", "E_ESPUMA (cm)", "V_ESPUMA (cm3)"];
+        doc.autoTable({
+          startY: y,
+          margin: tableMargin,
+          head: [headRowE],
+          body: grupo.filas.map(r => [
+            r.A || "-", r.B || "-", String(r.C), TIPO_LABEL_CORTO[r.L] || r.L,
+            r.M || "-", r.N || "-",
+            ...grupo.columnas.map(c => c.get(r)),
+            r.A_SELLO !== "-" ? fmtComa(r.A_SELLO, 1) : "-",
+            r.V !== "-" ? fmtComa(r.V, 1) : "-",
+            r.AC !== "-" ? fmtComa(r.AC, 1) : "-",
+          ]),
+          styles: { fontSize: MC_TABLA, cellPadding: 2.5, halign: "center" },
+          headStyles: { fillColor: [26, 26, 26], textColor: 255, fontStyle: "normal" },
+          columnStyles: { [headRowE.length - 1]: { fontStyle: "bold" } },
+          didDrawPage: () => dibujarCabecera(),
+          didDrawCell: renderizarCabeceraConSimbolos(headRowE),
+        });
+        y = doc.lastAutoTable.finalY + 26;
+      });
+    }
+  }
+
+  // ---------------- MORTERO CP 637 ----------------
+  {
+    const filasMortero = computed.filter(r => n(r.AK) > 0);
+    if (filasMortero.length > 0) {
+      doc.addPage(); dibujarCabecera(); y = safe.top;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(MC_TITULO_MAT); doc.setTextColor(226, 0, 26);
+      doc.text("Mortero CP 637", marginL, y); y += 24;
+      doc.setTextColor(20, 20, 20);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+      const introMortero = "Mortero CP 637 que sella aberturas rectangulares (Bandeja de Cables, Pasante Múltiple, Vacío) o circulares (Vacío redondo) — el área a cubrir (A_SELLO) se calcula distinto según la geometría, ver el desglose de cada caso más abajo. Solo aplica en Concreto. El espesor de mortero (E_MORTERO) se guarda en pulgadas según el sistema UL y se convierte a cm (×2,54) para calcular el volumen.";
+      y = dibujarParrafoConSimbolos(doc, marginL, y, introMortero, MC_BODY, anchoContenido, [
+        { marcador: "A_SELLO", sim: SIM.ASELLO },
+        { marcador: "E_MORTERO", sim: SIM.EMORTERO },
+      ]);
+      y += 20;
+      doc.setTextColor(20, 20, 20);
+
+      const tokensVMortero = [mvs("ASELLO"), mop("×"), mvs("EMORTERO"), mop("×"), mc("2.54"), mop("×"), mvs("CANT")];
+      const notaVMortero = "El % de desperdicio configurado se aplica una sola vez sobre la suma total del proyecto — no fila por fila, por eso no aparece en esta fórmula.";
+
+      const gruposMortero = [
+        {
+          titulo: "Abertura Rectangular",
+          circular: false,
+          filas: filasMortero.filter(r => !isBlank(r.F)),
+          formulasPrevias: [
+            { resultadoSim: [mvs("DATOTAL")], tokens: [mvs("DIMA"), mop("+"), mc("2"), mop("×"), mvs("ANUL")], vars: [SIM.DIMA] },
+            { resultadoSim: [mvs("DBTOTAL")], tokens: [mvs("DIMB"), mop("+"), mc("2"), mop("×"), mvs("ANUL")], vars: [SIM.DIMB, SIM_ANUL_CORTO] },
+          ],
+          tokensArea: [mvs("DATOTAL"), mop("×"), mvs("DBTOTAL"), mop("×"), mop("("), mc("1"), mop("-"), mvs("OCUP"), mop(")")],
+          varsArea: [SIM.OCUP],
+          columnas: [
+            { header: "DIM.A (cm)", get: r => fmtComa(r.F, 0) },
+            { header: "DIM.B (cm)", get: r => fmtComa(r.G, 0) },
+            { header: "%_OCUP", get: r => r.J !== "" ? fmtComa(Number(r.J) * 100, 0) + "%" : "0%" },
+          ],
+        },
+        {
+          titulo: "Vacío Redondo",
+          circular: true,
+          filas: filasMortero.filter(r => isBlank(r.F)),
+          formulasPrevias: [],
+          tokensArea: [mfracPi("4"), mop("×"), mop("("), mvs("DIAM"), mop(")", SQ)],
+          varsArea: [SIM.DIAM],
+          columnas: [
+            { header: "DIÁM. (in)", get: r => formatFraccionPulgadas(r.D) },
+          ],
+        },
+      ];
+
+      gruposMortero.forEach(grupo => {
+        if (grupo.filas.length === 0) return;
+        saltoDePaginaSiHaceFalta(360);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(MC_TITULO_SUB); doc.setTextColor(20, 20, 20);
+        doc.text(grupo.titulo, marginL, y); y += 22;
+
+        grupo.formulasPrevias.forEach(f => { y = dibujarFormulaCompleta(doc, marginL, y, f.resultadoSim, f.tokens, anchoContenido); y += 8; });
+        y = dibujarFormulaCompleta(doc, marginL, y, [mvs("ASELLO")], grupo.tokensArea, anchoContenido);
+        y += 10;
+        y = dibujarFormulaCompleta(doc, marginL, y, [mvs("VMORTERO")], tokensVMortero, anchoContenido);
+        y += 8;
+        doc.setFont("helvetica", "italic"); doc.setFontSize(MC_BODY); doc.setTextColor(120, 120, 120);
+        const lsNotaVM = doc.splitTextToSize(notaVMortero, anchoContenido);
+        doc.text(notaVMortero, marginL, y, { align: "justify", maxWidth: anchoContenido, lineHeightFactor: 1.35 }); y += lsNotaVM.length * 13 + 10;
+        doc.setFont("helvetica", "normal"); doc.setTextColor(20, 20, 20);
+
+        const todasVarsGrupoM = [];
+        const vistasMortero = new Set();
+        grupo.formulasPrevias.forEach(f => f.vars.forEach(v => { if (!vistasMortero.has(v.key)) { vistasMortero.add(v.key); todasVarsGrupoM.push(v); } }));
+        grupo.varsArea.forEach(v => { if (!vistasMortero.has(v.key)) { vistasMortero.add(v.key); todasVarsGrupoM.push(v); } });
+        [SIM.EMORTERO, SIM.CANT].forEach(v => { if (!vistasMortero.has(v.key)) { vistasMortero.add(v.key); todasVarsGrupoM.push(v); } });
+        y = dibujarListaVariables(doc, marginL, y, todasVarsGrupoM, null, anchoContenido);
+        y += 16;
+
+        const ejM = grupo.filas[0];
+        doc.setFont("helvetica", "bold"); doc.setFontSize(MC_BODY + 0.5); doc.setTextColor(20, 20, 20);
+        doc.text("Ejemplo de cálculo", marginL, y); y += 15;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+        const dimTxtM = grupo.circular ? formatFraccionPulgadas(ejM.D) : `${fmtComa(ejM.F, 0)}×${fmtComa(ejM.G, 0)} cm`;
+        const lineaCasoM = `Zona "${ejM.A || "—"}", ${TIPO_LABEL_CORTO[ejM.L] || ejM.L}, dimensión ${dimTxtM}, barrera ${ejM.M}/${ejM.N}, cantidad ${ejM.C}.`;
+        const lsCasoM = doc.splitTextToSize(lineaCasoM, anchoContenido);
+        doc.text(lineaCasoM, marginL, y, { align: "justify", maxWidth: anchoContenido }); y += lsCasoM.length * 13 + 16;
+        doc.setTextColor(20, 20, 20);
+
+        const valoresM = {
+          "DIM.A": fmtComa(ejM.F, 0),
+          "DIM.B": fmtComa(ejM.G, 0),
+          "A_NUL": ejM.ANULAR_CM !== "-" ? fmtComa(ejM.ANULAR_CM, 2) : "-",
+          "DA_TOTAL": ejM.DA_TOTAL !== "-" ? fmtComa(ejM.DA_TOTAL, 2) : "-",
+          "DB_TOTAL": ejM.DB_TOTAL !== "-" ? fmtComa(ejM.DB_TOTAL, 2) : "-",
+          "%_OCUP": ejM.J !== "" ? fmtComa(Number(ejM.J) * 100, 0) + "%" : "0%",
+          "DIÁM.": formatFraccionPulgadas(ejM.D),
+          "A_SELLO": ejM.A_SELLO !== "-" ? fmtComa(ejM.A_SELLO, 1) : "—",
+          "E_MORTERO": ejM.V !== "-" ? formatFraccionPulgadas(ejM.V) : "-",
+          "C_ANT": String(ejM.C),
+        };
+
+        grupo.formulasPrevias.forEach(f => {
+          const key = f.resultadoSim[0].key;
+          const valorFinalF = [mc(valoresM[key] + " cm")];
+          y = dibujarFormulaEjemplo(doc, marginL, y, f.resultadoSim, f.tokens, valoresM, valorFinalF, anchoContenido);
+          y += 6;
+        });
+        const valorFinalAreaM = [mc(valoresM["A_SELLO"] + " "), mc("cm", SQ)];
+        y = dibujarFormulaEjemplo(doc, marginL, y, [mvs("ASELLO")], grupo.tokensArea, valoresM, valorFinalAreaM, anchoContenido);
+        y += 6;
+        const valorFinalVM = [mc((ejM.AK !== "-" ? fmtComa(ejM.AK, 1) : "0") + " "), mc("cm", "3")];
+        y = dibujarFormulaEjemplo(doc, marginL, y, [mvs("VMORTERO")], tokensVMortero, valoresM, valorFinalVM, anchoContenido);
+        y += 16;
+
+        const headRowM = ["Zona", "Nivel", "Cant.", "Tipo", "Barrera", "Material", ...grupo.columnas.map(c => c.header), "A_SELLO (cm2)", "E_MORTERO (in)", "V_MORTERO (cm3)"];
+        doc.autoTable({
+          startY: y,
+          margin: tableMargin,
+          head: [headRowM],
+          body: grupo.filas.map(r => [
+            r.A || "-", r.B || "-", String(r.C), TIPO_LABEL_CORTO[r.L] || r.L,
+            r.M || "-", r.N || "-",
+            ...grupo.columnas.map(c => c.get(r)),
+            r.A_SELLO !== "-" ? fmtComa(r.A_SELLO, 1) : "-",
+            r.V !== "-" ? formatFraccionPulgadas(r.V) : "-",
+            r.AK !== "-" ? fmtComa(r.AK, 1) : "-",
+          ]),
+          styles: { fontSize: MC_TABLA, cellPadding: 2.5, halign: "center" },
+          headStyles: { fillColor: [26, 26, 26], textColor: 255, fontStyle: "normal" },
+          columnStyles: { [headRowM.length - 1]: { fontStyle: "bold" } },
+          didDrawPage: () => dibujarCabecera(),
+          didDrawCell: renderizarCabeceraConSimbolos(headRowM),
+        });
+        y = doc.lastAutoTable.finalY + 26;
+      });
+    }
+  }
+
+  // ---------------- MANGA CP 653 Y PASO DE CABLES MSL ----------------
+  // Los 3 productos (Manga CP 653, Paso MSL M, Paso MSL L) solo aplican a
+  // "Cables en Paso Repenetrable" y comparten los mismos 20 escalones de
+  // diámetro de cable (la ficha Hilti trae un 20° escalón que en la práctica
+  // nunca se alcanza — ver nota en calc-engine.js — por eso acá se muestran
+  // solo los 19 escalones realmente usables). Se unificaron en una sola
+  // sección con una tabla de referencia compartida, a pedido de Kevin
+  // (10/08/2026), en vez de repetir la misma tabla 3 veces.
+  {
+    const DIAM_UMBRALES_REND = [0.118, 0.138, 0.157, 0.177, 0.197, 0.216, 0.236, 0.256, 0.275, 0.314, 0.354, 0.394, 0.433, 0.491, 0.59, 0.708, 0.786, 0.983, 1.179];
+    const DIVISORES_MANGA = [819, 596, 451, 356, 287, 240, 199, 164, 141, 109, 85, 61, 50, 38, 26, 19, 14, 8, 7];
+    const DIVISORES_MSLM = [486, 368, 280, 216, 176, 150, 117, 96, 88, 70, 54, 40, 35, 24, 15, 12, 8, 6, 2];
+    const DIVISORES_MSLL = [1188, 851, 660, 522, 416, 360, 286, 240, 198, 160, 126, 104, 84, 60, 40, 28, 24, 15, 8];
+    function rendimientoParaDiam(diamIn, divisores) {
+      for (let i = 0; i < DIAM_UMBRALES_REND.length; i++) {
+        if (diamIn <= DIAM_UMBRALES_REND[i]) return divisores[i];
+      }
+      return null;
+    }
+    function formatDecimalPulgadas(v) { return fmtComa(v, 3) + "\""; }
+    function formatCmDesdeIn(v) { return fmtComa(v * 2.54, 2) + " cm"; }
+
+    const filasManga = computed.filter(r => n(r.AE) > 0);
+    const filasMslM = computed.filter(r => n(r.AF) > 0);
+    const filasMslL = computed.filter(r => n(r.AG) > 0);
+
+    if (filasManga.length > 0 || filasMslM.length > 0 || filasMslL.length > 0) {
+      doc.addPage(); dibujarCabecera(); y = safe.top;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(MC_TITULO_MAT); doc.setTextColor(226, 0, 26);
+      doc.text("Manga CP 653 y Paso de Cables MSL", marginL, y); y += 24;
+      doc.setTextColor(20, 20, 20);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+      const intro = "Manga CP 653 4\", Paso MSL M (3\"x4\") y Paso MSL L (6\"x4\") se usan en penetrantes de tipo \"Cables en Paso Repenetrable\". A diferencia de los demás materiales, no se calculan por área de sello — la cantidad de cables (C_CABLES) que caben por pieza depende directamente del diámetro del cable, según la tabla de referencia Hilti de abajo (compartida entre los 3 productos, cada uno con su propia columna). La cantidad final de piezas siempre se redondea hacia arriba.";
+      y = dibujarParrafoConSimbolos(doc, marginL, y, intro, MC_BODY, anchoContenido, [
+        { marcador: "C_CABLES", sim: SIM.CCABLES },
+      ]);
+      y += 20;
+      doc.setTextColor(20, 20, 20);
+
+      const tokensCant = [mfrac([mvs("CANT")], [mvs("CCABLES")])];
+      y = dibujarFormulaCompleta(doc, marginL, y, [mvs("CANTPIEZA")], tokensCant, anchoContenido);
+      y += 10;
+      y = dibujarListaVariables(doc, marginL, y, [SIM.CANT, SIM.CCABLES], null, anchoContenido);
+      y += 16;
+
+      saltoDePaginaSiHaceFalta(300);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(MC_BODY + 0.5); doc.setTextColor(20, 20, 20);
+      doc.text("Tabla de rendimiento por diámetro", marginL, y); y += 15;
+      const headRef = ["DIÁM. (in decimal)", "DIÁM. (in fracción)", "DIÁM. (cm)", "C_CABLES (CP 653 4\")", "C_CABLES (MSL M 3x4\")", "C_CABLES (MSL L 6x4\")"];
+      doc.autoTable({
+        startY: y,
+        margin: tableMargin,
+        head: [headRef],
+        body: DIAM_UMBRALES_REND.map((d, i) => [
+          formatDecimalPulgadas(d),
+          formatFraccionPulgadas(d),
+          formatCmDesdeIn(d),
+          String(DIVISORES_MANGA[i]),
+          String(DIVISORES_MSLM[i]),
+          String(DIVISORES_MSLL[i]),
+        ]),
+        styles: { fontSize: MC_TABLA - 0.5, cellPadding: 2 },
+        headStyles: { fillColor: [26, 26, 26], textColor: 255, fontStyle: "normal" },
+        didDrawPage: () => dibujarCabecera(),
+        didDrawCell: renderizarCabeceraConSimbolos(headRef),
+      });
+      y = doc.lastAutoTable.finalY + 20;
+
+      const productos = [
+        { nombre: "Manga CP 653 4\"", filas: filasManga, campo: "AE", divisores: DIVISORES_MANGA },
+        { nombre: "Paso MSL M (3\"x4\")", filas: filasMslM, campo: "AF", divisores: DIVISORES_MSLM },
+        { nombre: "Paso MSL L (6\"x4\")", filas: filasMslL, campo: "AG", divisores: DIVISORES_MSLL },
+      ];
+
+      productos.forEach(prod => {
+        if (prod.filas.length === 0) return;
+        saltoDePaginaSiHaceFalta(140);
+        const ej = prod.filas[0];
+        doc.setFont("helvetica", "bold"); doc.setFontSize(MC_BODY + 0.5); doc.setTextColor(20, 20, 20);
+        doc.text("Ejemplo de cálculo — " + prod.nombre, marginL, y); y += 15;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+        const lineaCaso = `Zona "${ej.A || "—"}", diámetro ${formatFraccionPulgadas(ej.D)}, cantidad ${ej.C}.`;
+        const lsCaso = doc.splitTextToSize(lineaCaso, anchoContenido);
+        doc.text(lineaCaso, marginL, y, { align: "justify", maxWidth: anchoContenido }); y += lsCaso.length * 13 + 16;
+        doc.setTextColor(20, 20, 20);
+
+        const divisorEj = rendimientoParaDiam(n(ej.D), prod.divisores);
+        const valores = { "C_ANT": String(ej.C), "C_CABLES": divisorEj !== null ? String(divisorEj) : "—" };
+        const valorFinal = [mc(String(ej[prod.campo]))];
+        y = dibujarFormulaEjemplo(doc, marginL, y, [mvs("CANTPIEZA")], tokensCant, valores, valorFinal, anchoContenido);
+        y += 16;
+      });
+
+      const filasTodas = [
+        ...filasManga.map(r => ({ r, nombre: "Manga CP 653 4\"", campo: "AE", divisores: DIVISORES_MANGA })),
+        ...filasMslM.map(r => ({ r, nombre: "Paso MSL M", campo: "AF", divisores: DIVISORES_MSLM })),
+        ...filasMslL.map(r => ({ r, nombre: "Paso MSL L", campo: "AG", divisores: DIVISORES_MSLL })),
+      ];
+      const headRow = ["Zona", "Nivel", "Cant.", "Producto", "DIÁM. (in)", "C_CABLES", "CANT_PIEZA (und)"];
+      doc.autoTable({
+        startY: y,
+        margin: tableMargin,
+        head: [headRow],
+        body: filasTodas.map(({ r, nombre, campo, divisores }) => {
+          const div = rendimientoParaDiam(n(r.D), divisores);
+          return [r.A || "-", r.B || "-", String(r.C), nombre, formatFraccionPulgadas(r.D), div !== null ? String(div) : "—", String(r[campo])];
+        }),
+        styles: { fontSize: MC_TABLA, cellPadding: 2.5, halign: "center" },
+        headStyles: { fillColor: [26, 26, 26], textColor: 255, fontStyle: "normal" },
+        columnStyles: { 6: { fontStyle: "bold" } },
+        didDrawPage: () => dibujarCabecera(),
+        didDrawCell: renderizarCabeceraConSimbolos(headRow),
+      });
+      y = doc.lastAutoTable.finalY + 26;
+    }
+  }
+
   // ---------------- PUTTY PAD CP 617 ----------------
   {
     const filasPP = computed.filter(r => n(r.AB) > 0);
@@ -1842,90 +2249,127 @@ function construirMemoriaCalculoPDF() {
     }
   }
 
-  // ---------------- JUNTAS ----------------
+  // ---------------- SELLADOR DE JUNTAS ----------------
   if (computedJ.length > 0) {
-    saltoDePaginaSiHaceFalta(220);
-    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(20, 20, 20);
-    doc.text("Metodología — Juntas", marginL, y); y += 16;
+    // Si hubo Penetrantes, la página 2 ya tiene contenido — Juntas arranca en
+    // página nueva, igual que cualquier otro material. Si el proyecto es
+    // solo-Juntas (sin Penetrantes), la página 2 sigue en blanco (solo
+    // encabezado + línea de proyecto) y hay que usarla en vez de saltar a una
+    // página 3 vacía.
+    if (computed.length > 0) { doc.addPage(); dibujarCabecera(); y = safe.top; }
+    doc.setFont("helvetica", "bold"); doc.setFontSize(MC_TITULO_MAT); doc.setTextColor(226, 0, 26);
+    doc.text("Sellador de Juntas", marginL, y); y += 24;
+    doc.setTextColor(20, 20, 20);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+    const introJ = "Aplica a CP 606, CFS SIL GG, CFS SP WB y FS ONE MAX (este último solo válido en Pared - Entrepiso, Panel de yeso - Concreto). El volumen de sellador (V_SELLO) para una junta con ancho medido (AN_JUNTA) se calcula con el ancho más el traslape del producto a cada lado (T_RASLP), el espesor de producto según sistema UL (E_JUNTA), la longitud (L_JUNTA), el N° de lados sellados (N_LADO) y la cantidad de juntas (CANT_JUNTA). Para juntas topadas (AN_JUNTA = 0) se usa en su lugar una fórmula de cordón mínimo específica por producto, ver nota más abajo.";
+    y = dibujarParrafoConSimbolos(doc, marginL, y, introJ, MC_BODY, anchoContenido, [
+      { marcador: "V_SELLO", sim: SIM.VSELLO },
+      { marcador: "AN_JUNTA", sim: SIM.ANJUNTA },
+      { marcador: "T_RASLP", sim: SIM.TRASLP },
+      { marcador: "E_JUNTA", sim: SIM.EJUNTA },
+      { marcador: "L_JUNTA", sim: SIM.LJUNTA },
+      { marcador: "N_LADO", sim: SIM.NLADO },
+      { marcador: "CANT_JUNTA", sim: SIM.CANTJUNTA },
+    ]);
+    y += 20;
+    doc.setTextColor(20, 20, 20);
 
-    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(50, 50, 50);
-    doc.text("Sellador (junta con ancho medido mayor a 0):", marginL, y); y += 14;
-    y = dibujarFormulaCompleta(doc, marginL, y, MEMORIA_FORMULA_JUNTAS_SELLADOR.resultado, MEMORIA_FORMULA_JUNTAS_SELLADOR.tokens, anchoContenido);
-    y += 4;
-    y = dibujarListaVariables(doc, marginL, y, MEMORIA_FORMULA_JUNTAS_SELLADOR.vars, null, anchoContenido);
-    y += 8;
-    doc.setFont("helvetica", "italic"); doc.setFontSize(8.5); doc.setTextColor(110, 110, 110);
-    const notaTopada = "Para juntas topadas (ancho = 0) se usa una fórmula de cordón mínimo específica por producto, en vez de la anterior.";
-    const lsTopada = doc.splitTextToSize(notaTopada, anchoContenido);
-    doc.text(notaTopada, marginL, y, { align: "justify", maxWidth: anchoContenido }); y += lsTopada.length * 10 + 14;
-    doc.setFont("helvetica", "normal"); doc.setTextColor(20, 20, 20);
+    const tokensVSelloJ = [mvs("LJUNTA"), mop("×"), mop("("), mvs("ANJUNTA"), mop("+"), mc("2"), mop("×"), mvs("TRASLP"), mop(")"), mop("×"), mvs("EJUNTA"), mop("×"), mvs("NLADO"), mop("×"), mvs("CANTJUNTA")];
+    y = dibujarFormulaCompleta(doc, marginL, y, [mvs("VSELLO")], tokensVSelloJ, anchoContenido);
+    y += 10;
+    y = dibujarListaVariables(doc, marginL, y, [SIM.VSELLO, SIM.LJUNTA, SIM.ANJUNTA, SIM.TRASLP, SIM.EJUNTA, SIM.NLADO, SIM.CANTJUNTA], null, anchoContenido);
+    y += 14;
 
-    saltoDePaginaSiHaceFalta(140);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(50, 50, 50);
-    doc.text("Lana mineral (por volumen — la mayoría de combinaciones):", marginL, y); y += 14;
-    y = dibujarFormulaCompleta(doc, marginL, y, MEMORIA_FORMULA_JUNTAS_LANA.resultado, MEMORIA_FORMULA_JUNTAS_LANA.tokens, anchoContenido);
-    y += 4;
-    y = dibujarListaVariables(doc, marginL, y, MEMORIA_FORMULA_JUNTAS_LANA.vars, null, anchoContenido);
-    y += 8;
-    doc.setFont("helvetica", "italic"); doc.setFontSize(8.5); doc.setTextColor(110, 110, 110);
-    const lsNotaLana = doc.splitTextToSize(MEMORIA_FORMULA_JUNTAS_LANA.nota, anchoContenido);
-    doc.text(MEMORIA_FORMULA_JUNTAS_LANA.nota, marginL, y, { align: "justify", maxWidth: anchoContenido }); y += lsNotaLana.length * 10 + 18;
-    doc.setFont("helvetica", "normal"); doc.setTextColor(20, 20, 20);
+    saltoDePaginaSiHaceFalta(120);
+    const notaTopada = "Junta topada (AN_JUNTA = 0) — CP 606, CFS SIL GG y FS ONE MAX: V_SELLO = 0,783 × E_JUNTA² × L_JUNTA × CANT_JUNTA. CFS SP WB: V_SELLO = T_RASLP × 2 × E_JUNTA × L_JUNTA × CANT_JUNTA.";
+    y = dibujarParrafoConSimbolos(doc, marginL, y, notaTopada, MC_BODY - 0.5, anchoContenido, [
+      { marcador: "AN_JUNTA", sim: SIM.ANJUNTA },
+      { marcador: "V_SELLO", sim: SIM.VSELLO },
+      { marcador: "E_JUNTA", sim: SIM.EJUNTA },
+      { marcador: "L_JUNTA", sim: SIM.LJUNTA },
+      { marcador: "CANT_JUNTA", sim: SIM.CANTJUNTA },
+      { marcador: "T_RASLP", sim: SIM.TRASLP },
+    ]);
+    y += 22;
+    doc.setTextColor(20, 20, 20);
+
+    saltoDePaginaSiHaceFalta(180);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(MC_BODY + 0.5); doc.setTextColor(20, 20, 20);
+    doc.text("Lana mineral (cuando aplica)", marginL, y); y += 15;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+    const introLana = "Para la mayoría de combinaciones, el volumen de lana mineral (V_LANA) se calcula con la longitud, el ancho y el espesor de pared adyacente (E_PARED), afectado por el factor de compresión del sistema UL (F_COMP). En Muro Cortina, Entrepiso-Entrepiso y Pared-Entrepiso Lateral se calcula por área (A_LANA) en vez de por volumen, sin E_PARED. El resultado en cm3/cm2 se convierte luego a unidades de plancha (122×61 cm).";
+    y = dibujarParrafoConSimbolos(doc, marginL, y, introLana, MC_BODY, anchoContenido, [
+      { marcador: "V_LANA", sim: SIM.VLANA },
+      { marcador: "E_PARED", sim: SIM.EPARED },
+      { marcador: "F_COMP", sim: SIM.FCOMP },
+      { marcador: "A_LANA", sim: SIM.ALANA },
+    ]);
+    y += 18;
+    const tokensVLana = [mvs("LJUNTA"), mop("×"), mvs("ANJUNTA"), mop("×"), mvs("EPARED"), mop("×"), mop("("), mc("1"), mop("+"), mvs("FCOMP"), mop(")")];
+    y = dibujarFormulaCompleta(doc, marginL, y, [mvs("VLANA")], tokensVLana, anchoContenido);
+    y += 10;
+    y = dibujarListaVariables(doc, marginL, y, [SIM.VLANA, SIM.LJUNTA, SIM.ANJUNTA, SIM.EPARED, SIM.FCOMP], null, anchoContenido);
+    y += 20;
+    doc.setTextColor(20, 20, 20);
 
     const gruposJ = {};
     computedJ.forEach(r => { if (!r.producto) return; (gruposJ[r.producto] = gruposJ[r.producto] || []).push(r); });
 
     Object.keys(gruposJ).forEach(producto => {
       const filas = gruposJ[producto];
-      saltoDePaginaSiHaceFalta(190);
-      doc.setFont("helvetica", "bold"); doc.setFontSize(11.5); doc.setTextColor(226, 0, 26);
-      doc.text(producto, marginL, y); y += 16;
+      saltoDePaginaSiHaceFalta(220);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(MC_TITULO_SUB); doc.setTextColor(226, 0, 26);
+      doc.text(producto, marginL, y); y += 18;
 
       const ej = filas[0];
       const lanaUnidEj = ej.calcularLana ? lanaUnidadesSinRedondear(ej) * ej.cantidad : 0;
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(20, 20, 20);
-      doc.text("Ejemplo de cálculo:", marginL, y); y += 12;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(50, 50, 50);
-      const lineaCasoJ = `Zona "${ej.A || "—"}", ${juntaLabelCorta(ej, ej.superiorInferior)}, barreras ${barrerasLabelCorto(ej.barreras)}, medidas ${ej.longitud}×${ej.ancho} cm.`;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(MC_BODY + 0.5); doc.setTextColor(20, 20, 20);
+      doc.text("Ejemplo de cálculo", marginL, y); y += 15;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(MC_BODY); doc.setTextColor(80, 80, 80);
+      const lineaCasoJ = `Zona "${ej.A || "—"}", ${juntaLabelCorta(ej, ej.superiorInferior)}, barreras ${barrerasLabelCorto(ej.barreras)}, medidas ${fmtComa(ej.longitud, 0)}×${fmtComa(ej.ancho, 0)} cm, cantidad ${ej.cantidad}.`;
       const lsCasoJ = doc.splitTextToSize(lineaCasoJ, anchoContenido);
-      doc.text(lineaCasoJ, marginL, y, { align: "justify", maxWidth: anchoContenido }); y += lsCasoJ.length * 11 + 4;
-
-      const valoresEjJ = {
-        L: `${ej.longitud} cm`, An: `${ej.ancho} cm`,
-        Tr: ej.tras !== undefined ? `${ej.tras} cm` : "—",
-        Ep: ej.esp !== undefined ? `${ej.esp} cm` : "—",
-        Nl: ej.lados === "Ambos lados" ? "2" : "1",
-      };
-      y = dibujarListaVariables(doc, marginL, y, MEMORIA_FORMULA_JUNTAS_SELLADOR.vars, valoresEjJ, anchoContenido);
-      y += 6;
-
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(20, 20, 20);
-      doc.text("» Resultado: ", marginL, y);
-      const wResJ = doc.getTextWidth("» Resultado: ");
-      doc.setFont("helvetica", "normal"); doc.setTextColor(50, 50, 50);
-      const resultadoTxtJ = `${roundup(ej.volumenSellador * ej.cantidad, 0)} cm3 de sellador para ${ej.cantidad} junta(s). Lana mineral: ${ej.calcularLana ? (lanaUnidEj > 0 ? lanaUnidEj.toFixed(2) + " unidad(es) de plancha" : "cantidad menor a 1 unidad") : "no aplica para esta configuración"}.`;
-      const lsResultadoJ = doc.splitTextToSize(resultadoTxtJ, anchoContenido - wResJ);
-      doc.text(resultadoTxtJ, marginL + wResJ, y, { align: "justify", maxWidth: anchoContenido - wResJ });
-      y += Math.max(lsResultadoJ.length * 11, 11) + 14;
+      doc.text(lineaCasoJ, marginL, y, { align: "justify", maxWidth: anchoContenido }); y += lsCasoJ.length * 13 + 16;
       doc.setTextColor(20, 20, 20);
 
+      const valoresEjJ = {
+        "L_JUNTA": `${fmtComa(ej.longitud, 0)} cm`,
+        "AN_JUNTA": `${fmtComa(ej.ancho, 0)} cm`,
+        "T_RASLP": ej.traslapeCm !== null && ej.traslapeCm !== undefined ? `${fmtComa(ej.traslapeCm, 2)} cm` : "—",
+        "E_JUNTA": ej.espesorCm !== null && ej.espesorCm !== undefined ? `${fmtComa(ej.espesorCm, 2)} cm` : "—",
+        "N_LADO": ej.lados === "Ambos lados" ? "2" : "1",
+        "CANT_JUNTA": String(ej.cantidad),
+      };
+      const valorFinalVJ = [mc(String(roundup(ej.volumenSellador * ej.cantidad, 0)) + " "), mc("cm", "3")];
+      y = dibujarFormulaEjemplo(doc, marginL, y, [mvs("VSELLO")], tokensVSelloJ, valoresEjJ, valorFinalVJ, anchoContenido);
+      y += 14;
+
+      doc.setFont("helvetica", "italic"); doc.setFontSize(MC_BODY - 0.5); doc.setTextColor(110, 110, 110);
+      const lineaLanaJ = ej.calcularLana ? `Lana mineral: ${lanaUnidEj > 0 ? fmtComa(lanaUnidEj, 2) + " unidad(es) de plancha" : "cantidad menor a 1 unidad"}.` : "Lana mineral: no aplica para esta configuración.";
+      const lsLanaJ = doc.splitTextToSize(lineaLanaJ, anchoContenido);
+      doc.text(lineaLanaJ, marginL, y, { align: "justify", maxWidth: anchoContenido }); y += lsLanaJ.length * 12 + 16;
+      doc.setFont("helvetica", "normal"); doc.setTextColor(20, 20, 20);
+
+      const headJ = ["Zona", "Nivel", "Cant.", "Junta", "L_JUNTA (cm)", "AN_JUNTA (cm)", "E_JUNTA (in)", "V_SELLO (cm3)", "Lana (unid.)"];
       doc.autoTable({
         startY: y,
         margin: tableMargin,
-        head: [["Zona", "Nivel", "Cant.", "Junta", "Longitud (cm)", "Ancho (cm)", "Sellador (cm3)", "Lana (unid.)"]],
+        head: [headJ],
         body: filas.map(r => {
           const lanaUnid = r.calcularLana ? lanaUnidadesSinRedondear(r) * r.cantidad : 0;
           return [
             r.A || "-", r.B || "-", String(r.cantidad),
             juntaLabelCorta(r, r.superiorInferior),
-            String(r.longitud), String(r.ancho),
-            String(roundup(r.volumenSellador * r.cantidad, 0)),
-            r.calcularLana ? (lanaUnid > 0 ? lanaUnid.toFixed(2) : "—") : "No aplica",
+            fmtComa(r.longitud, 0), fmtComa(r.ancho, 0),
+            r.espesorProductoIn !== null && r.espesorProductoIn !== undefined ? formatFraccionPulgadas(r.espesorProductoIn) : "—",
+            fmtComa(roundup(r.volumenSellador * r.cantidad, 0), 0),
+            r.calcularLana ? (lanaUnid > 0 ? fmtComa(lanaUnid, 2) : "—") : "No aplica",
           ];
         }),
-        styles: { fontSize: 8, cellPadding: 4 },
-        headStyles: { fillColor: [26, 26, 26], textColor: 255 },
+        styles: { fontSize: MC_TABLA, cellPadding: 2.5, halign: "center" },
+        headStyles: { fillColor: [26, 26, 26], textColor: 255, fontStyle: "normal" },
+        columnStyles: { 7: { fontStyle: "bold" } },
         didDrawPage: () => dibujarCabecera(),
+        didDrawCell: renderizarCabeceraConSimbolos(headJ),
       });
       y = doc.lastAutoTable.finalY + 26;
     });
