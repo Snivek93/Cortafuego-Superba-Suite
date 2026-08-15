@@ -48,6 +48,16 @@
   <symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 22s7-7.58 7-13A7 7 0 0 0 5 9c0 5.42 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></symbol>
+  <symbol id="i-highlighter" viewBox="0 0 24 24"><path d="M14.5 3.5a2 2 0 0 1 2.83 0l3.17 3.17a2 2 0 0 1 0 2.83L9.5 20.5H3v-6.5L14.5 3.5Z"/><line x1="8.5" y1="9.5" x2="14.5" y2="15.5"/></symbol>
+  <symbol id="i-eraser" viewBox="0 0 24 24"><g transform="rotate(-12 12 12.5)"><rect x="4" y="8" width="16" height="9" rx="2.5"/><line x1="9.5" y1="8" x2="9.5" y2="17"/></g></symbol>
+  <symbol id="i-move" viewBox="0 0 24 24"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></symbol>
+  <symbol id="i-rectangle" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1.5"/></symbol>
+  <symbol id="i-line" viewBox="0 0 24 24"><line x1="4" y1="20" x2="20" y2="4"/><circle cx="4" cy="20" r="1.6" fill="currentColor" stroke="none"/><circle cx="20" cy="4" r="1.6" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><rect x="2.5" y="8" width="19" height="8" rx="1"/><line x1="6.5" y1="8" x2="6.5" y2="11"/><line x1="10.5" y1="8" x2="10.5" y2="11"/><line x1="14.5" y1="8" x2="14.5" y2="11"/><line x1="18.5" y1="8" x2="18.5" y2="11"/></symbol>
+  <symbol id="i-calibrate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="1" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="23" y2="12"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></symbol>
   <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
@@ -169,6 +179,8 @@
         <button class="dropdown-item" id="btn-pdf-memoria"><svg class="icon"><use href="#i-download"/></svg>Memoria de Cálculo</button>
         <div class="dropdown-sep"></div>
         <button class="dropdown-item" id="btn-descargar-submittal"><svg class="icon"><use href="#i-clipboard"/></svg>Submittal</button>
+        <div class="dropdown-sep"></div>
+        <button class="dropdown-item" id="btn-pdf-planos"><svg class="icon"><use href="#i-download"/></svg>Solo planos</button>
       </div>
     </div>
     <button class="secondary" id="btn-compartir" title="Compartir"><svg class="icon"><use href="#i-share"/></svg><span class="btn-label">Compartir</span></button>
@@ -179,6 +191,7 @@
 <div class="lev-launch-bar">
   <button type="button" id="btn-abrir-levantamiento" class="lev-launch-btn"><svg class="icon"><use href="#i-clipboard"/></svg><span class="lev-launch-label-full">Levantamiento Penetrantes</span><span class="lev-launch-label-short">Penetrantes</span></button>
   <button type="button" id="btn-abrir-levantamiento-juntas" class="lev-launch-btn"><svg class="icon"><use href="#i-clipboard"/></svg><span class="lev-launch-label-full">Levantamiento Juntas</span><span class="lev-launch-label-short">Juntas</span></button>
+  <button type="button" id="btn-abrir-planos" class="lev-launch-btn"><svg class="icon"><use href="#i-map"/></svg><span class="lev-launch-label-full">Planos</span><span class="lev-launch-label-short">Planos</span></button>
 </div>
 
 <div class="config-bar-wrap">
@@ -506,6 +519,7 @@
   <div class="lev-fullscreen-topbar">
     <button type="button" id="btn-cerrar-levantamiento" class="lev-exit-btn"><svg class="icon"><use href="#i-arrow-left"/></svg>Volver a la calculadora</button>
     <span class="lev-fullscreen-title">Levantamiento</span>
+    <button type="button" id="btn-ver-planos-lev" class="lev-exit-btn"><svg class="icon"><use href="#i-map"/></svg>Planos</button>
   </div>
   <div id="levantamiento-content"></div>
 </div>
@@ -530,6 +544,12 @@
 <script src="src/modules/pdf-memoria.js"></script>
 <script src="src/modules/pdf-submittal-y-descargas.js"></script>
 <script src="src/modules/ui-levantamiento.js"></script>
+<script src="src/modules/planos.js"></script>
+<script type="module">
+  import * as pdfjsLib from './vendor/pdf.min.mjs';
+  window.pdfjsLib = pdfjsLib;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
+</script>
 <script src="src/modules/ui-comun-y-cuantificacion.js"></script>
 <script src="src/modules/archivo-guardar-cargar.js"></script>
 <script src="src/modules/excel-export-import.js"></script>

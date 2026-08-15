@@ -1,4 +1,8 @@
 // ============================================================================
+// ui-comun-y-cuantificacion.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // ui-comun-y-cuantificacion.js
 // Modal/Toast propios (compatibilidad con navegadores móviles) y productos agregados a mano en Cuantificación de Materiales.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -129,3 +133,10 @@ function pedirConfirmacion(mensaje, onConfirm) {
 }
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+window.mostrarToast = mostrarToast;
+window.abrirModalAgregarManual = abrirModalAgregarManual;
+window.quitarItemManual = quitarItemManual;
+window.pedirConfirmacion = pedirConfirmacion;
+})();

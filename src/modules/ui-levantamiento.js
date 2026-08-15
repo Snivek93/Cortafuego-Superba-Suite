@@ -1,4 +1,13 @@
 // ============================================================================
+// ui-levantamiento.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+// VISTA_LEVANTAMIENTO_TAB se declara fuera del IIFE (con `var`) porque
+// archivo-estado-app.js le hace reasignación directa -- ver nota igual en
+// ui-tabla-calculadora.js sobre por qué esto es necesario.
+var VISTA_LEVANTAMIENTO_TAB = "detallado";
+
+(function () {
+// ============================================================================
 // ui-levantamiento.js
 // Levantamiento ('Modo campo') — captura rápida en sitio de Penetrantes y de Juntas, un elemento a la vez.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -80,7 +89,142 @@ const TIPO_LABEL_CORTO = {
   "Viga Tubo Rectangular": "Viga tubo rect.",
 };
 
+// Visor de fotos de una fila — muestra todas las fotos guardadas en esa línea
+// (Penetrante o Junta) en una superposición de pantalla completa, apiladas y
+// con scroll si hay varias. Se cierra con el botón × o tocando el fondo.
+function abrirVisorFotosFila(id, tipo) {
+  const row = tipo === "junta" ? ROWS_J.find(r => r._id === id) : ROWS.find(r => r._id === id);
+  const fotos = row && row.fotos ? row.fotos : [];
+  if (!fotos.length) return;
+
+  const overlay = document.createElement("div");
+  overlay.className = "instr-modal-overlay open";
+  overlay.id = "lev-fotos-lightbox";
+  overlay.innerHTML = `
+    <div class="instr-modal lev-fotos-lightbox-box">
+      <div class="instr-modal-header">
+        <span>${fotos.length > 1 ? `Fotos (${fotos.length})` : "Foto"}</span>
+        <button type="button" id="lev-fotos-lightbox-cerrar" aria-label="Cerrar"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+      <div class="instr-modal-content lev-fotos-lightbox-content">
+        ${fotos.map(f => `<img src="${f}" class="lev-fotos-lightbox-img" alt="Foto de la línea">`).join("")}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.classList.add("modal-open");
+  const cerrar = () => { overlay.remove(); document.body.classList.remove("modal-open"); };
+  document.getElementById("lev-fotos-lightbox-cerrar").addEventListener("click", cerrar);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) cerrar(); });
+}
+
 let LEV_MODE = "penetrantes"; // "penetrantes" | "juntas"
+
+
+// Comprime una foto tomada con la cámara antes de guardarla en la fila: la
+// redimensiona a un ancho máximo razonable (no hace falta resolución de
+// galería para una foto de evidencia) y la reexporta como JPEG con calidad
+// moderada. Devuelve un dataURL listo para guardar en LEV.foto / LEV_J.foto.
+function comprimirFotoFile(file, maxAncho = 1200, calidad = 0.78) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo de foto."));
+    reader.onload = () => {
+      img.onerror = () => reject(new Error("No se pudo decodificar la imagen."));
+      img.onload = () => {
+        const escala = Math.min(1, maxAncho / img.width);
+        const w = Math.round(img.width * escala);
+        const h = Math.round(img.height * escala);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", calidad));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// HTML compartido para la sección de fotos del formulario (Penetrantes y Juntas
+// usan el mismo bloque, con distintos ids de input via prefijo). Soporta varias
+// fotos por línea: galería de miniaturas, cada una con su botón de quitar, y el
+// botón de agregar queda siempre visible para poder sumar más.
+function fotoSectionHtml(prefijo, fotosArray) {
+  const fotos = fotosArray || [];
+  return `
+      <div class="lev-section">
+        <label>Fotos <span class="lev-hint-sticky">· opcional, evidencia de esta línea</span></label>
+        ${fotos.length ? `
+          <div class="lev-foto-grid">
+            ${fotos.map((f, i) => `
+              <div class="lev-foto-item">
+                <img src="${f}" alt="Foto ${i + 1}">
+                <button type="button" class="lev-foto-item-quitar" data-${prefijo}-foto-quitar-idx="${i}" aria-label="Quitar esta foto">×</button>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        <label class="lev-foto-btn" for="${prefijo}-foto-input">
+          <svg class="icon"><use href="#i-camera"/></svg>${fotos.length ? "Agregar otra foto" : "Agregar foto"}
+        </label>
+        <input type="file" accept="image/*" capture="environment" id="${prefijo}-foto-input" class="lev-foto-input-oculto">
+      </div>
+  `;
+}
+
+// Busca si una fila ya guardada tiene un pin vinculado en algún plano.
+// PLANOS es una variable global de verdad (declarada fuera de un IIFE en
+// planos.js) — se puede leer directo desde acá sin necesidad de exportarla.
+function buscarPinDeFila(filaId, filaTipo) {
+  if (filaId == null || typeof PLANOS === "undefined") return null;
+  for (const plano of PLANOS) {
+    const pin = (plano.pines || []).find(p => p.filaId === filaId && p.filaTipo === filaTipo);
+    if (pin) return { plano, pin };
+  }
+  return null;
+}
+
+// Sección "Vincular punto en plano" del formulario — siempre visible (a
+// diferencia de antes, que solo aparecía editando una fila ya guardada).
+// - Si la fila ya existe (editandoId) y ya tiene un pin: muestra dónde está,
+//   con opción de quitarlo.
+// - Si la fila ya existe y no tiene pin: botón para vincular directo (ya
+//   tiene _id real).
+// - Si la fila es nueva (sin editandoId): usa el pin "pendiente" del estado
+//   LEV/LEV_J — se guarda recién cuando se guarda la fila (ver
+//   agregarDesdeLevantamiento / guardarItemLevJ).
+function pinSectionHtml(prefijo, filaId, filaTipo, pinPendiente) {
+  const existente = filaId != null ? buscarPinDeFila(filaId, filaTipo) : null;
+  let cuerpo;
+  if (existente) {
+    cuerpo = `
+      <div class="lev-pin-estado">
+        <span>📍 Ubicada en <strong>${escapeHtml(existente.plano.nombre)}</strong></span>
+        <span class="lev-pin-botones">
+          <button type="button" class="lev-foto-item-quitar-texto" id="${prefijo}-btn-plano-pin-modificar">Modificar</button>
+          <button type="button" class="lev-foto-item-quitar-texto" id="${prefijo}-btn-plano-pin-quitar">Quitar</button>
+        </span>
+      </div>`;
+  } else if (pinPendiente) {
+    cuerpo = `
+      <div class="lev-pin-estado">
+        <span>📍 Ubicación guardada en <strong>${escapeHtml(pinPendiente.planoNombre)}</strong> · se vincula al guardar</span>
+        <button type="button" class="lev-foto-item-quitar-texto" id="${prefijo}-btn-plano-pin-quitar">Quitar</button>
+      </div>`;
+  } else {
+    cuerpo = `<button type="button" id="${prefijo}-btn-plano-pin" class="lev-foto-btn">📍 Vincular punto en plano</button>`;
+  }
+  return `
+      <div class="lev-section">
+        <label>Ubicación en plano <span class="lev-hint-sticky">· opcional</span></label>
+        ${cuerpo}
+      </div>
+  `;
+}
+
 const LEV = {
   zona: "", nivel: "",
   tipo: null,
@@ -91,6 +235,8 @@ const LEV = {
   barrera: "Pared", material: "Panel de Yeso", fRating: "1 Hora", membrana: false,
   cantidad: 1, nota: "", puttySize: 7, puttyInst: "Fuera", materialMultiple: "Pasta FS ONE MAX",
   cajaPreset: "10x10x5",
+  fotos: [],
+  pinPendiente: null,
   editandoId: null,
 };
 
@@ -123,6 +269,8 @@ const LEV_J = {
   dimUnidad: "cm", longitud: "", ancho: "", anchoEsOtro: false, anchoLana: "", anchoLanaManual: false,
   espesorPared: "", espesorParedManual: false,
   cantidad: 1, calcularLana: true, nota: "",
+  fotos: [],
+  pinPendiente: null,
   editandoId: null,
   _filaRespaldo: null,
 };
@@ -420,6 +568,10 @@ function renderLevantamientoJuntas(cont) {
         <input type="text" id="levj-nota" class="lev-input-otro" style="margin-top:0;" value="${escapeHtml(LEV_J.nota)}">
       </div>
 
+      ${fotoSectionHtml("levj", LEV_J.fotos)}
+
+      ${pinSectionHtml("levj", LEV_J.editandoId, "junta", LEV_J.pinPendiente)}
+
       <button type="button" class="primary lev-add-btn" id="levj-btn-guardar">${editando ? "Guardar cambios" : "Agregar a la lista"}</button>` : ""}
     </div>
     <div class="lev-wrap" style="padding-top:0;">
@@ -518,6 +670,7 @@ function editarItemLevJ(id) {
     ...anchoJuntaComoPreset(row.ancho !== "" && row.ancho != null ? n(row.ancho) / 2.54 : ""),
     anchoLana: row.anchoLana || "",
     espesorPared: row.espesorPared || "", cantidad: row.cantidad, calcularLana: row.calcularLana, nota: row.nota || "",
+    fotos: (row.fotos || (row.foto ? [row.foto] : [])).slice(),
     editandoId: id,
   });
   renderLevantamiento();
@@ -527,7 +680,7 @@ function limpiarFormularioLevJ(mantenerZona) {
   Object.assign(LEV_J, {
     junta: null, tipo: null, barreras: null, posicion: null, pePosicion: null, posicionPI: "Superior e Inferior", lados: "Ambos lados",
     producto: null, dimUnidad: "cm", longitud: "", ancho: "", anchoEsOtro: false, anchoLana: "", anchoLanaManual: false,
-    espesorPared: "", espesorParedManual: false, cantidad: 1, calcularLana: true, nota: "", editandoId: null,
+    espesorPared: "", espesorParedManual: false, cantidad: 1, calcularLana: true, nota: "", fotos: [], editandoId: null,
   });
   if (!mantenerZona) { LEV_J.zona = ""; LEV_J.nivel = ""; }
 }
@@ -537,7 +690,7 @@ function limpiarFormularioLevJ(mantenerZona) {
 // producto) y solo se limpian las medidas — igual que en Levantamiento Penetrantes.
 function limpiarMedidasLevJ() {
   LEV_J.longitud = ""; LEV_J.ancho = ""; LEV_J.anchoEsOtro = false; LEV_J.anchoLana = ""; LEV_J.anchoLanaManual = false;
-  LEV_J.cantidad = 1; LEV_J.nota = ""; LEV_J.editandoId = null;
+  LEV_J.cantidad = 1; LEV_J.nota = ""; LEV_J.fotos = []; LEV_J.editandoId = null; LEV_J.pinPendiente = null;
 }
 
 function guardarItemLevJ() {
@@ -552,14 +705,21 @@ function guardarItemLevJ() {
     ancho: n(LEV_J.ancho) * 2.54,
     anchoLana: LEV_J.anchoLana !== "" ? (LEV_J.dimUnidad === "in" ? n(LEV_J.anchoLana) * 2.54 : n(LEV_J.anchoLana)) : n(LEV_J.ancho) * 2.54,
     espesorPared: LEV_J.espesorPared !== "" ? n(LEV_J.espesorPared) : espesorParedPorDefecto(LEV_J.barreras),
-    cantidad: LEV_J.cantidad, calcularLana: LEV_J.calcularLana, nota: LEV_J.nota,
+    cantidad: LEV_J.cantidad, calcularLana: LEV_J.calcularLana, nota: LEV_J.nota, fotos: LEV_J.fotos.slice(),
   };
   const fueEdicion = LEV_J.editandoId !== null;
+  let idFinal;
   if (fueEdicion) {
     const idx = ROWS_J.findIndex(r => r._id === LEV_J.editandoId);
-    if (idx >= 0) ROWS_J[idx] = Object.assign({ _id: LEV_J.editandoId }, data);
+    idFinal = LEV_J.editandoId;
+    if (idx >= 0) ROWS_J[idx] = Object.assign({ _id: idFinal }, data);
   } else {
-    ROWS_J.push(Object.assign({ _id: ROW_J_SEQ++ }, data));
+    idFinal = ROW_J_SEQ++;
+    ROWS_J.push(Object.assign({ _id: idFinal }, data));
+  }
+  if (LEV_J.pinPendiente) {
+    confirmarPinPendiente(LEV_J.pinPendiente, idFinal, "junta");
+    LEV_J.pinPendiente = null;
   }
   limpiarMedidasLevJ();
   marcarCambio();
@@ -572,6 +732,49 @@ function attachLevantamientoJuntasEvents(cont) {
   if (zonaEl) zonaEl.addEventListener("input", () => { LEV_J.zona = zonaEl.value; });
   const nivelEl = cont.querySelector("#levj-nivel");
   if (nivelEl) nivelEl.addEventListener("input", () => { LEV_J.nivel = nivelEl.value; });
+
+  const fotoInputJ = cont.querySelector("#levj-foto-input");
+  if (fotoInputJ) fotoInputJ.addEventListener("change", async () => {
+    const file = fotoInputJ.files && fotoInputJ.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await comprimirFotoFile(file);
+      LEV_J.fotos.push(dataUrl);
+      renderLevantamiento();
+    } catch (e) {
+      mostrarToast("No se pudo procesar la foto. Probá de nuevo.", "error");
+    }
+  });
+  cont.querySelectorAll("[data-levj-foto-quitar-idx]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.levjFotoQuitarIdx, 10);
+      LEV_J.fotos.splice(idx, 1);
+      renderLevantamiento();
+    });
+  });
+  const btnPlanoPinJ = cont.querySelector("#levj-btn-plano-pin");
+  if (btnPlanoPinJ) btnPlanoPinJ.addEventListener("click", () => {
+    if (LEV_J.editandoId != null) {
+      abrirVisorPlanos({ filaId: LEV_J.editandoId, filaTipo: "junta" });
+    } else {
+      abrirVisorPlanos({ borrador: true, onColocar: (ubicacion) => { LEV_J.pinPendiente = ubicacion; renderLevantamiento(); } });
+    }
+  });
+  const btnPlanoPinJModificar = cont.querySelector("#levj-btn-plano-pin-modificar");
+  if (btnPlanoPinJModificar) btnPlanoPinJModificar.addEventListener("click", () => {
+    abrirVisorPlanos({ filaId: LEV_J.editandoId, filaTipo: "junta" });
+  });
+  const btnPlanoPinJQuitar = cont.querySelector("#levj-btn-plano-pin-quitar");
+  if (btnPlanoPinJQuitar) btnPlanoPinJQuitar.addEventListener("click", () => {
+    if (LEV_J.editandoId != null) {
+      const existente = buscarPinDeFila(LEV_J.editandoId, "junta");
+      if (existente) existente.plano.pines = existente.plano.pines.filter(p => p.id !== existente.pin.id);
+      marcarCambio();
+    } else {
+      LEV_J.pinPendiente = null;
+    }
+    renderLevantamiento();
+  });
 
   cont.querySelectorAll("[data-levj-grupo]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -949,6 +1152,10 @@ function renderLevantamiento() {
         <textarea id="lev-nota" placeholder="Ej. Tubería visible pero no se pudo medir espacio anular exacto" rows="2" class="lev-textarea">${escapeHtml(LEV.nota)}</textarea>
       </div>
 
+      ${fotoSectionHtml("lev", LEV.fotos)}
+
+      ${pinSectionHtml("lev", LEV.editandoId, "penetrante", LEV.pinPendiente)}
+
       <button type="button" class="primary lev-add-btn" id="lev-btn-agregar" ${LEV.tipo ? "" : "disabled"}>${LEV.editandoId ? "Guardar cambios" : "Añadir"}</button>
 
       <div class="lev-section">
@@ -1002,6 +1209,49 @@ function attachLevantamientoEvents() {
 
   const notaEl = document.getElementById("lev-nota");
   if (notaEl) notaEl.addEventListener("input", () => { LEV.nota = notaEl.value; });
+
+  const fotoInput = document.getElementById("lev-foto-input");
+  if (fotoInput) fotoInput.addEventListener("change", async () => {
+    const file = fotoInput.files && fotoInput.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await comprimirFotoFile(file);
+      LEV.fotos.push(dataUrl);
+      renderLevantamiento();
+    } catch (e) {
+      mostrarToast("No se pudo procesar la foto. Probá de nuevo.", "error");
+    }
+  });
+  document.querySelectorAll("[data-lev-foto-quitar-idx]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.levFotoQuitarIdx, 10);
+      LEV.fotos.splice(idx, 1);
+      renderLevantamiento();
+    });
+  });
+  const btnPlanoPin = document.getElementById("lev-btn-plano-pin");
+  if (btnPlanoPin) btnPlanoPin.addEventListener("click", () => {
+    if (LEV.editandoId != null) {
+      abrirVisorPlanos({ filaId: LEV.editandoId, filaTipo: "penetrante" });
+    } else {
+      abrirVisorPlanos({ borrador: true, onColocar: (ubicacion) => { LEV.pinPendiente = ubicacion; renderLevantamiento(); } });
+    }
+  });
+  const btnPlanoPinModificar = document.getElementById("lev-btn-plano-pin-modificar");
+  if (btnPlanoPinModificar) btnPlanoPinModificar.addEventListener("click", () => {
+    abrirVisorPlanos({ filaId: LEV.editandoId, filaTipo: "penetrante" });
+  });
+  const btnPlanoPinQuitar = document.getElementById("lev-btn-plano-pin-quitar");
+  if (btnPlanoPinQuitar) btnPlanoPinQuitar.addEventListener("click", () => {
+    if (LEV.editandoId != null) {
+      const existente = buscarPinDeFila(LEV.editandoId, "penetrante");
+      if (existente) existente.plano.pines = existente.plano.pines.filter(p => p.id !== existente.pin.id);
+      marcarCambio();
+    } else {
+      LEV.pinPendiente = null;
+    }
+    renderLevantamiento();
+  });
 
   const cantInput = document.getElementById("lev-cantidad");
   if (cantInput) cantInput.addEventListener("input", () => {
@@ -1158,6 +1408,8 @@ function editarItemLevantamiento(id, abrirFullscreen) {
   LEV.puttyInst = row.PPINST || "Fuera";
   LEV.materialMultiple = levUsaSelectorMultiple(row.L) && ["Pasta FS ONE MAX", "Almohadilla CFS-BL", "Espuma CP 620"].includes(row.P) ? row.P : "Pasta FS ONE MAX";
   LEV.nota = row.R || "";
+  LEV.fotos = (row.fotos || (row.foto ? [row.foto] : [])).slice();
+  LEV.pinPendiente = null; // al editar una fila ya guardada se usa el vínculo directo, no el pendiente
   LEV.editandoId = id;
 
   LEV._filaRespaldo = Object.assign({}, row); // por si se cancela la edición, se restaura
@@ -1264,10 +1516,16 @@ function agregarDesdeLevantamiento() {
     F: (usaDim || diametroLibreActivo) ? dimA : "", G: (usaDim || diametroLibreActivo) ? dimB : "", H: profCajaVal,
     I: anularVal, J: ocupacionVal,
     L: LEV.tipo, M: LEV.barrera, N: LEV.material, O: LEV.fRating, MEM: LEV.barrera === "Pared" && LEV.membrana, R: LEV.nota,
+    fotos: LEV.fotos.slice(),
     PPSIZE: LEV.tipo === "Caja Electromecánica UL" ? LEV.puttySize : 7,
     PPINST: LEV.tipo === "Caja Electromecánica UL" ? ppInstFinal : "Fuera",
     P: levUsaSelectorMultiple(LEV.tipo) ? LEV.materialMultiple : materialRecomendado(LEV.tipo, usaDim ? null : diametroVal),
   });
+  // Si se está editando una fila existente, se conserva su _id original en
+  // vez del que nuevaFila() acaba de generar — si no, cualquier pin de plano
+  // vinculado a esta fila se desconecta apenas se edita algo, sin necesidad
+  // de guardar/recargar el proyecto.
+  if (LEV.editandoId != null) nueva._id = LEV.editandoId;
   // Si la Calculadora todavía tiene solo las filas de ejemplo vacías, se limpian
   // al agregar el primer penetrante real desde Levantamiento.
   if (ROWS.length > 0 && ROWS.every(r => !tieneDatosMinimos(r))) {
@@ -1277,12 +1535,19 @@ function agregarDesdeLevantamiento() {
   ROWS.unshift(nueva);
   LEV._filaRespaldo = null; // ya se guardó, no hace falta restaurar nada
 
+  // Si había un pin "pendiente" (colocado antes de guardar, en una fila que
+  // todavía no tenía _id), recién ahora se confirma en el plano con el _id real.
+  if (LEV.pinPendiente) {
+    confirmarPinPendiente(LEV.pinPendiente, nueva._id, "penetrante");
+    LEV.pinPendiente = null;
+  }
+
   const fueEdicion = !!LEV.editandoId;
   // Reset solo lo que suele cambiar penetrante a penetrante; el resto queda pegado
   // El tipo de penetrante se mantiene seleccionado para agilizar el ingreso
   // de múltiples penetrantes del mismo tipo; solo se limpian los valores variables.
   LEV.diametro = ""; LEV.dimA = ""; LEV.dimB = ""; LEV.profCaja = ""; LEV.vacioModo = "dim"; LEV.diametroLibre = "";
-  LEV.espesorAislamiento = ""; LEV.espesorAislamientoOtro = false; LEV.ocupacion = ""; LEV.cantidad = 1; LEV.editandoId = null; LEV.nota = "";
+  LEV.espesorAislamiento = ""; LEV.espesorAislamientoOtro = false; LEV.ocupacion = ""; LEV.cantidad = 1; LEV.editandoId = null; LEV.nota = ""; LEV.fotos = []; LEV.pinPendiente = null;
 
   marcarCambio();
   renderLevantamiento();
@@ -1416,6 +1681,8 @@ function renderTablaAgrupadaHTML(grupos) {
               <td>${escapeHtml(r.O)}</td>
               <td>${escapeHtml(r.R) || "—"}</td>
               <td class="row-actions">
+                ${buscarPinDeFila(r._id, "penetrante") ? `<button class="icon-btn" data-lev-ver-pin="${r._id}" data-lev-ver-pin-tipo="penetrante" aria-label="Ver ubicación en plano"><svg class="icon"><use href="#i-pin"/></svg></button>` : ""}
+                ${(r.fotos && r.fotos.length) ? `<button class="icon-btn" data-lev-ver-fotos="${r._id}" aria-label="Ver fotos"><svg class="icon"><use href="#i-camera"/></svg>${r.fotos.length > 1 ? `<span class="lev-foto-count">${r.fotos.length}</span>` : ""}</button>` : ""}
                 <button class="icon-btn" data-lev-edit-btn="${r._id}" aria-label="Editar"><svg class="icon"><use href="#i-edit"/></svg></button>
                 <button class="icon-btn icon-danger" data-lev-del-btn="${r._id}" aria-label="Eliminar"><svg class="icon"><use href="#i-close"/></svg></button>
               </td>
@@ -1435,7 +1702,6 @@ function claseStatNum(valor) {
 // Vista de las tablas de Levantamiento (Penetrantes y Juntas a la vez):
 // "detallado" (una fila por elemento, editable) o "resumido" (agrupado por
 // características, de solo lectura). Un solo toggle controla ambas tablas.
-let VISTA_LEVANTAMIENTO_TAB = "detallado";
 
 // Agrupa penetrantes que comparten: tipo, dimensión, espacio anular,
 // producto Hilti, tipo de barrera y material de barrera — sin importar
@@ -1541,6 +1807,20 @@ function renderLevantamientoTab() {
       editarItemLevantamiento(id, true);
     });
   });
+  listaBox.querySelectorAll("[data-lev-ver-fotos]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.levVerFotos);
+      const tipo = btn.dataset.levVerFotosTipo === "junta" ? "junta" : "penetrante";
+      abrirVisorFotosFila(id, tipo);
+    });
+  });
+  listaBox.querySelectorAll("[data-lev-ver-pin]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.levVerPin);
+      const tipo = btn.dataset.levVerPinTipo === "junta" ? "junta" : "penetrante";
+      abrirVisorPlanosEnPin(id, tipo);
+    });
+  });
 
   // Selector de producto inline en la tabla del levantamiento
   listaBox.querySelectorAll(".lev-prod-select").forEach(sel => {
@@ -1606,6 +1886,8 @@ function renderTablaJuntasHTML(grupos) {
               <td class="num">${r.calcularLana ? (lanaUnid > 0 ? lanaUnid.toFixed(2) : "—") : "No"}</td>
               <td>${escapeHtml(r.nota) || "—"}</td>
               <td class="row-actions">
+                ${buscarPinDeFila(r._id, "junta") ? `<button class="icon-btn" data-lev-ver-pin="${r._id}" data-lev-ver-pin-tipo="junta" aria-label="Ver ubicación en plano"><svg class="icon"><use href="#i-pin"/></svg></button>` : ""}
+                ${(r.fotos && r.fotos.length) ? `<button class="icon-btn" data-lev-ver-fotos="${r._id}" data-lev-ver-fotos-tipo="junta" aria-label="Ver fotos"><svg class="icon"><use href="#i-camera"/></svg>${r.fotos.length > 1 ? `<span class="lev-foto-count">${r.fotos.length}</span>` : ""}</button>` : ""}
                 <button class="icon-btn" data-levj-tab-edit="${r._id}" aria-label="Editar"><svg class="icon"><use href="#i-edit"/></svg></button>
                 <button class="icon-btn icon-danger" data-levj-tab-del="${r._id}" aria-label="Eliminar"><svg class="icon"><use href="#i-close"/></svg></button>
               </td>
@@ -1705,6 +1987,18 @@ function renderLevantamientoTabJuntas() {
       marcarCambio();
     });
   });
+  listaBox.querySelectorAll("[data-lev-ver-fotos]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.levVerFotos);
+      abrirVisorFotosFila(id, "junta");
+    });
+  });
+  listaBox.querySelectorAll("[data-lev-ver-pin]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.levVerPin);
+      abrirVisorPlanosEnPin(id, "junta");
+    });
+  });
   listaBox.querySelectorAll("[data-levj-tab-edit]").forEach(btn => {
     btn.addEventListener("click", () => {
       abrirLevantamientoJuntas();
@@ -1756,3 +2050,26 @@ function switchTab(tab) {
 }
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+window.levOcultaAnular = levOcultaAnular;
+window.levUsaDiametroLibre = levUsaDiametroLibre;
+window.TIPO_LABEL_CORTO = TIPO_LABEL_CORTO;
+window.barrerasLabelCorto = barrerasLabelCorto;
+window.agruparJuntasPorZona = agruparJuntasPorZona;
+window.abrirLevantamiento = abrirLevantamiento;
+window.abrirLevantamientoJuntas = abrirLevantamientoJuntas;
+window.cerrarLevantamiento = cerrarLevantamiento;
+window.agruparPorZona = agruparPorZona;
+window.renderLevantamiento = renderLevantamiento;
+window.agregarDesdeLevantamiento = agregarDesdeLevantamiento;
+window.PROD_LABEL = PROD_LABEL;
+window.agruparPenetrantesPorCaracteristicas = agruparPenetrantesPorCaracteristicas;
+window.renderLevantamientoTab = renderLevantamientoTab;
+window.juntaLabelCorta = juntaLabelCorta;
+window.lanaUnidadesSinRedondear = lanaUnidadesSinRedondear;
+window.agruparJuntasPorCaracteristicas = agruparJuntasPorCaracteristicas;
+window.renderLevantamientoTabJuntas = renderLevantamientoTabJuntas;
+window.compartirReporte = compartirReporte;
+window.switchTab = switchTab;
+})();

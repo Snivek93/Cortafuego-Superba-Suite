@@ -1,3 +1,7 @@
+// ============================================================================
+// compartir-tabla-imagen.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
 // Genera una imagen JPG de la tabla de "Cuantificación de Materiales Hilti"
 // dibujándola en un <canvas> (sin depender de librerías externas tipo
 // html2canvas) y la comparte con navigator.share, o la descarga si el
@@ -211,3 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("btn-compartir-tabla-materiales");
   if (btn) btn.addEventListener("click", compartirTablaMaterialesImagen);
 });
+
+// --- Exports usados por otros módulos ---
+
+})();

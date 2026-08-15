@@ -1,4 +1,8 @@
 // ============================================================================
+// pdf-submittal-y-descargas.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // pdf-submittal-y-descargas.js
 // Descarga de fichas técnicas/certificados reales, PDF Submittal (índice + fichas + sistemas UL + certificados), y links internos dentro del PDF.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -631,3 +635,9 @@ const APP_VERSION = "0.2.3 alpha";
 
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+window.descargarSistemasUL = descargarSistemasUL;
+window.descargarFichasTecnicas = descargarFichasTecnicas;
+window.descargarSubmittal = descargarSubmittal;
+})();

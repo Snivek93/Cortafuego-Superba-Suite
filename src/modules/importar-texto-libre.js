@@ -1,4 +1,8 @@
 // ============================================================================
+// importar-texto-libre.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // importar-texto-libre.js
 // Importar un levantamiento desde un archivo de texto libre (.txt).
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -55,11 +59,14 @@ function parseFraccion(txt) {
 
 const TXT_KEYWORDS = [
   // [regex, tipoDePenetrante, requiereDims(AxB) ]
-  [/ducto\s*barra/i, "Ducto Rectangular", true],
+  [/ducto\s*barra|ducto\s*rectangular/i, "Ducto Rectangular", true],
   [/gaveta/i, "Pasante Múltiple", true],
   [/(bandeja|canasta)/i, "Bandeja de Cables", true],
   [/cables?\s*armados?/i, "Cable Armado", false],
-  [/preaislad/i, "Tubería Cobre Aislado HVAC", false],
+  [/preaislad|cobre.*hvac|hvac.*cobre/i, "Tubería Cobre Aislado HVAC", false],
+  [/met[aá]lica?\s*aislad|aislad\w*\s*met[aá]lica?|metal\s*aislad/i, "Tubería Metal Aislado", false],
+  [/(^|\s)metal(?:es|ica|ico)?(\s|$)/i, "Tubería Metal", false],
+  [/vac[ií]o/i, "Vacío", false],
   [/pvc|cpvc|pex|pp-?r|combustible/i, "Tubería Combustible (PVC, CPVC, PEX, PP-R)", false],
   [/emt/i, "Tubería EMT", false],
   [/incendio/i, "Tubería Metal", false],
@@ -190,9 +197,16 @@ function datosProyectoActual() {
     fechaExportacion: new Date().toISOString(),
     projectInfo: PROJECT_INFO,
     config: CONFIG,
-    filas: ROWS.map(r => { const c = Object.assign({}, r); delete c._id; return c; }),
-    filasJuntas: ROWS_J.map(r => { const c = Object.assign({}, r); delete c._id; return c; }),
+    // OJO: a diferencia de antes, ACÁ SE CONSERVA el _id de filas y filasJuntas
+    // (no se borra). Los pines de planos vinculan una fila por su _id — si se
+    // volviera a borrar acá, cualquier pin vinculado quedaría apuntando a la
+    // fila equivocada (o a ninguna) en cuanto se guarde y se vuelva a cargar
+    // el proyecto. Ver "aplicarProyectoImportado"/"cargarDatosEmbebidos" para
+    // la otra mitad del fix: ahí se respeta este _id en vez de reasignarlo siempre.
+    filas: ROWS.map(r => Object.assign({}, r)),
+    filasJuntas: ROWS_J.map(r => Object.assign({}, r)),
     itemsManuales: MANUAL_ITEMS.map(m => { const c = Object.assign({}, m); delete c._id; return c; }),
+    planos: PLANOS,
   };
   if (JSON.stringify(MAIN_TABLE) !== MAIN_TABLE_DEFAULT_JSON) payload.mainTableOverride = MAIN_TABLE;
   if (JSON.stringify(JUNTAS_TABLE) !== JUNTAS_TABLE_DEFAULT_JSON) payload.juntasTableOverride = JUNTAS_TABLE;
@@ -209,13 +223,22 @@ function cargarDatosEmbebidos() {
   try {
     const data = JSON.parse(txt);
     if (!data || !Array.isArray(data.filas) || data.filas.length === 0) return false;
-    ROWS = data.filas.map(f => Object.assign(nuevaFila(), f, { _id: ROW_SEQ++ }));
-    if (Array.isArray(data.filasJuntas)) ROWS_J = data.filasJuntas.map(f => Object.assign({}, f, { _id: ROW_J_SEQ++ }));
+    // Se respeta el _id guardado (si existe) — ver nota igual en
+    // archivo-estado-app.js/archivo-guardar-cargar.js sobre por qué esto es
+    // necesario (vínculo de pines de planos a filas específicas).
+    ROWS = data.filas.map(f => Object.assign(nuevaFila(), f, { _id: typeof f._id === "number" ? f._id : ROW_SEQ++ }));
+    ROW_SEQ = Math.max(ROW_SEQ, ...ROWS.map(r => r._id), 0) + 1;
+    if (Array.isArray(data.filasJuntas)) {
+      ROWS_J = data.filasJuntas.map(f => Object.assign({}, f, { _id: typeof f._id === "number" ? f._id : ROW_J_SEQ++ }));
+      ROW_J_SEQ = Math.max(ROW_J_SEQ, ...ROWS_J.map(r => r._id), 0) + 1;
+    }
     MANUAL_ITEMS = Array.isArray(data.itemsManuales) ? data.itemsManuales.map(m => Object.assign({}, m, { _id: MANUAL_ITEM_SEQ++ })) : [];
     if (data.config) Object.assign(CONFIG, data.config);
     if (data.projectInfo) Object.assign(PROJECT_INFO, data.projectInfo);
     if (data.mainTableOverride) MAIN_TABLE = data.mainTableOverride;
     if (data.juntasTableOverride) JUNTAS_TABLE = data.juntasTableOverride;
+    PLANOS = Array.isArray(data.planos) ? data.planos : [];
+    PLANO_SEQ = PLANOS.reduce((m, p) => Math.max(m, p.id || 0), 0) + 1;
     return true;
   } catch (e) {
     return false;
@@ -246,3 +269,13 @@ function descargarAppConProyecto() {
 }
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+window.materialRecomendado = materialRecomendado;
+window.parseFraccion = parseFraccion;
+window.importarTxt = importarTxt;
+window.datosProyectoActual = datosProyectoActual;
+window.cargarDatosEmbebidos = cargarDatosEmbebidos;
+window.construirHTMLConDatos = construirHTMLConDatos;
+window.nombreArchivoSugerido = nombreArchivoSugerido;
+})();

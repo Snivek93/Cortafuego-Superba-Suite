@@ -1,4 +1,25 @@
 // ============================================================================
+// ui-tabla-calculadora.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+// OJO: ROWS, ROW_SEQ, ROWS_J, ROW_J_SEQ, ACTIVE_TAB, MANUAL_ITEM_SEQ y MANUAL_ITEMS
+// se declaran FUERA del IIFE a propósito (con `var`, no `let`). Varios otros módulos
+// les hacen REASIGNACIÓN directa (ej. `ROWS = data.filas.map(...)`, no solo mutación
+// como `.push()`), y si quedaran como `let` dentro del IIFE de este archivo, esa
+// reasignación externa crearía una copia global desconectada de la que este módulo
+// sigue usando internamente (ej. `nuevaFila()` usando un ROW_SEQ viejo, generando
+// _id duplicados). No agregar más variables acá salvo que de verdad las reasigne
+// otro módulo — mutación in-place (`.push`, `.filter` guardado de vuelta sí cuenta
+// como reasignación) desde otro archivo es la señal de que hace falta este patrón.
+var ROWS = [];
+var ROW_SEQ = 1;
+var ROWS_J = [];
+var ROW_J_SEQ = 1;
+var ACTIVE_TAB = "levantamiento-tab";
+var MANUAL_ITEM_SEQ = 1;
+var MANUAL_ITEMS = [];
+
+(function () {
+// ============================================================================
 // ui-tabla-calculadora.js
 // UI: estado de filas (ROWS) y render de la tabla Calculadora + Resumen en pantalla.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -8,12 +29,6 @@
 // UI: estado de filas, render de tabla CALCULADORA y RESUMEN
 // ============================================================================
 
-let ROWS = [];
-let ROW_SEQ = 1;
-let ROWS_J = [];
-let ROW_J_SEQ = 1;
-let ACTIVE_TAB = "levantamiento-tab";
-
 const CONFIG = { C13: 15, C14: 12.5, C15: 20, C17: 0.10, C17_JUNTAS: 0.10, UMB_FS: 17, UMB_CP606: 17, UMB_SILGG: 17 };
 const CONFIG_DEFAULT = { C13: 15, C14: 12.5, C15: 20, C17: 0.10, C17_JUNTAS: 0.10, UMB_FS: 17, UMB_CP606: 17, UMB_SILGG: 17 };
 
@@ -21,13 +36,11 @@ const CONFIG_DEFAULT = { C13: 15, C14: 12.5, C15: 20, C17: 0.10, C17_JUNTAS: 0.1
 // "auto" = misma regla de siempre (17 cartuchos convierte a cubeta extra).
 // "cartuchos" = todo en cartuchos. "cubetas" = todo en cubetas (cualquier
 // remanente redondea a 1 cubeta más).
-let RESUMEN_MODO_PRODUCTO = { "FS ONE MAX": "auto", "CP 606": "auto", "CFS SIL GG": "auto" };
+let RESUMEN_MODO_PRODUCTO = { "FS ONE MAX": "auto", "CP 606": "auto", "CFS SIL GG": "auto" }; // solo se mutan sus propiedades desde otros módulos, nunca se reasigna -> queda bien como let+export
 
 // Productos agregados a mano en Cuantificación (fuera del cálculo, ej. "el
 // cliente ya pidió 3 manguitos CP 653 aparte"). Se guardan y exportan junto
 // con el resto del proyecto.
-let MANUAL_ITEM_SEQ = 1;
-let MANUAL_ITEMS = [];
 let MODAL_MANUAL_ABIERTO = false;
 let MODAL_MANUAL_PRODUCTO_SEL = "otro"; // clave "nombre|||presentacion" de PRODUCTOS, o "otro"
 
@@ -44,7 +57,8 @@ function nuevaFila() {
     _id: ROW_SEQ++,
     A: "", B: "", C: 1, D: "", E: 0, F: "", G: "", H: "", I: 0, J: 0,
     L: OPTS_L[0], M: OPTS_M[0], N: OPTS_N[0], O: OPTS_O[0], P: OPTS_P[0], MEM: false, R: "", PPSIZE: 7, PPINST: "Fuera",
-    AJ_override: null   // override manual de talla de collarín (null = usar la automática)
+    AJ_override: null,  // override manual de talla de collarín (null = usar la automática)
+    fotos: []            // array de dataURL JPEG comprimidos, fotos de evidencia de esta línea
   };
 }
 
@@ -84,3 +98,16 @@ function fieldLabel(f) {
 }
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+// (ROWS/ROW_SEQ/ROWS_J/ROW_J_SEQ/ACTIVE_TAB/MANUAL_ITEM_SEQ/MANUAL_ITEMS ya son
+// globales de verdad -- se declaran con `var` fuera de este IIFE, ver arriba)
+window.CONFIG = CONFIG;
+window.CONFIG_DEFAULT = CONFIG_DEFAULT;
+window.RESUMEN_MODO_PRODUCTO = RESUMEN_MODO_PRODUCTO;
+window.itemsManualesComoResumen = itemsManualesComoResumen;
+window.PROJECT_INFO = PROJECT_INFO;
+window.nuevaFila = nuevaFila;
+window.kFromL = kFromL;
+window.camposVisibles = camposVisibles;
+})();

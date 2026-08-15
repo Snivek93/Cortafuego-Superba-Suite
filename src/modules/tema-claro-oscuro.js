@@ -1,3 +1,7 @@
+// ============================================================================
+// tema-claro-oscuro.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
 // Módulo: Configuración (tema + calculadora)
 // Maneja el modal de Configuración que reemplazó al botón de tema.
 const TEMA_CLAVE_STORAGE = "cf-hilti-tema";
@@ -98,3 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 });
+
+// --- Exports usados por otros módulos ---
+
+})();

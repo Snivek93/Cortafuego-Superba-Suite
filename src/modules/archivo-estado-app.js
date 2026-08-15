@@ -1,4 +1,8 @@
 // ============================================================================
+// archivo-estado-app.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // archivo-estado-app.js
 // Archivo — Nuevo/Abrir/Guardar/Guardar como (comportamiento tipo Word), autoguardado en localStorage, pila de Deshacer, y Borrar Todo.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -295,7 +299,9 @@ function initApp() {
 
   // Configuración ahora es un modal — ver tema-claro-oscuro.js
   document.getElementById("btn-abrir-levantamiento-juntas").addEventListener("click", abrirLevantamientoJuntas);
+  document.getElementById("btn-abrir-planos").addEventListener("click", () => abrirVisorPlanos());
   document.getElementById("btn-cerrar-levantamiento").addEventListener("click", cerrarLevantamiento);
+  document.getElementById("btn-ver-planos-lev").addEventListener("click", () => abrirVisorPlanos());
 
   document.getElementById("btn-abrir-instrucciones").addEventListener("click", () => {
     document.getElementById("instrucciones-modal").classList.add("open");
@@ -433,6 +439,7 @@ function initApp() {
   document.getElementById("btn-descargar-sistemas").addEventListener("click", descargarSistemasUL);
   document.getElementById("btn-descargar-fichas").addEventListener("click", descargarFichasTecnicas);
   document.getElementById("btn-descargar-submittal").addEventListener("click", descargarSubmittal);
+  document.getElementById("btn-pdf-planos").addEventListener("click", exportarPlanosPDF);
 
   document.getElementById("btn-archivo-nuevo").addEventListener("click", nuevoProyecto);
   document.getElementById("btn-archivo-abrir").addEventListener("click", abrirArchivo);
@@ -477,11 +484,21 @@ function initApp() {
   } else {
     const auto = cargarAutoguardado();
     if (auto) {
-      ROWS = auto.filas.map(f => Object.assign(nuevaFila(), f, { _id: ROW_SEQ++ }));
-      if (Array.isArray(auto.filasJuntas)) ROWS_J = auto.filasJuntas.map(f => Object.assign({}, f, { _id: ROW_J_SEQ++ }));
+      // Se respeta el _id guardado (si existe) en vez de reasignarlo siempre —
+      // los pines de planos vinculan filas por _id, y perderlo acá rompería
+      // ese vínculo cada vez que se restaura el autoguardado. Compatibilidad
+      // hacia atrás: si el autoguardado es viejo y no trae _id, se asigna uno nuevo.
+      ROWS = auto.filas.map(f => Object.assign(nuevaFila(), f, { _id: typeof f._id === "number" ? f._id : ROW_SEQ++ }));
+      ROW_SEQ = Math.max(ROW_SEQ, ...ROWS.map(r => r._id), 0) + 1;
+      if (Array.isArray(auto.filasJuntas)) {
+        ROWS_J = auto.filasJuntas.map(f => Object.assign({}, f, { _id: typeof f._id === "number" ? f._id : ROW_J_SEQ++ }));
+        ROW_J_SEQ = Math.max(ROW_J_SEQ, ...ROWS_J.map(r => r._id), 0) + 1;
+      }
       MANUAL_ITEMS = Array.isArray(auto.itemsManuales) ? auto.itemsManuales.map(m => Object.assign({}, m, { _id: MANUAL_ITEM_SEQ++ })) : [];
       if (auto.config) Object.assign(CONFIG, auto.config);
       if (auto.projectInfo) Object.assign(PROJECT_INFO, auto.projectInfo);
+      PLANOS = Array.isArray(auto.planos) ? auto.planos : [];
+      PLANO_SEQ = PLANOS.reduce((m, p) => Math.max(m, p.id || 0), 0) + 1;
       sincronizarCamposConfig();
       const pn = document.getElementById("proj-nombre"); if (pn) pn.value = PROJECT_INFO.nombre;
       const pc = document.getElementById("proj-cliente"); if (pc) pc.value = PROJECT_INFO.cliente;
@@ -500,3 +517,9 @@ function initApp() {
 
 document.addEventListener("DOMContentLoaded", initApp);
 
+// --- Exports usados por otros módulos ---
+window.marcarCambio = marcarCambio;
+window.UNDO_STACK = UNDO_STACK;
+window.pushUndo = pushUndo;
+window.deshacerCambio = deshacerCambio;
+})();

@@ -1,4 +1,8 @@
 // ============================================================================
+// constantes.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // constantes.js
 // Vocabulario compartido de toda la app: mensajes de error/aviso, tipos de penetrante (TIPO_*), materiales Hilti (MAT_*), y las tablas de familias/fichas asociadas a cada material.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -68,3 +72,42 @@ const FICHA_ALIAS = {
   [MAT_CFS_SIL_GG]: "Sellador CFS-S SIL GG",
   [MAT_COLLARIN]: "Collarín CP643N o CP444",
 };
+
+// --- Exports usados por otros módulos ---
+window.ERR_MATERIAL = ERR_MATERIAL;
+window.ERR_JUICIO = ERR_JUICIO;
+window.MSG_CAMBIAR_1 = MSG_CAMBIAR_1;
+window.MSG_CAMBIAR_2 = MSG_CAMBIAR_2;
+window.ERR_COMBUSTIBLE_SELLADOR = ERR_COMBUSTIBLE_SELLADOR;
+window.TIPO_TUB_METAL = TIPO_TUB_METAL;
+window.TIPO_TUB_COBRE_HVAC = TIPO_TUB_COBRE_HVAC;
+window.TIPO_TUB_COMB = TIPO_TUB_COMB;
+window.TIPO_TUB_COMB_AISL = TIPO_TUB_COMB_AISL;
+window.TIPO_BANDEJA = TIPO_BANDEJA;
+window.TIPO_CABLE_REPEN = TIPO_CABLE_REPEN;
+window.TIPO_CAJA_UL = TIPO_CAJA_UL;
+window.TIPO_DUCTO_RECT = TIPO_DUCTO_RECT;
+window.TIPO_DUCTO_RECT_AISL = TIPO_DUCTO_RECT_AISL;
+window.TIPO_DUCTO_RED = TIPO_DUCTO_RED;
+window.TIPO_DUCTO_RED_AISL = TIPO_DUCTO_RED_AISL;
+window.TIPO_PASANTE_MULT = TIPO_PASANTE_MULT;
+window.TIPO_VACIO = TIPO_VACIO;
+window.TIPO_VIGA_W = TIPO_VIGA_W;
+window.TIPO_VIGA_CANAL = TIPO_VIGA_CANAL;
+window.TIPO_VIGA_TUBO = TIPO_VIGA_TUBO;
+window.MAT_PASTA = MAT_PASTA;
+window.MAT_CINTA_CON = MAT_CINTA_CON;
+window.MAT_CINTA_SIN = MAT_CINTA_SIN;
+window.MAT_PUTTY = MAT_PUTTY;
+window.MAT_ESPUMA = MAT_ESPUMA;
+window.MAT_ALMOHADILLA = MAT_ALMOHADILLA;
+window.MAT_MANGA = MAT_MANGA;
+window.MAT_MSL_M = MAT_MSL_M;
+window.MAT_MSL_L = MAT_MSL_L;
+window.MAT_COLLARIN = MAT_COLLARIN;
+window.MAT_MORTERO = MAT_MORTERO;
+window.MAT_CP606 = MAT_CP606;
+window.MAT_CFS_SIL_GG = MAT_CFS_SIL_GG;
+window.FAMILIA_POR_MATERIAL = FAMILIA_POR_MATERIAL;
+window.FICHA_ALIAS = FICHA_ALIAS;
+})();

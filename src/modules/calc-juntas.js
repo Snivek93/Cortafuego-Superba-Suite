@@ -1,4 +1,8 @@
 // ============================================================================
+// calc-juntas.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // calc-juntas.js
 // Motor de cálculo de Juntas — helpers de combinaciones disponibles y cálculo de sellador/lana para juntas.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -459,3 +463,37 @@ function computeSingleRow(row) {
 }
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+window.juntasDisponibles = juntasDisponibles;
+window.juntaParaTipo = juntaParaTipo;
+window.todosLosTipos = todosLosTipos;
+window.tiposParaJunta = tiposParaJunta;
+window.barrerasParaTipo = barrerasParaTipo;
+window.posicionesParaCombo = posicionesParaCombo;
+window.productosParaCombo = productosParaCombo;
+window.esComboSuperiorInferior = esComboSuperiorInferior;
+window.usaEspesorPared = usaEspesorPared;
+window.espesorParedPorDefecto = espesorParedPorDefecto;
+window.computeJuntaRow = computeJuntaRow;
+window.computeSingleJuntaRow = computeSingleJuntaRow;
+window.computeAllJuntaRows = computeAllJuntaRows;
+window.tieneDatosMinimosJunta = tieneDatosMinimosJunta;
+window.mezclarResumenJuntas = mezclarResumenJuntas;
+window.computeAllRows = computeAllRows;
+window.selectHtml = selectHtml;
+window.numHtml = numHtml;
+window.numFraccionHtml = numFraccionHtml;
+window.textHtml = textHtml;
+window.escapeHtml = escapeHtml;
+window.tituloCase = tituloCase;
+window.tituloCaseProducto = tituloCaseProducto;
+window.camposRequeridos = camposRequeridos;
+window.tieneDatosMinimos = tieneDatosMinimos;
+window.badgeForQ = badgeForQ;
+window.formatFraccionPulgadas = formatFraccionPulgadas;
+window.formatEspesorPenetrante = formatEspesorPenetrante;
+window.formatFraccionInput = formatFraccionInput;
+window.rowIndexOf = rowIndexOf;
+window.computeSingleRow = computeSingleRow;
+})();

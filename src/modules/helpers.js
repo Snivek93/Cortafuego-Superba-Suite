@@ -1,4 +1,8 @@
 // ============================================================================
+// helpers.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // helpers.js
 // Funciones genéricas de propósito general (comparar texto, redondear tipo Excel, detectar vacío) — sin dependencias, usadas por todos los demás módulos.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -29,3 +33,12 @@ function rounddown(x, digits = 0) {
   if (x >= 0) return Math.floor(x * f + 1e-9) / f;
   return Math.ceil(x * f - 1e-9) / f;
 }
+
+// --- Exports usados por otros módulos ---
+window.eq = eq;
+window.neq = neq;
+window.isBlank = isBlank;
+window.n = n;
+window.round2 = round2;
+window.roundup = roundup;
+})();

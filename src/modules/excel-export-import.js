@@ -1,4 +1,8 @@
 // ============================================================================
+// excel-export-import.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // excel-export-import.js
 // Exportar a Excel (hoja CALCULADORA, Levantamiento de Penetrantes y de Juntas), exportar/importar matrices maestras de Base de Datos, comparación de cambios antes de aplicar una matriz importada, e importar un levantamiento desde el Excel original.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -131,7 +135,7 @@ function exportarLevantamientoJuntasExcel() {
   const totalItems = grupos.reduce((acc, g) => acc + g.items.length, 0);
   if (totalItems === 0) { mostrarToast("No hay juntas con datos completos para exportar.", "error"); return; }
 
-  const HEADERS = ["Zona", "Nivel", "Cantidad", "Junta", "Barreras", "Producto", "Largo (cm)", "Ancho (cm)", "Nota"];
+  const HEADERS = ["Zona", "Nivel", "Cantidad", "Junta", "Barreras", "Producto", "Largo (cm)", "Ancho (cm)", "Espesor (cm)", "Nota"];
   const aoa = [];
   const nombreProy = (PROJECT_INFO && PROJECT_INFO.nombre) ? PROJECT_INFO.nombre.trim() : "";
   aoa.push([`Levantamiento de Juntas${nombreProy ? " — " + nombreProy : ""}`]);
@@ -147,6 +151,7 @@ function exportarLevantamientoJuntasExcel() {
         juntaLabelCorta(r, f.superiorInferior),
         barrerasLabelCorto(r.barreras),
         r.producto, r.longitud, r.ancho,
+        f.espesorCm !== null && f.espesorCm !== undefined ? Number(f.espesorCm.toFixed(2)) : "",
         r.nota || ""
       ]);
     });
@@ -155,7 +160,7 @@ function exportarLevantamientoJuntasExcel() {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"] = [
     { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 26 }, { wch: 18 },
-    { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 22 }
+    { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 22 }
   ];
   ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: HEADERS.length - 1 } }];
 
@@ -464,3 +469,18 @@ function importarExcel(file) {
 }
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+window.kFromLTexto = kFromLTexto;
+window.exportarLevantamientoExcel = exportarLevantamientoExcel;
+window.exportarLevantamientoPenetrantesExcel = exportarLevantamientoPenetrantesExcel;
+window.exportarLevantamientoJuntasExcel = exportarLevantamientoJuntasExcel;
+window.guardarMatricesLocalStorage = guardarMatricesLocalStorage;
+window.cargarMatricesLocalStorage = cargarMatricesLocalStorage;
+window.restaurarMatricesOriginales = restaurarMatricesOriginales;
+window.exportarMatrizPenetrantesExcel = exportarMatrizPenetrantesExcel;
+window.importarMatrizPenetrantesExcel = importarMatrizPenetrantesExcel;
+window.exportarMatrizJuntasExcel = exportarMatrizJuntasExcel;
+window.importarMatrizJuntasExcel = importarMatrizJuntasExcel;
+window.importarExcel = importarExcel;
+})();

@@ -1,4 +1,8 @@
 // ============================================================================
+// pdf-memoria.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // pdf-memoria.js
 // Memoria de Cálculo — fórmulas con formato tipo Word (subíndices, fracciones, símbolos), desglose geométrico por subcaso, y todas las secciones por material (Pasta, Lana, Cinta, Collar, Almohadilla CFS-BL, Juntas).
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -88,6 +92,7 @@ const SIM = {
   FCOMP:    { key: "F_COMP",   v: "F",    sub: "COMP",    desc: "Factor de compresión de la lana mineral, según sistema UL" },
   VLANA:    { key: "V_LANA",   v: "V",    sub: "LANA",    desc: "Volumen de lana mineral (cm3)" },
   ALANA:    { key: "A_LANA",   v: "A",    sub: "LANA",    desc: "Área de lana mineral (cm2) — Muro Cortina, Entrepiso-Entrepiso y Pared-Entrepiso Lateral" },
+  CANTCOLL: { key: "CANT_COLLAR", v: "CANT", sub: "COLLAR", desc: "Cantidad de collarines CP 643N/644 por penetrante" },
 };
 // Descripciones de SIM también quedan disponibles por su `key` de texto plano,
 // para que dibujarListaVariables funcione igual reciba un string o un objeto SIM.
@@ -123,7 +128,13 @@ const MEMORIA_FORMULAS_PENETRANTES = {
     vars: [SIM.VSELLO, SIM.ASELLO, SIM.ESELLO, SIM.SLADOS, SIM.CANT, SIM.DESP],
     nota: "Si la pared es más gruesa que 12.5cm, la lana mineral de refuerzo se calcula por volumen en vez de por área (ver Lana Mineral, más abajo). El % de desperdicio se aplica una sola vez sobre el total del proyecto — más abajo se detalla el área de sello fila por fila, antes de ese ajuste.",
   },
-  "Collarín CP 643N/644": { resultado: "Cantidad de collarines", tokens: [mv("S"), mop("×"), mv("C")], vars: ["S", "C"], nota: "El modelo específico (CP 643N o CP 644) depende del diámetro de la tubería." },
+  "Collarín CP 643N/644": {
+    resultado: "CANT_COLLAR (unid.)",
+    resultadoSim: [mvs("CANTCOLL")],
+    tokens: [mvs("SLADOS"), mop("×"), mvs("CANT")],
+    vars: [SIM.SLADOS, SIM.CANT],
+    nota: "El modelo específico (CP 643N o CP 644) depende del diámetro de la tubería.",
+  },
 };
 const MEMORIA_NOTA_CINTA = "La longitud de cinta intumescente (y de collar metálico, cuando aplica) se lee de una tabla de rendimiento por diámetro de tubería según el sistema UL, multiplicada por la cantidad de penetrantes y el N° de lados sellados. No sigue una fórmula algebraica simple — se detalla el resultado ya calculado en la tabla de abajo.";
 
@@ -1087,9 +1098,14 @@ function construirMemoriaCalculoPDF() {
             T: ej.T !== "-" ? String(ej.T).replace(".", ",") + " cm" : "—",
             S: ej.S !== "-" ? String(ej.S) : "—",
             C: String(ej.C),
+            S_LADOS: ej.S !== "-" ? String(ej.S) : "—",
+            C_ANT: String(ej.C),
           };
           const valoresRelevantes = {};
-          formulaDef.vars.forEach(sym => { if (valoresEj[sym] !== undefined) valoresRelevantes[sym] = valoresEj[sym]; });
+          formulaDef.vars.forEach(sym => {
+            const k = typeof sym === "object" ? sym.key : sym;
+            if (valoresEj[k] !== undefined) valoresRelevantes[k] = valoresEj[k];
+          });
           y = dibujarListaVariables(doc, marginL, y, formulaDef.vars, valoresRelevantes, anchoContenido);
           y += 6;
         }
@@ -2393,3 +2409,7 @@ function descargarMemoriaCalculoPDF() {
 }
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+window.descargarMemoriaCalculoPDF = descargarMemoriaCalculoPDF;
+})();

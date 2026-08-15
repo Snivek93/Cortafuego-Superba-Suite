@@ -1,4 +1,8 @@
 // ============================================================================
+// pdf-comun.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // pdf-comun.js
 // Letterhead PDF — fondo de hoja membretada Superba (logo + banda + pie de página), reutilizado por todos los PDF.
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -319,3 +323,10 @@ function descargarPDF(modo) {
 }
 
 // ============================================================================
+
+// --- Exports usados por otros módulos ---
+window.dibujarLetterheadPDF = dibujarLetterheadPDF;
+window.dibujarNumeroPaginaPDF = dibujarNumeroPaginaPDF;
+window.construirReportePDF = construirReportePDF;
+window.descargarPDF = descargarPDF;
+})();

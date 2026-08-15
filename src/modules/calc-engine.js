@@ -1,4 +1,8 @@
 // ============================================================================
+// calc-engine.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
+// ============================================================================
+(function () {
+// ============================================================================
 // calc-engine.js
 // Motor de cálculo — réplica de la hoja CALCULADORA del Excel Hilti: computeRow, computeResumen, y las funciones de apoyo (dbKey/dbLookup, longitud de cinta y collar).
 // (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
@@ -912,5 +916,11 @@ function computeResumen(computedRows, waste, umbrales) {
   return { items, normativas, alertas, fichasTecnicas, volumenesCrudos: { "FS ONE MAX": volY * w, "CP 606": volCP606 * w, "CFS SIL GG": volSilGG * w } };
 }
 
-
-
+// --- Exports usados por otros módulos ---
+window.dbKey = dbKey;
+window.collarLongitud = collarLongitud;
+window.longitudCintaMultiTira = longitudCintaMultiTira;
+window.longitudCintaPorVueltas = longitudCintaPorVueltas;
+window.computeRow = computeRow;
+window.computeResumen = computeResumen;
+})();
