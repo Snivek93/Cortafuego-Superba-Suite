@@ -30,6 +30,10 @@ const PLANO_DPI = 150;
 let PLANO_ACTIVO_ID = null;
 let PLANO_MODO = "mano"; // "mano" | "marcador" | "punto"
 let PLANO_COLOR_MARCADOR = "#e2001a";
+// Color de los pines nuevos que se coloquen — independiente del color de
+// dibujo/marcador, se elige desde el mismo botón de color del riel pero solo
+// cuando la herramienta activa es "punto" (ver renderVisorHerramientasYCanvas).
+let PLANO_COLOR_PIN = "#e2001a";
 // Paleta básica para lápiz/marcador — colores comunes en anotación de planos.
 const PLANO_PALETA_COLORES = ["#e2001a", "#ff9900", "#ffe100", "#00a651", "#0072ce", "#111111"];
 // Grosor seleccionable — es un multiplicador sobre el grosorFactor base de
@@ -38,6 +42,10 @@ const PLANO_PALETA_COLORES = ["#e2001a", "#ff9900", "#ffe100", "#00a651", "#0072
 let PLANO_GROSOR = 1;
 let PLANO_RECT_RELLENO = false;
 let PLANO_RECT_OPACIDAD = 0.3;
+// Transparencia del marcador/resaltador — reemplaza la opacidad fija que
+// tenía antes (TRAZO_ESTILOS.resaltador.opacidad sigue existiendo como
+// valor por defecto para trazos viejos guardados sin este campo).
+let PLANO_RESALTADOR_OPACIDAD = 0.35;
 const PLANO_OPACIDADES = [
   { valor: 0.15, nombre: "Muy transparente" },
   { valor: 0.3, nombre: "Transparente" },
@@ -79,11 +87,6 @@ let PLANO_GALERIA_MENU_ID = null;
 // "color" | "grosor" | null — cuál de los 2 flyouts del riel (color/grosor)
 // está abierto. Se resetea a null al cambiar de herramienta.
 let PLANO_RAIL_FLYOUT = null;
-// Último toque simple (para detectar doble-tap → zoom) — { t, x, y }.
-let PLANO_ULTIMO_TAP = null;
-// true durante la ventana inmediatamente posterior a un doble-tap manejado,
-// para que el "click" de colocar pin (evento aparte) no dispare de más.
-let PLANO_SUPRIMIR_CLICK = false;
 
 // --- Utilidades de arrastre/zoom (puntero + rueda + pellizco de 2 dedos) ---
 let PLANO_DRAG_ACTIVO = false;
@@ -398,13 +401,15 @@ function renderVisorPlanos() {
 // Rail de herramientas + barra secundaria (hints/zoom) + canvas — separado de
 // renderVisorPlanos() para que el template principal no quede gigante.
 function renderVisorHerramientasYCanvas(plano) {
-  const modoConColor = ["lapiz", "resaltador", "rectangulo", "linea"].includes(PLANO_MODO);
   const grosorActual = PLANO_GROSORES.find(g => g.valor === PLANO_GROSOR) || PLANO_GROSORES[3];
-  const esMobile = window.innerWidth <= 700;
   const hint = PLANO_PIN_CONTEXTO ? "Tocá el plano para ubicar esta fila"
     : PLANO_MODO === "calibrar" ? (plano.escala ? "Tocá 2 puntos para volver a calibrar" : "Tocá 2 puntos de distancia conocida")
     : PLANO_MODO === "regla" ? (plano.escala ? "Tocá 2 puntos para medir" : "Primero calibrá la escala de este plano")
     : null;
+  // El botón de color edita el color de los PINES cuando esa es la herramienta
+  // activa, y el color de dibujo/cota en cualquier otro caso — un solo botón,
+  // significado contextual (ver item 10 pedido por Kevin).
+  const colorActual = PLANO_MODO === "punto" ? PLANO_COLOR_PIN : PLANO_COLOR_MARCADOR;
 
   return `
       <div class="planos-tools-rail ${PLANO_TOOLS_COLLAPSED ? "planos-tools-collapsed" : ""}" id="planos-tools-rail">
@@ -418,42 +423,46 @@ function renderVisorHerramientasYCanvas(plano) {
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "calibrar" ? "planos-modo-active" : ""}" data-planos-modo="calibrar" title="Calibrar escala"><svg class="icon"><use href="#i-compass-tool"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "regla" ? "planos-modo-active" : ""}" data-planos-modo="regla" title="Medir"><svg class="icon"><use href="#i-ruler"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "borrador" ? "planos-modo-active" : ""}" data-planos-modo="borrador" title="Borrador (toca un trazo para quitarlo)"><svg class="icon"><use href="#i-eraser"/></svg></button>
-          ${modoConColor ? `
-            <div class="planos-rail-divider"></div>
-            <div class="planos-rail-flyout-wrap">
-              <button type="button" id="planos-rail-color-btn" class="planos-modo-btn planos-rail-swatch-btn" title="Color">
-                <span class="planos-rail-color-dot" style="background:${PLANO_COLOR_MARCADOR};"></span>
-              </button>
-              ${PLANO_RAIL_FLYOUT === "color" ? `
-                <div class="planos-rail-flyout" id="planos-color-flyout">
-                  ${PLANO_PALETA_COLORES.map(c => `<button type="button" class="planos-color-swatch ${c === PLANO_COLOR_MARCADOR ? "planos-color-activo" : ""}" data-planos-color="${c}" style="background:${c};" aria-label="Color ${c}"></button>`).join("")}
+          <div class="planos-rail-divider"></div>
+          <div class="planos-rail-flyout-wrap">
+            <button type="button" id="planos-rail-color-btn" class="planos-modo-btn planos-rail-swatch-btn" title="Color">
+              <span class="planos-rail-color-dot" style="background:${colorActual};"></span>
+            </button>
+            ${PLANO_RAIL_FLYOUT === "color" ? `
+              <div class="planos-rail-flyout" id="planos-color-flyout">
+                ${PLANO_PALETA_COLORES.map(c => `<button type="button" class="planos-color-swatch ${c === colorActual ? "planos-color-activo" : ""}" data-planos-color="${c}" style="background:${c};" aria-label="Color ${c}"></button>`).join("")}
+              </div>
+            ` : ""}
+          </div>
+          <div class="planos-rail-flyout-wrap">
+            <button type="button" id="planos-rail-grosor-btn" class="planos-modo-btn planos-rail-swatch-btn" title="Grosor">
+              <span class="planos-rail-grosor-linea" style="height:${Math.max(2, Math.round(grosorActual.puntoPx * 0.45))}px;"></span>
+            </button>
+            ${PLANO_RAIL_FLYOUT === "grosor" ? `
+              <div class="planos-rail-flyout planos-rail-flyout-vertical" id="planos-grosor-flyout">
+                <div class="planos-grosor-group">
+                  ${PLANO_GROSORES.map(g => `<button type="button" class="planos-grosor-btn ${g.valor === PLANO_GROSOR ? "planos-grosor-activo" : ""}" data-planos-grosor="${g.valor}" aria-label="${g.nombre}" title="${g.nombre}"><span style="width:22px; height:${Math.max(2, Math.round(g.puntoPx * 0.45))}px; border-radius:2px;"></span></button>`).join("")}
                 </div>
-              ` : ""}
-            </div>
-            <div class="planos-rail-flyout-wrap">
-              <button type="button" id="planos-rail-grosor-btn" class="planos-modo-btn planos-rail-swatch-btn" title="Grosor">
-                <span class="planos-rail-grosor-dot" style="width:${grosorActual.puntoPx}px; height:${grosorActual.puntoPx}px;"></span>
-              </button>
-              ${PLANO_RAIL_FLYOUT === "grosor" ? `
-                <div class="planos-rail-flyout planos-rail-flyout-vertical" id="planos-grosor-flyout">
-                  <div class="planos-grosor-group">
-                    ${PLANO_GROSORES.map(g => `<button type="button" class="planos-grosor-btn ${g.valor === PLANO_GROSOR ? "planos-grosor-activo" : ""}" data-planos-grosor="${g.valor}" aria-label="${g.nombre}" title="${g.nombre}"><span style="width:${g.puntoPx}px; height:${g.puntoPx}px;"></span></button>`).join("")}
-                  </div>
-                  ${PLANO_MODO === "rectangulo" ? `
-                    <label class="planos-relleno-check">
-                      <input type="checkbox" id="planos-relleno-check" ${PLANO_RECT_RELLENO ? "checked" : ""}>
-                      Relleno
-                    </label>
-                    ${PLANO_RECT_RELLENO ? `
-                      <div class="planos-grosor-group">
-                        ${PLANO_OPACIDADES.map(o => `<button type="button" class="planos-grosor-btn ${o.valor === PLANO_RECT_OPACIDAD ? "planos-grosor-activo" : ""}" data-planos-opacidad="${o.valor}" title="${o.nombre}"><span style="opacity:${o.valor};background:currentColor;width:14px;height:14px;border-radius:3px;"></span></button>`).join("")}
-                      </div>
-                    ` : ""}
+                ${PLANO_MODO === "rectangulo" ? `
+                  <label class="planos-relleno-check">
+                    <input type="checkbox" id="planos-relleno-check" ${PLANO_RECT_RELLENO ? "checked" : ""}>
+                    Relleno
+                  </label>
+                  ${PLANO_RECT_RELLENO ? `
+                    <div class="planos-grosor-group">
+                      ${PLANO_OPACIDADES.map(o => `<button type="button" class="planos-grosor-btn ${o.valor === PLANO_RECT_OPACIDAD ? "planos-grosor-activo" : ""}" data-planos-opacidad="${o.valor}" title="${o.nombre}"><span style="opacity:${o.valor};background:currentColor;width:14px;height:14px;border-radius:3px;"></span></button>`).join("")}
+                    </div>
                   ` : ""}
-                </div>
-              ` : ""}
-            </div>
-          ` : ""}
+                ` : ""}
+                ${PLANO_MODO === "resaltador" ? `
+                  <span class="planos-rail-flyout-label">Transparencia</span>
+                  <div class="planos-grosor-group">
+                    ${PLANO_OPACIDADES.map(o => `<button type="button" class="planos-grosor-btn ${o.valor === PLANO_RESALTADOR_OPACIDAD ? "planos-grosor-activo" : ""}" data-planos-opacidad-marcador="${o.valor}" title="${o.nombre}"><span style="opacity:${o.valor};background:currentColor;width:14px;height:14px;border-radius:3px;"></span></button>`).join("")}
+                  </div>
+                ` : ""}
+              </div>
+            ` : ""}
+          </div>
           <div class="planos-rail-divider"></div>
           <button type="button" id="planos-btn-deshacer" class="planos-modo-btn" aria-label="Deshacer" title="Deshacer última acción en el plano"><svg class="icon"><use href="#i-undo"/></svg></button>
         </div>
@@ -461,17 +470,16 @@ function renderVisorHerramientasYCanvas(plano) {
           <svg class="icon"><use href="#i-chevron-down"/></svg>
         </button>
       </div>
-      ${(hint || !esMobile) ? `
+      ${hint ? `
         <div class="planos-toolbar">
-          ${hint ? `<span class="planos-vinculo-hint">${hint}</span>` : ""}
-          <div class="planos-zoom-group">
-            <button type="button" id="planos-zoom-menos" aria-label="Alejar">−</button>
-            <button type="button" id="planos-zoom-reset" aria-label="Restablecer zoom">${Math.round(PLANO_ZOOM * 100)}%</button>
-            <button type="button" id="planos-zoom-mas" aria-label="Acercar">+</button>
-          </div>
+          <span class="planos-vinculo-hint">${hint}</span>
         </div>
       ` : ""}
       <div class="planos-canvas-wrap" id="planos-canvas-wrap">
+        <div class="planos-zoom-pill">
+          <button type="button" id="planos-zoom-menos" aria-label="Alejar">−</button>
+          <button type="button" id="planos-zoom-mas" aria-label="Acercar">+</button>
+        </div>
         <div class="planos-canvas-inner" id="planos-canvas-inner" style="transform: translate(${PLANO_PAN_X}px, ${PLANO_PAN_Y}px) scale(${PLANO_ZOOM});">
           <img src="${plano.dataUrl}" class="planos-img" id="planos-img" draggable="false" alt="${escapeHtml(plano.nombre)}">
           <svg class="planos-svg-overlay" id="planos-svg-overlay" viewBox="0 0 ${plano.width} ${plano.height}" preserveAspectRatio="none">
@@ -486,13 +494,13 @@ function renderVisorHerramientasYCanvas(plano) {
             ${(plano.trazos || []).map(t => {
               const estilo = TRAZO_ESTILOS[t.tipo] || TRAZO_ESTILOS.lapiz;
               const grosor = t.grosor || 1;
-              return `<polyline points="${t.puntos.map(pt => `${pt.xFrac * plano.width},${pt.yFrac * plano.height}`).join(" ")}" fill="none" stroke="${t.color}" stroke-opacity="${estilo.opacidad}" stroke-width="${Math.max(plano.width, plano.height) * estilo.grosorFactor * grosor}" stroke-linecap="round" stroke-linejoin="round"/>`;
+              return `<polyline points="${t.puntos.map(pt => `${pt.xFrac * plano.width},${pt.yFrac * plano.height}`).join(" ")}" fill="none" stroke="${t.color}" stroke-opacity="${t.opacidad != null ? t.opacidad : estilo.opacidad}" stroke-width="${Math.max(plano.width, plano.height) * estilo.grosorFactor * grosor}" stroke-linecap="round" stroke-linejoin="round"/>`;
             }).join("")}
             ${(plano.cotas || []).map(c => svgCota(plano, c)).join("")}
           </svg>
           <div class="planos-pines-layer">
             ${(plano.pines || []).map((pin, i) => `
-              <button type="button" class="planos-pin" data-planos-pin-id="${pin.id}" style="left:${pin.xFrac * 100}%; top:${pin.yFrac * 100}%;" title="${escapeHtml(pin.nota || (pin.filaId != null ? "Vinculado a fila" : "Nota"))}"><span>${i + 1}</span></button>
+              <button type="button" class="planos-pin" data-planos-pin-id="${pin.id}" style="left:${pin.xFrac * 100}%; top:${pin.yFrac * 100}%; background:${pin.color || "#e2001a"};" title="${escapeHtml(pin.nota || (pin.filaId != null ? "Vinculado a fila" : "Nota"))}"><span>${i + 1}</span></button>
             `).join("")}
           </div>
         </div>
@@ -518,7 +526,7 @@ function svgCota(plano, c) {
   const mx2a = x2 - px * marca / 2, my2a = y2 - py * marca / 2, mx2b = x2 + px * marca / 2, my2b = y2 + py * marca / 2;
   const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
   const fontSize = maxDim * 0.0055;
-  const texto = escapeHtml(c.texto || "");
+  const texto = escapeHtml(textoCota(plano, c));
   const anchoTexto = texto.length * fontSize * 0.62 + fontSize * 0.6;
   let angulo = Math.atan2(dy, dx) * 180 / Math.PI;
   if (angulo > 90 || angulo < -90) angulo += 180; // que el texto nunca quede boca abajo
@@ -683,7 +691,14 @@ function attachVisorPlanosEvents(overlay) {
   });
   document.querySelectorAll("[data-planos-color]").forEach(btn => {
     btn.addEventListener("click", () => {
-      PLANO_COLOR_MARCADOR = btn.dataset.planosColor;
+      // El botón de color es el mismo para dibujo y para pines — pinta uno u
+      // otro estado según qué herramienta esté activa en ese momento (ver
+      // colorActual en renderVisorHerramientasYCanvas).
+      if (PLANO_MODO === "punto") {
+        PLANO_COLOR_PIN = btn.dataset.planosColor;
+      } else {
+        PLANO_COLOR_MARCADOR = btn.dataset.planosColor;
+      }
       renderVisorPlanos();
     });
   });
@@ -701,6 +716,12 @@ function attachVisorPlanosEvents(overlay) {
   document.querySelectorAll("[data-planos-opacidad]").forEach(btn => {
     btn.addEventListener("click", () => {
       PLANO_RECT_OPACIDAD = parseFloat(btn.dataset.planosOpacidad);
+      renderVisorPlanos();
+    });
+  });
+  document.querySelectorAll("[data-planos-opacidad-marcador]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      PLANO_RESALTADOR_OPACIDAD = parseFloat(btn.dataset.planosOpacidadMarcador);
       renderVisorPlanos();
     });
   });
@@ -742,33 +763,6 @@ function attachVisorPlanosEvents(overlay) {
     }, { passive: false });
 
     wrap.addEventListener("pointerdown", (e) => {
-      // Doble-tap (2 toques rápidos y cercanos, con un solo dedo) alterna el
-      // zoom in/out centrado en el punto tocado — funciona con cualquier
-      // herramienta activa. Se detecta ANTES de sumar este puntero al mapa,
-      // así el chequeo de tamaño de abajo sigue viendo el gesto como "1 dedo".
-      if (e.pointerType !== "mouse" || e.button === 0) {
-        const ahora = Date.now();
-        if (PLANO_ULTIMO_TAP && PLANO_PUNTEROS_ACTIVOS.size === 0 &&
-            (ahora - PLANO_ULTIMO_TAP.t) < 320 &&
-            Math.hypot(e.clientX - PLANO_ULTIMO_TAP.x, e.clientY - PLANO_ULTIMO_TAP.y) < 30) {
-          e.preventDefault();
-          const plano = planoActivo();
-          if (plano) {
-            const zoomAjustado = calcularZoomAjustado(plano);
-            const destino = PLANO_ZOOM > zoomAjustado * 1.3 ? zoomAjustado : Math.min(zoomAjustado * 2.3, PLANO_ZOOM_MAX);
-            aplicarZoomCentrado(destino, e.clientX, e.clientY);
-            inner.style.transform = `translate(${PLANO_PAN_X}px, ${PLANO_PAN_Y}px) scale(${PLANO_ZOOM})`;
-            const zoomLabel = document.getElementById("planos-zoom-reset");
-            if (zoomLabel) zoomLabel.textContent = Math.round(PLANO_ZOOM * 100) + "%";
-          }
-          PLANO_ULTIMO_TAP = null;
-          PLANO_SUPRIMIR_CLICK = true;
-          setTimeout(() => { PLANO_SUPRIMIR_CLICK = false; }, 350);
-          return;
-        }
-        PLANO_ULTIMO_TAP = { t: ahora, x: e.clientX, y: e.clientY };
-      }
-
       PLANO_PUNTEROS_ACTIVOS.set(e.pointerId, { x: e.clientX, y: e.clientY });
       // Botón central del mouse: mover el plano sin importar qué herramienta
       // esté activa (lápiz, marcador, pin, borrador) — atajo universal, igual
@@ -863,7 +857,6 @@ function attachVisorPlanosEvents(overlay) {
     // Click simple (no arrastre) en modo "punto": coloca un pin en esa posición.
     const img = document.getElementById("planos-img");
     if (img) img.addEventListener("click", (e) => {
-      if (PLANO_SUPRIMIR_CLICK) return; // este click viene de un doble-tap de zoom, no de un toque real
       if (PLANO_MODO !== "punto") return;
       const rect = img.getBoundingClientRect();
       const xFrac = (e.clientX - rect.left) / rect.width;
@@ -949,16 +942,47 @@ function quitarPin(pinId) {
 // encima). Ojo: como el plano internamente ya es raster (no vectorial), este
 // PDF de salida es esa imagen metida en un contenedor PDF — no recupera la
 // nitidez del PDF original que se subió.
+// Calcula un tamaño de página que coincide con la proporción del plano (en
+// vez del Letter fijo de antes, que dejaba mucho espacio en blanco cuando el
+// plano no era proporción carta) — lado largo fijo en ~792pt (equivalente al
+// lado largo de una carta) para que la impresión quede en un tamaño razonable.
+// jsPDF IGNORA el orden width/height del array "format" y reordena según
+// "orientation" (siempre pone el lado más largo como ancho en landscape, o
+// como alto en portrait) — así que hay que pasar orientation explícito o
+// termina siempre en portrait sin importar el array que le mandes.
+function formatoPaginaParaPlano(plano) {
+  const targetLargo = 792;
+  const margin = 20, tituloH = 20;
+  const aspect = plano.width / plano.height;
+  let contentW, contentH;
+  if (aspect >= 1) {
+    contentW = targetLargo - margin * 2;
+    contentH = contentW / aspect;
+  } else {
+    contentH = targetLargo - margin * 2 - tituloH;
+    contentW = contentH * aspect;
+  }
+  const pageW = contentW + margin * 2;
+  const pageH = contentH + margin * 2 + tituloH;
+  return { format: [pageW, pageH], orientation: pageW >= pageH ? "l" : "p" };
+}
+
 async function exportarPlanosPDF() {
   if (!PLANOS.length) {
     mostrarToast("No hay planos subidos todavía.", "error");
     return;
   }
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  let doc = null;
   for (let i = 0; i < PLANOS.length; i++) {
-    if (i > 0) doc.addPage();
-    await dibujarPlanoEnPaginaPdf(doc, PLANOS[i]);
+    const plano = PLANOS[i];
+    const { format, orientation } = formatoPaginaParaPlano(plano);
+    if (i === 0) {
+      doc = new jsPDF({ unit: "pt", format, orientation });
+    } else {
+      doc.addPage(format, orientation);
+    }
+    await dibujarPlanoEnPaginaPdf(doc, plano);
   }
   doc.save("planos.pdf");
 }
@@ -993,7 +1017,7 @@ async function compartirPlanoActual() {
   let blob;
   try {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: "pt", format: "letter" });
+    const doc = new jsPDF({ unit: "pt", ...formatoPaginaParaPlano(plano) });
     await dibujarPlanoEnPaginaPdf(doc, plano);
     blob = doc.output("blob");
   } catch (e) {
@@ -1065,7 +1089,7 @@ function dibujarPlanoConMarcasCanvas(plano) {
       (plano.trazos || []).forEach(t => {
         const estilo = TRAZO_ESTILOS[t.tipo] || TRAZO_ESTILOS.lapiz;
         ctx.strokeStyle = t.color;
-        ctx.globalAlpha = estilo.opacidad;
+        ctx.globalAlpha = t.opacidad != null ? t.opacidad : estilo.opacidad;
         ctx.lineWidth = Math.max(plano.width, plano.height) * estilo.grosorFactor * (t.grosor || 1);
         ctx.lineCap = "round"; ctx.lineJoin = "round";
         ctx.beginPath();
@@ -1093,7 +1117,7 @@ function dibujarPlanoConMarcasCanvas(plano) {
         const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
         const fontSize = maxDim * 0.0055;
         ctx.font = `600 ${fontSize}px sans-serif`;
-        const texto = c.texto || "";
+        const texto = textoCota(plano, c);
         const anchoTexto = ctx.measureText(texto).width + fontSize * 0.6;
         ctx.save();
         ctx.translate(midX, midY);
@@ -1114,7 +1138,7 @@ function dibujarPlanoConMarcasCanvas(plano) {
         const tipX = pin.xFrac * plano.width, tipY = pin.yFrac * plano.height;
         const r = Math.max(plano.width, plano.height) * 0.0035;
         const cabezaY = tipY - r * 1.7;
-        ctx.fillStyle = "#e2001a";
+        ctx.fillStyle = pin.color || "#e2001a";
         ctx.beginPath();
         ctx.moveTo(tipX - r * 0.55, cabezaY + r * 0.7);
         ctx.lineTo(tipX + r * 0.55, cabezaY + r * 0.7);
@@ -1308,6 +1332,13 @@ function parsearDistancia(texto) {
 }
 
 function procesarCalibracion(plano, a, b) {
+  // Recalibrar un plano ya calibrado recalcula automáticamente todas las
+  // cotas existentes (ver textoCota() — leen plano.escala en vivo, no un
+  // texto congelado), así que conviene confirmar antes de pisar la escala.
+  if (plano.escala && !confirm("Este plano ya tiene una escala calibrada. ¿Querés reemplazarla? Las cotas que ya mediste se van a recalcular con la nueva escala.")) {
+    renderVisorPlanos();
+    return;
+  }
   const px = distanciaPx(plano, a, b);
   const respuesta = prompt("Distancia real entre esos 2 puntos (ej: 3.5m o 250cm):", "");
   if (!respuesta) { renderVisorPlanos(); return; }
@@ -1324,6 +1355,17 @@ function procesarCalibracion(plano, a, b) {
   renderVisorPlanos();
 }
 
+// Texto de una cota calculado EN VIVO a partir de sus coordenadas y la
+// escala actual del plano — a propósito no se guarda como texto fijo, así
+// que si el plano se vuelve a calibrar todas las cotas ya dibujadas
+// muestran la distancia recalculada automáticamente (item 5 pedido por Kevin).
+function textoCota(plano, c) {
+  if (!plano.escala) return "?";
+  const px = distanciaPx(plano, { xFrac: c.x1Frac, yFrac: c.y1Frac }, { xFrac: c.x2Frac, yFrac: c.y2Frac });
+  const cm = px / plano.escala.pxPorCm;
+  return cm >= 100 ? `${(cm / 100).toFixed(2)} m` : `${cm.toFixed(0)} cm`;
+}
+
 // Medir deja una "cota" persistente sobre el plano (línea + marcas de
 // extremo + texto de la distancia), no solo un toast que desaparece —
 // así queda documentada la medición como en un plano real.
@@ -1333,14 +1375,12 @@ function procesarMedicion(plano, a, b) {
     renderVisorPlanos();
     return;
   }
-  const px = distanciaPx(plano, a, b);
-  const cm = px / plano.escala.pxPorCm;
-  const texto = cm >= 100 ? `${(cm / 100).toFixed(2)} m` : `${cm.toFixed(0)} cm`;
   planoPushUndo(plano);
   plano.cotas = plano.cotas || [];
-  plano.cotas.push({ id: Date.now(), x1Frac: a.xFrac, y1Frac: a.yFrac, x2Frac: b.xFrac, y2Frac: b.yFrac, texto, color: "#1a1a1a" });
+  const cota = { id: Date.now(), x1Frac: a.xFrac, y1Frac: a.yFrac, x2Frac: b.xFrac, y2Frac: b.yFrac, color: PLANO_COLOR_MARCADOR };
+  plano.cotas.push(cota);
   marcarCambio();
-  mostrarToast(`Distancia: ${texto}`);
+  mostrarToast(`Distancia: ${textoCota(plano, cota)}`);
   renderVisorPlanos();
 }
 
@@ -1354,7 +1394,7 @@ function iniciarTrazo(e) {
   const el = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
   el.setAttribute("fill", "none");
   el.setAttribute("stroke", PLANO_COLOR_MARCADOR);
-  el.setAttribute("stroke-opacity", String(estilo.opacidad));
+  el.setAttribute("stroke-opacity", String(tipo === "resaltador" ? PLANO_RESALTADOR_OPACIDAD : estilo.opacidad));
   el.setAttribute("stroke-width", String(Math.max(plano.width, plano.height) * estilo.grosorFactor * PLANO_GROSOR));
   el.setAttribute("stroke-linecap", "round");
   el.setAttribute("stroke-linejoin", "round");
@@ -1378,7 +1418,12 @@ function finalizarTrazo() {
   const { puntos, plano, tipo, grosor } = PLANO_TRAZO_EN_CURSO;
   if (puntos.length > 1) {
     planoPushUndo(plano);
-    plano.trazos.push({ color: PLANO_COLOR_MARCADOR, tipo, grosor, puntos });
+    const nuevoTrazo = { color: PLANO_COLOR_MARCADOR, tipo, grosor, puntos };
+    // La transparencia del marcador queda fija en el trazo al crearlo (no
+    // "vive" como la de las cotas) — si después cambiás la opacidad en el
+    // riel, los trazos ya dibujados no se mueven, solo los nuevos.
+    if (tipo === "resaltador") nuevoTrazo.opacidad = PLANO_RESALTADOR_OPACIDAD;
+    plano.trazos.push(nuevoTrazo);
     marcarCambio();
   }
   PLANO_TRAZO_EN_CURSO = null;
@@ -1494,6 +1539,7 @@ function colocarPin(xFrac, yFrac) {
     filaId: PLANO_PIN_CONTEXTO ? PLANO_PIN_CONTEXTO.filaId : null,
     filaTipo: PLANO_PIN_CONTEXTO ? PLANO_PIN_CONTEXTO.filaTipo : null,
     nota: "",
+    color: PLANO_COLOR_PIN,
   };
   // Si esta fila ya tenía un pin vinculado en algún plano (modo "Modificar" —
   // reubicar), se quita el viejo antes de poner el nuevo, para no dejar dos

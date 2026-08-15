@@ -109,7 +109,7 @@ button, [role="button"], .btn-tema-opt, .btn-calc-vis, .btn-collar-talla,
   -webkit-tap-highlight-color: transparent;
   tap-highlight-color: transparent;
 }
-html, body { max-width: 100%; overflow-x: hidden; }
+html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
 body { margin: 0; background: var(--grey-1); color: var(--ink); font-size: var(--fs-base); line-height: 1.45; -webkit-font-smoothing: antialiased; transition: background-color .15s ease, color .15s ease; }
 h1, h2, h3 { font-family: inherit; }
 p { margin: 0 0 8px; }
@@ -767,7 +767,10 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .planos-rail-flyout-wrap { position: relative; }
 .planos-rail-swatch-btn { padding: 9px; }
 .planos-rail-color-dot { width: 19px; height: 19px; border-radius: 50%; border: 2px solid white; display: block; box-shadow: 0 0 0 1px rgba(0,0,0,0.25); }
-.planos-rail-grosor-dot { border-radius: 50%; background: white; display: block; }
+/* Línea horizontal (no punto) que representa el grosor activo — más
+   intuitivo que un círculo, se ve como una muestra real del trazo. */
+.planos-rail-grosor-linea { width: 20px; border-radius: 2px; background: white; display: block; }
+.planos-rail-flyout-label { color: rgba(255,255,255,0.65); font-size: var(--fs-xs); font-weight: 600; padding: 2px 2px 0; }
 /* Flyout de color/grosor: se abre hacia el lado del canvas (opuesto al borde
    de pantalla donde está anclado el riel) para no salirse de la pantalla.
    El riel vive en lados distintos según el tamaño de pantalla (ver los 2
@@ -782,9 +785,11 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .planos-rail-flyout-vertical { flex-direction: column; align-items: stretch; min-width: 168px; }
 .planos-rail-flyout-vertical .planos-relleno-check { color: white; }
 @media (max-width: 700px) {
-  /* Mobile: riel anclado abajo a la DERECHA, se expande hacia arriba. El
-     flyout abre hacia la izquierda (hacia el canvas). */
-  .planos-tools-rail { position: fixed; right: 10px; bottom: 10px; top: auto; left: auto; transform: none; }
+  /* Mobile: riel anclado a la DERECHA, se expande hacia arriba. Se levanta
+     bastante del borde inferior (antes quedaba pegado casi al filo de la
+     pantalla, tapado por la barra de gestos/Safari). El flyout abre hacia
+     la izquierda (hacia el canvas). */
+  .planos-tools-rail { position: fixed; right: 10px; bottom: 84px; top: auto; left: auto; transform: none; }
   .planos-tools-collapsed .planos-tools-list { display: none; }
   .planos-rail-flyout { right: 100%; left: auto; margin-right: 10px; }
 }
@@ -815,21 +820,26 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .planos-color-swatch.planos-color-activo { box-shadow: 0 0 0 2px var(--hilti-red); border-color: white; }
 .planos-grosor-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .planos-grosor-btn {
-  width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.25);
+  width: 34px; height: 30px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.25);
   background: rgba(255,255,255,0.06); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .planos-grosor-btn span { display: block; border-radius: 50%; background: white; }
 .planos-grosor-btn.planos-grosor-activo { border-color: var(--hilti-red); background: rgba(226,0,26,0.25); }
-.planos-zoom-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-.planos-zoom-group button {
-  border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); cursor: pointer;
-  padding: 6px 12px; font-size: var(--fs-sm); min-width: 44px; color: var(--ink);
+/* Píldora flotante de zoom (solo +/−) sobre el canvas — reemplaza al viejo
+   grupo con el porcentaje, que vivía en la barra superior. */
+.planos-zoom-pill {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 20;
+  background: rgba(20, 20, 22, 0.6); backdrop-filter: blur(4px); border-radius: 999px;
+  display: flex; align-items: center; gap: 2px; padding: 3px;
 }
-/* En mobile el zoom se maneja con pellizco/doble-tap — el indicador de
-   header/toolbar solo ocupa espacio, se oculta (item 9). */
-@media (max-width: 700px) {
-  .planos-zoom-group { display: none; }
+.planos-zoom-pill button {
+  width: 34px; height: 34px; border-radius: 50%; border: none; background: transparent; color: white;
+  font-size: 19px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
+@media (hover: hover) and (pointer: fine) {
+  .planos-zoom-pill button:hover { background: rgba(255,255,255,0.15); }
+}
+.planos-zoom-pill button:active { background: rgba(255,255,255,0.22); }
 .planos-canvas-wrap {
   flex: 1; overflow: hidden; position: relative; background: #33343a; touch-action: none; cursor: grab;
 }
