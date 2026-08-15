@@ -429,19 +429,9 @@ function renderVisorHerramientasYCanvas(plano) {
               <span class="planos-rail-color-dot" style="background:${colorActual};"></span>
             </button>
             ${PLANO_RAIL_FLYOUT === "color" ? `
-              <div class="planos-rail-flyout" id="planos-color-flyout">
-                ${PLANO_PALETA_COLORES.map(c => `<button type="button" class="planos-color-swatch ${c === colorActual ? "planos-color-activo" : ""}" data-planos-color="${c}" style="background:${c};" aria-label="Color ${c}"></button>`).join("")}
-              </div>
-            ` : ""}
-          </div>
-          <div class="planos-rail-flyout-wrap">
-            <button type="button" id="planos-rail-grosor-btn" class="planos-modo-btn planos-rail-swatch-btn" title="Grosor">
-              <span class="planos-rail-grosor-linea" style="height:${Math.max(2, Math.round(grosorActual.puntoPx * 0.45))}px;"></span>
-            </button>
-            ${PLANO_RAIL_FLYOUT === "grosor" ? `
-              <div class="planos-rail-flyout planos-rail-flyout-vertical" id="planos-grosor-flyout">
-                <div class="planos-grosor-group">
-                  ${PLANO_GROSORES.map(g => `<button type="button" class="planos-grosor-btn ${g.valor === PLANO_GROSOR ? "planos-grosor-activo" : ""}" data-planos-grosor="${g.valor}" aria-label="${g.nombre}" title="${g.nombre}"><span style="width:22px; height:${Math.max(2, Math.round(g.puntoPx * 0.45))}px; border-radius:2px;"></span></button>`).join("")}
+              <div class="planos-rail-flyout ${PLANO_MODO === "rectangulo" ? "planos-rail-flyout-vertical" : ""}" id="planos-color-flyout">
+                <div class="planos-color-group">
+                  ${PLANO_PALETA_COLORES.map(c => `<button type="button" class="planos-color-swatch ${c === colorActual ? "planos-color-activo" : ""}" data-planos-color="${c}" style="background:${c};" aria-label="Color ${c}"></button>`).join("")}
                 </div>
                 ${PLANO_MODO === "rectangulo" ? `
                   <label class="planos-relleno-check">
@@ -454,6 +444,18 @@ function renderVisorHerramientasYCanvas(plano) {
                     </div>
                   ` : ""}
                 ` : ""}
+              </div>
+            ` : ""}
+          </div>
+          <div class="planos-rail-flyout-wrap">
+            <button type="button" id="planos-rail-grosor-btn" class="planos-modo-btn planos-rail-swatch-btn" title="Grosor">
+              <span class="planos-rail-grosor-linea" style="height:${Math.max(2, Math.round(grosorActual.puntoPx * 0.45))}px;"></span>
+            </button>
+            ${PLANO_RAIL_FLYOUT === "grosor" ? `
+              <div class="planos-rail-flyout planos-rail-flyout-vertical" id="planos-grosor-flyout">
+                <div class="planos-grosor-group">
+                  ${PLANO_GROSORES.map(g => `<button type="button" class="planos-grosor-btn ${g.valor === PLANO_GROSOR ? "planos-grosor-activo" : ""}" data-planos-grosor="${g.valor}" aria-label="${g.nombre}" title="${g.nombre}"><span style="width:22px; height:${Math.max(2, Math.round(g.puntoPx * 0.45))}px; border-radius:2px;"></span></button>`).join("")}
+                </div>
                 ${PLANO_MODO === "resaltador" ? `
                   <span class="planos-rail-flyout-label">Transparencia</span>
                   <div class="planos-grosor-group">
@@ -464,6 +466,7 @@ function renderVisorHerramientasYCanvas(plano) {
             ` : ""}
           </div>
           <div class="planos-rail-divider"></div>
+          <button type="button" id="planos-btn-rehacer" class="planos-modo-btn" aria-label="Rehacer" title="Rehacer (deshacer el último Deshacer)"><svg class="icon"><use href="#i-redo"/></svg></button>
           <button type="button" id="planos-btn-deshacer" class="planos-modo-btn" aria-label="Deshacer" title="Deshacer última acción en el plano"><svg class="icon"><use href="#i-undo"/></svg></button>
         </div>
         <button type="button" id="planos-tools-toggle" class="planos-tools-toggle" aria-label="Mostrar/ocultar herramientas" title="Mostrar/ocultar herramientas">
@@ -727,6 +730,8 @@ function attachVisorPlanosEvents(overlay) {
   });
   const btnDeshacer = document.getElementById("planos-btn-deshacer");
   if (btnDeshacer) btnDeshacer.addEventListener("click", planoDeshacer);
+  const btnRehacer = document.getElementById("planos-btn-rehacer");
+  if (btnRehacer) btnRehacer.addEventListener("click", planoRehacer);
 
 
   const zoomMenos = document.getElementById("planos-zoom-menos");
@@ -1429,21 +1434,30 @@ function finalizarTrazo() {
   PLANO_TRAZO_EN_CURSO = null;
 }
 
-// --- Deshacer local del plano (pines + trazos de la hoja activa) — pila
-// aparte del "deshacer" general de la app, para no mezclar acciones de dibujo
-// con acciones de filas/tabla.
+// --- Deshacer/rehacer local del plano (pines + trazos de la hoja activa) —
+// pila aparte del "deshacer" general de la app, para no mezclar acciones de
+// dibujo con acciones de filas/tabla.
 let PLANO_UNDO_STACK = [];
+let PLANO_REDO_STACK = [];
 
-function planoPushUndo(plano) {
-  PLANO_UNDO_STACK.push({
+function snapshotPlano(plano) {
+  return {
     planoId: plano.id,
     pines: JSON.parse(JSON.stringify(plano.pines)),
     trazos: JSON.parse(JSON.stringify(plano.trazos)),
     rectangulos: JSON.parse(JSON.stringify(plano.rectangulos || [])),
     lineas: JSON.parse(JSON.stringify(plano.lineas || [])),
     cotas: JSON.parse(JSON.stringify(plano.cotas || [])),
-  });
+  };
+}
+
+function planoPushUndo(plano) {
+  PLANO_UNDO_STACK.push(snapshotPlano(plano));
   if (PLANO_UNDO_STACK.length > 25) PLANO_UNDO_STACK.shift();
+  // Cualquier acción nueva invalida el historial de "rehacer" — igual que en
+  // cualquier editor (Word, Photoshop, etc.): no tiene sentido rehacer algo
+  // viejo si mientras tanto ya dibujaste otra cosa distinta.
+  PLANO_REDO_STACK = [];
 }
 
 function planoDeshacer() {
@@ -1451,6 +1465,25 @@ function planoDeshacer() {
   if (!snap) { mostrarToast("No hay nada para deshacer en el plano."); return; }
   const plano = PLANOS.find(p => p.id === snap.planoId);
   if (plano) {
+    PLANO_REDO_STACK.push(snapshotPlano(plano)); // estado actual, antes de deshacer, para poder rehacer
+    if (PLANO_REDO_STACK.length > 25) PLANO_REDO_STACK.shift();
+    plano.pines = snap.pines;
+    plano.trazos = snap.trazos;
+    plano.rectangulos = snap.rectangulos || [];
+    plano.lineas = snap.lineas || [];
+    plano.cotas = snap.cotas || [];
+    marcarCambio();
+  }
+  renderVisorPlanos();
+}
+
+function planoRehacer() {
+  const snap = PLANO_REDO_STACK.pop();
+  if (!snap) { mostrarToast("No hay nada para rehacer en el plano."); return; }
+  const plano = PLANOS.find(p => p.id === snap.planoId);
+  if (plano) {
+    PLANO_UNDO_STACK.push(snapshotPlano(plano)); // estado actual, antes de rehacer, para poder volver a deshacer
+    if (PLANO_UNDO_STACK.length > 25) PLANO_UNDO_STACK.shift();
     plano.pines = snap.pines;
     plano.trazos = snap.trazos;
     plano.rectangulos = snap.rectangulos || [];

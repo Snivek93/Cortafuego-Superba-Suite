@@ -789,7 +789,7 @@ body.modo-levantamiento #levantamiento-fullscreen {
      bastante del borde inferior (antes quedaba pegado casi al filo de la
      pantalla, tapado por la barra de gestos/Safari). El flyout abre hacia
      la izquierda (hacia el canvas). */
-  .planos-tools-rail { position: fixed; right: 10px; bottom: 84px; top: auto; left: auto; transform: none; }
+  .planos-tools-rail { position: fixed; right: 10px; bottom: 44px; top: auto; left: auto; transform: none; }
   .planos-tools-collapsed .planos-tools-list { display: none; }
   .planos-rail-flyout { right: 100%; left: auto; margin-right: 10px; }
 }
