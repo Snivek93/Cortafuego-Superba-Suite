@@ -68,12 +68,31 @@ let PLANO_PAN_Y = 0;
 // automático a esa fila, sin preguntar "nota libre o vincular".
 let PLANO_PIN_CONTEXTO = null; // { filaId, filaTipo } o null
 
+// "galeria": cuadrícula de miniaturas de todos los planos (pantalla inicial).
+// "visor": herramientas + canvas sobre un plano puntual ya seleccionado.
+let PLANO_VISTA = "galeria";
+// Colapso de la barra flotante de herramientas (solo aplica visualmente en
+// mobile vía CSS — en desktop la barra queda fija siempre expandida).
+let PLANO_TOOLS_COLLAPSED = false;
+// id del plano cuyo menú "Renombrar/Borrar" está abierto en la galería, o null.
+let PLANO_GALERIA_MENU_ID = null;
+// Último toque simple (para detectar doble-tap → zoom) — { t, x, y }.
+let PLANO_ULTIMO_TAP = null;
+// true durante la ventana inmediatamente posterior a un doble-tap manejado,
+// para que el "click" de colocar pin (evento aparte) no dispare de más.
+let PLANO_SUPRIMIR_CLICK = false;
+
 // --- Utilidades de arrastre/zoom (puntero + rueda + pellizco de 2 dedos) ---
 let PLANO_DRAG_ACTIVO = false;
 let PLANO_DRAG_ULTIMO_X = 0;
 let PLANO_DRAG_ULTIMO_Y = 0;
 let PLANO_PINCH_DIST_INICIAL = null;
 let PLANO_PINCH_ZOOM_INICIAL = 1;
+// Centroide del pellizco anterior — necesario para el arrastre con 2 dedos
+// (ver nota en pointermove: aplicarZoomCentrado() por sí sola solo ancla el
+// zoom, no traduce el movimiento del centroide en un pan).
+let PLANO_PINCH_ULTIMO_CX = 0;
+let PLANO_PINCH_ULTIMO_CY = 0;
 const PLANO_PUNTEROS_ACTIVOS = new Map();
 
 function esperarPdfJsListo() {
@@ -132,6 +151,7 @@ async function subirPlano(file) {
     trazos: [],
     rectangulos: [],
     lineas: [],
+    cotas: [], // mediciones persistentes con la herramienta "Regla" — ver procesarMedicion()
     escala: null, // { pxPorCm: number } — se llena al calibrar (ver "Regla y calibración")
   };
   PLANOS.push(plano);
@@ -159,12 +179,12 @@ function abrirVisorPlanos(opts) {
     PLANO_PIN_CONTEXTO = null;
   }
   PLANO_MODO = PLANO_PIN_CONTEXTO ? "punto" : "mano";
-  const ordenados = planosOrdenados();
-  PLANO_ACTIVO_ID = ordenados.length ? ordenados[0].id : null;
-  const plano0 = planoActivo();
-  PLANO_ZOOM = plano0 ? calcularZoomAjustado(plano0) : 1;
-  const pan0 = plano0 ? calcularPanCentrado(plano0, PLANO_ZOOM) : { x: 0, y: 0 };
-  PLANO_PAN_X = pan0.x; PLANO_PAN_Y = pan0.y;
+  // Siempre arranca en la galería de miniaturas — el usuario elige la hoja
+  // ahí (ver "Cuadrícula de planos" en renderVisorPlanos). abrirVisorPlanosEnPin()
+  // es la excepción que salta directo al visor de una hoja puntual.
+  PLANO_VISTA = "galeria";
+  PLANO_GALERIA_MENU_ID = null;
+  PLANO_ACTIVO_ID = null;
 
   let overlay = document.getElementById("planos-visor-overlay");
   if (!overlay) {
@@ -186,6 +206,19 @@ function cerrarVisorPlanos() {
 
 function planoActivo() {
   return PLANOS.find(p => p.id === PLANO_ACTIVO_ID) || null;
+}
+
+// Selecciona un plano desde la cuadrícula de galería y pasa al visor de
+// herramientas sobre esa hoja, con el zoom inicial "ajustar a pantalla".
+function abrirPlanoDesdeGaleria(id) {
+  PLANO_ACTIVO_ID = id;
+  const p = planoActivo();
+  if (!p) return;
+  PLANO_ZOOM = calcularZoomAjustado(p);
+  const pan = calcularPanCentrado(p, PLANO_ZOOM);
+  PLANO_PAN_X = pan.x; PLANO_PAN_Y = pan.y;
+  PLANO_VISTA = "visor";
+  renderVisorPlanos();
 }
 
 // Lista de planos ordenada alfabéticamente por nombre — se usa en todos los
@@ -296,28 +329,67 @@ function cursorParaModo(modo) {
   return "crosshair";
 }
 
+// Cuadrícula de miniaturas — pantalla inicial del módulo de Planos. Cada
+// tarjeta es un plano subido (con botón editar → renombrar/borrar) más una
+// tarjeta final para subir uno nuevo (la subida SOLO vive acá, ver item 11).
+function renderGaleriaPlanos() {
+  const ordenados = planosOrdenados();
+  return `
+    <div class="planos-galeria-wrap">
+      ${!ordenados.length ? `<p class="planos-galeria-vacio-msg">Todavía no subiste ningún plano — subí el primero para empezar a marcarlo.</p>` : ""}
+      <div class="planos-galeria-grid">
+        ${ordenados.map(p => `
+          <div class="planos-galeria-card">
+            <button type="button" class="planos-galeria-card-btn" data-planos-abrir="${p.id}">
+              <img src="${p.dataUrl}" alt="${escapeHtml(p.nombre)}" draggable="false">
+            </button>
+            <div class="planos-galeria-card-footer">
+              <span class="planos-galeria-card-nombre">${escapeHtml(p.nombre)}</span>
+              <button type="button" class="planos-galeria-card-editar" data-planos-editar="${p.id}" aria-label="Editar plano" title="Renombrar o borrar plano">
+                <svg class="icon"><use href="#i-edit"/></svg>
+              </button>
+            </div>
+            ${PLANO_GALERIA_MENU_ID === p.id ? `
+              <div class="planos-galeria-menu">
+                <button type="button" data-planos-menu-renombrar="${p.id}"><svg class="icon"><use href="#i-edit"/></svg>Renombrar</button>
+                <button type="button" data-planos-menu-borrar="${p.id}" class="planos-galeria-menu-borrar"><svg class="icon"><use href="#i-trash"/></svg>Borrar</button>
+              </div>
+            ` : ""}
+          </div>
+        `).join("")}
+        <label class="planos-galeria-card planos-galeria-card-nueva" for="planos-input-subir-galeria">
+          <span class="planos-galeria-card-nueva-icono"><svg class="icon"><use href="#i-upload"/></svg></span>
+          <span>Subir plano (PDF)</span>
+          <input type="file" accept="application/pdf" id="planos-input-subir-galeria" class="lev-foto-input-oculto">
+        </label>
+      </div>
+    </div>
+  `;
+}
+
 function renderVisorPlanos() {
   const overlay = document.getElementById("planos-visor-overlay");
   if (!overlay) return;
   const plano = planoActivo();
+  const enVisor = PLANO_VISTA === "visor" && plano;
 
   overlay.innerHTML = `
     <div class="planos-visor-topbar">
-      <button type="button" id="planos-btn-cerrar" class="lev-exit-btn"><svg class="icon"><use href="#i-arrow-left"/></svg>Cerrar</button>
-      ${PLANOS.length ? `
+      <button type="button" id="planos-btn-cerrar" class="lev-exit-btn"><svg class="icon"><use href="#i-arrow-left"/></svg>${enVisor ? "Planos" : "Cerrar"}</button>
+      ${enVisor ? `
         <select id="planos-select-hoja" class="planos-select-hoja">
           ${planosOrdenados().map(p => `<option value="${p.id}" ${p.id === PLANO_ACTIVO_ID ? "selected" : ""}>${escapeHtml(p.nombre)}</option>`).join("")}
         </select>
         <button type="button" id="planos-btn-renombrar" class="planos-btn-icono" aria-label="Renombrar plano" title="Renombrar plano"><svg class="icon"><use href="#i-edit"/></svg></button>
+        <button type="button" id="planos-btn-compartir" class="planos-btn-icono" aria-label="Compartir plano" title="Compartir plano"><svg class="icon"><use href="#i-share"/></svg></button>
       ` : `<span class="planos-visor-title">Planos</span>`}
-      <label class="planos-btn-subir">
-        <svg class="icon"><use href="#i-upload"/></svg><span class="planos-btn-subir-label">Subir plano</span>
-        <input type="file" accept="application/pdf" id="planos-input-subir" class="lev-foto-input-oculto">
-      </label>
     </div>
-    ${plano ? `
-      <div class="planos-toolbar">
-        <div class="planos-modo-group">
+    ${!enVisor ? renderGaleriaPlanos() : `
+      <div class="planos-tools-rail ${PLANO_TOOLS_COLLAPSED ? "planos-tools-collapsed" : ""}" id="planos-tools-rail">
+        <button type="button" id="planos-tools-toggle" class="planos-tools-toggle" aria-label="Mostrar/ocultar herramientas" title="Mostrar/ocultar herramientas">
+          <svg class="icon"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="planos-tools-list">
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "mano" ? "planos-modo-active" : ""}" data-planos-modo="mano" title="Mover"><svg class="icon"><use href="#i-move"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "lapiz" ? "planos-modo-active" : ""}" data-planos-modo="lapiz" title="Lápiz (apuntes)"><svg class="icon"><use href="#i-edit"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "resaltador" ? "planos-modo-active" : ""}" data-planos-modo="resaltador" title="Marcador"><svg class="icon"><use href="#i-highlighter"/></svg></button>
@@ -328,6 +400,8 @@ function renderVisorPlanos() {
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "regla" ? "planos-modo-active" : ""}" data-planos-modo="regla" title="Medir"><svg class="icon"><use href="#i-ruler"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "borrador" ? "planos-modo-active" : ""}" data-planos-modo="borrador" title="Borrador (toca un trazo para quitarlo)"><svg class="icon"><use href="#i-eraser"/></svg></button>
         </div>
+      </div>
+      <div class="planos-toolbar">
         ${(PLANO_MODO === "lapiz" || PLANO_MODO === "resaltador" || PLANO_MODO === "rectangulo" || PLANO_MODO === "linea") ? `
           <div class="planos-color-group">
             ${PLANO_PALETA_COLORES.map(c => `<button type="button" class="planos-color-swatch ${c === PLANO_COLOR_MARCADOR ? "planos-color-activo" : ""}" data-planos-color="${c}" style="background:${c};" aria-label="Color ${c}"></button>`).join("")}
@@ -376,6 +450,7 @@ function renderVisorPlanos() {
               const grosor = t.grosor || 1;
               return `<polyline points="${t.puntos.map(pt => `${pt.xFrac * plano.width},${pt.yFrac * plano.height}`).join(" ")}" fill="none" stroke="${t.color}" stroke-opacity="${estilo.opacidad}" stroke-width="${Math.max(plano.width, plano.height) * estilo.grosorFactor * grosor}" stroke-linecap="round" stroke-linejoin="round"/>`;
             }).join("")}
+            ${(plano.cotas || []).map(c => svgCota(plano, c)).join("")}
           </svg>
           <div class="planos-pines-layer">
             ${(plano.pines || []).map((pin, i) => `
@@ -383,14 +458,6 @@ function renderVisorPlanos() {
             `).join("")}
           </div>
         </div>
-      </div>
-    ` : `
-      <div class="planos-vacio">
-        <p>Todavía no subiste ningún plano.</p>
-        <label class="lev-foto-btn" for="planos-input-subir-vacio">
-          <svg class="icon"><use href="#i-upload"/></svg>Subir el primer plano (PDF)
-        </label>
-        <input type="file" accept="application/pdf" id="planos-input-subir-vacio" class="lev-foto-input-oculto">
       </div>
     `}
   `;
@@ -400,9 +467,61 @@ function renderVisorPlanos() {
   if (wrapCursor) wrapCursor.style.cursor = cursorParaModo(PLANO_MODO);
 }
 
+// Dibuja una "cota" (línea de medición con formato de dimensión): línea
+// principal + pequeñas marcas perpendiculares en cada extremo + el texto de
+// la distancia centrado, con un fondo para que se lea sobre cualquier plano.
+function svgCota(plano, c) {
+  const maxDim = Math.max(plano.width, plano.height);
+  const grosor = grosorLineaFina(plano);
+  const x1 = c.x1Frac * plano.width, y1 = c.y1Frac * plano.height;
+  const x2 = c.x2Frac * plano.width, y2 = c.y2Frac * plano.height;
+  const dx = x2 - x1, dy = y2 - y1;
+  const largo = Math.hypot(dx, dy) || 1;
+  // Vector perpendicular unitario, para las marcas de extremo tipo cota de plano.
+  const px = -dy / largo, py = dx / largo;
+  const marca = maxDim * 0.012;
+  const mx1a = x1 - px * marca / 2, my1a = y1 - py * marca / 2, mx1b = x1 + px * marca / 2, my1b = y1 + py * marca / 2;
+  const mx2a = x2 - px * marca / 2, my2a = y2 - py * marca / 2, mx2b = x2 + px * marca / 2, my2b = y2 + py * marca / 2;
+  const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+  const fontSize = maxDim * 0.013;
+  const texto = escapeHtml(c.texto || "");
+  const anchoTexto = texto.length * fontSize * 0.62 + fontSize;
+  let angulo = Math.atan2(dy, dx) * 180 / Math.PI;
+  if (angulo > 90 || angulo < -90) angulo += 180; // que el texto nunca quede boca abajo
+  const color = c.color || "#111111";
+  return `
+    <g data-planos-forma-id="${c.id}" data-planos-forma-tipo="cotas">
+      <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${grosor}"/>
+      <line x1="${mx1a}" y1="${my1a}" x2="${mx1b}" y2="${my1b}" stroke="${color}" stroke-width="${grosor}"/>
+      <line x1="${mx2a}" y1="${my2a}" x2="${mx2b}" y2="${my2b}" stroke="${color}" stroke-width="${grosor}"/>
+      <g transform="translate(${midX} ${midY}) rotate(${angulo})">
+        <rect x="${-anchoTexto / 2}" y="${-fontSize * 0.9}" width="${anchoTexto}" height="${fontSize * 1.5}" fill="white" fill-opacity="0.85"/>
+        <text x="0" y="0" font-size="${fontSize}" fill="${color}" text-anchor="middle" dominant-baseline="middle" font-weight="600">${texto}</text>
+      </g>
+    </g>`;
+}
+
+// Grosor delgado y fijo (no depende del selector de grosor del lápiz) para
+// las líneas de Calibrar/Regla/Cota — antes eran demasiado gruesas; ahora
+// equivalen al "Extra fino" del lápiz (PLANO_GROSORES[1]).
+function grosorLineaFina(plano) {
+  return Math.max(plano.width, plano.height) * 0.004 * 0.3;
+}
+
 function attachVisorPlanosEvents(overlay) {
+  // El botón "Cerrar"/"← Planos" del topbar hace dos cosas distintas según la
+  // vista: si estamos viendo un plano puntual, vuelve a la galería; si ya
+  // estamos en la galería, cierra el módulo entero.
   const btnCerrar = document.getElementById("planos-btn-cerrar");
-  if (btnCerrar) btnCerrar.addEventListener("click", cerrarVisorPlanos);
+  if (btnCerrar) btnCerrar.addEventListener("click", () => {
+    if (PLANO_VISTA === "visor") {
+      PLANO_VISTA = "galeria";
+      PLANO_GALERIA_MENU_ID = null;
+      renderVisorPlanos();
+    } else {
+      cerrarVisorPlanos();
+    }
+  });
 
   const selectHoja = document.getElementById("planos-select-hoja");
   if (selectHoja) selectHoja.addEventListener("change", () => {
@@ -424,8 +543,65 @@ function attachVisorPlanosEvents(overlay) {
       renderVisorPlanos();
     }
   });
+  const btnCompartir = document.getElementById("planos-btn-compartir");
+  if (btnCompartir) btnCompartir.addEventListener("click", compartirPlanoActual);
 
-  ["planos-input-subir", "planos-input-subir-vacio"].forEach(id => {
+  const toolsToggle = document.getElementById("planos-tools-toggle");
+  if (toolsToggle) toolsToggle.addEventListener("click", () => {
+    PLANO_TOOLS_COLLAPSED = !PLANO_TOOLS_COLLAPSED;
+    renderVisorPlanos();
+  });
+
+  // --- Cuadrícula de galería: abrir un plano, y menú Renombrar/Borrar ---
+  document.querySelectorAll("[data-planos-abrir]").forEach(btn => {
+    btn.addEventListener("click", () => abrirPlanoDesdeGaleria(parseInt(btn.dataset.planosAbrir, 10)));
+  });
+  document.querySelectorAll("[data-planos-editar]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.dataset.planosEditar, 10);
+      PLANO_GALERIA_MENU_ID = PLANO_GALERIA_MENU_ID === id ? null : id;
+      renderVisorPlanos();
+    });
+  });
+  document.querySelectorAll("[data-planos-menu-renombrar]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const p = PLANOS.find(pl => pl.id === parseInt(btn.dataset.planosMenuRenombrar, 10));
+      if (!p) return;
+      const nuevoNombre = prompt("Nombre del plano:", p.nombre);
+      if (nuevoNombre && nuevoNombre.trim()) { p.nombre = nuevoNombre.trim(); marcarCambio(); }
+      PLANO_GALERIA_MENU_ID = null;
+      renderVisorPlanos();
+    });
+  });
+  document.querySelectorAll("[data-planos-menu-borrar]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.dataset.planosMenuBorrar, 10);
+      const p = PLANOS.find(pl => pl.id === id);
+      if (!p) return;
+      if (confirm(`¿Borrar el plano "${p.nombre}"? Se van a perder sus marcas, pines y cotas.`)) {
+        PLANOS = PLANOS.filter(pl => pl.id !== id);
+        marcarCambio();
+      }
+      PLANO_GALERIA_MENU_ID = null;
+      renderVisorPlanos();
+    });
+  });
+  // Cerrar el menú "Renombrar/Borrar" al tocar afuera — se agrega una sola
+  // vez sobre el overlay persistente (no en cada render, para no acumular).
+  if (!overlay.dataset.planosClickFueraBind) {
+    overlay.dataset.planosClickFueraBind = "1";
+    overlay.addEventListener("click", (e) => {
+      if (PLANO_GALERIA_MENU_ID != null && !e.target.closest(".planos-galeria-menu") && !e.target.closest("[data-planos-editar]")) {
+        PLANO_GALERIA_MENU_ID = null;
+        renderVisorPlanos();
+      }
+    });
+  }
+
+  ["planos-input-subir-galeria"].forEach(id => {
     const input = document.getElementById(id);
     if (!input) return;
     input.addEventListener("change", async () => {
@@ -434,11 +610,8 @@ function attachVisorPlanosEvents(overlay) {
       mostrarCargandoPlano(true);
       try {
         const plano = await subirPlano(file);
-        PLANO_ACTIVO_ID = plano.id;
-        PLANO_ZOOM = calcularZoomAjustado(plano);
-        const panSubida = calcularPanCentrado(plano, PLANO_ZOOM);
-        PLANO_PAN_X = panSubida.x; PLANO_PAN_Y = panSubida.y;
         marcarCambio();
+        abrirPlanoDesdeGaleria(plano.id);
       } catch (e) {
         mostrarToast("No se pudo procesar el PDF del plano.", "error");
       } finally {
@@ -515,6 +688,33 @@ function attachVisorPlanosEvents(overlay) {
     }, { passive: false });
 
     wrap.addEventListener("pointerdown", (e) => {
+      // Doble-tap (2 toques rápidos y cercanos, con un solo dedo) alterna el
+      // zoom in/out centrado en el punto tocado — funciona con cualquier
+      // herramienta activa. Se detecta ANTES de sumar este puntero al mapa,
+      // así el chequeo de tamaño de abajo sigue viendo el gesto como "1 dedo".
+      if (e.pointerType !== "mouse" || e.button === 0) {
+        const ahora = Date.now();
+        if (PLANO_ULTIMO_TAP && PLANO_PUNTEROS_ACTIVOS.size === 0 &&
+            (ahora - PLANO_ULTIMO_TAP.t) < 320 &&
+            Math.hypot(e.clientX - PLANO_ULTIMO_TAP.x, e.clientY - PLANO_ULTIMO_TAP.y) < 30) {
+          e.preventDefault();
+          const plano = planoActivo();
+          if (plano) {
+            const zoomAjustado = calcularZoomAjustado(plano);
+            const destino = PLANO_ZOOM > zoomAjustado * 1.3 ? zoomAjustado : Math.min(zoomAjustado * 2.3, PLANO_ZOOM_MAX);
+            aplicarZoomCentrado(destino, e.clientX, e.clientY);
+            inner.style.transform = `translate(${PLANO_PAN_X}px, ${PLANO_PAN_Y}px) scale(${PLANO_ZOOM})`;
+            const zoomLabel = document.getElementById("planos-zoom-reset");
+            if (zoomLabel) zoomLabel.textContent = Math.round(PLANO_ZOOM * 100) + "%";
+          }
+          PLANO_ULTIMO_TAP = null;
+          PLANO_SUPRIMIR_CLICK = true;
+          setTimeout(() => { PLANO_SUPRIMIR_CLICK = false; }, 350);
+          return;
+        }
+        PLANO_ULTIMO_TAP = { t: ahora, x: e.clientX, y: e.clientY };
+      }
+
       PLANO_PUNTEROS_ACTIVOS.set(e.pointerId, { x: e.clientX, y: e.clientY });
       // Botón central del mouse: mover el plano sin importar qué herramienta
       // esté activa (lápiz, marcador, pin, borrador) — atajo universal, igual
@@ -528,11 +728,21 @@ function attachVisorPlanosEvents(overlay) {
         return;
       }
       if (PLANO_PUNTEROS_ACTIVOS.size === 2) {
+        // Pasar a pellizco de 2 dedos cancela cualquier trazo/forma que
+        // hubiera quedado a medio dibujar con el primer dedo — antes de este
+        // fix quedaba un <rect>/<line> fantasma pegado al SVG.
         const pts = Array.from(PLANO_PUNTEROS_ACTIVOS.values());
         PLANO_PINCH_DIST_INICIAL = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         PLANO_PINCH_ZOOM_INICIAL = PLANO_ZOOM;
+        PLANO_PINCH_ULTIMO_CX = (pts[0].x + pts[1].x) / 2;
+        PLANO_PINCH_ULTIMO_CY = (pts[0].y + pts[1].y) / 2;
         PLANO_DRAG_ACTIVO = false;
         PLANO_TRAZO_EN_CURSO = null;
+        if (PLANO_FORMA_EN_CURSO) {
+          PLANO_FORMA_EN_CURSO.elemento.remove();
+          PLANO_FORMA_EN_CURSO = null;
+          ocultarLupa();
+        }
       } else if (PLANO_MODO === "mano" && PLANO_PUNTEROS_ACTIVOS.size === 1) {
         PLANO_DRAG_ACTIVO = true;
         PLANO_DRAG_ULTIMO_X = e.clientX; PLANO_DRAG_ULTIMO_Y = e.clientY;
@@ -552,7 +762,14 @@ function attachVisorPlanosEvents(overlay) {
         const pts = Array.from(PLANO_PUNTEROS_ACTIVOS.values());
         const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         const cx = (pts[0].x + pts[1].x) / 2, cy = (pts[0].y + pts[1].y) / 2;
+        // Arrastre con 2 dedos: mueve el pan según cuánto se movió el
+        // centroide del pellizco (aplicarZoomCentrado por sí sola NO hace
+        // esto — solo ancla el zoom al punto dado, ver nota arriba). Esto
+        // funciona en cualquier herramienta activa, no solo en modo "Mano".
+        PLANO_PAN_X += (cx - PLANO_PINCH_ULTIMO_CX);
+        PLANO_PAN_Y += (cy - PLANO_PINCH_ULTIMO_CY);
         aplicarZoomCentrado(PLANO_PINCH_ZOOM_INICIAL * (dist / PLANO_PINCH_DIST_INICIAL), cx, cy);
+        PLANO_PINCH_ULTIMO_CX = cx; PLANO_PINCH_ULTIMO_CY = cy;
         inner.style.transform = `translate(${PLANO_PAN_X}px, ${PLANO_PAN_Y}px) scale(${PLANO_ZOOM})`;
         return;
       }
@@ -592,6 +809,7 @@ function attachVisorPlanosEvents(overlay) {
     // Click simple (no arrastre) en modo "punto": coloca un pin en esa posición.
     const img = document.getElementById("planos-img");
     if (img) img.addEventListener("click", (e) => {
+      if (PLANO_SUPRIMIR_CLICK) return; // este click viene de un doble-tap de zoom, no de un toque real
       if (PLANO_MODO !== "punto") return;
       const rect = img.getBoundingClientRect();
       const xFrac = (e.clientX - rect.left) / rect.width;
@@ -634,6 +852,7 @@ function abrirVisorPlanosEnPin(filaId, filaTipo) {
 
   PLANO_PIN_CONTEXTO = null;
   PLANO_MODO = "mano";
+  PLANO_VISTA = "visor";
   PLANO_ACTIVO_ID = encontrado.plano.id;
   PLANO_ZOOM = Math.min(Math.max(calcularZoomAjustado(encontrado.plano), 1.2), PLANO_ZOOM_MAX);
 
@@ -704,6 +923,44 @@ async function exportarPlanosPDF() {
   doc.save("planos.pdf");
 }
 
+// Comparte (o descarga, si el navegador no soporta compartir archivos) una
+// imagen JPG del plano activo con todas sus marcas — mismo patrón que
+// compartirTablaMaterialesImagen() en compartir-tabla-imagen.js.
+async function compartirPlanoActual() {
+  const plano = planoActivo();
+  if (!plano) return;
+  let dataUrl;
+  try {
+    dataUrl = await dibujarPlanoConMarcasCanvas(plano);
+  } catch (e) {
+    mostrarToast("No se pudo generar la imagen del plano.", "error");
+    return;
+  }
+  const nombreArchivo = (plano.nombre || "plano").replace(/[^a-z0-9\-_ ]/gi, "").trim().replace(/\s+/g, "-") || "plano";
+  const archivo = `${nombreArchivo}.jpg`;
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const file = new File([blob], archivo, { type: "image/jpeg" });
+
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: plano.nombre, text: `Plano: ${plano.nombre}` });
+      mostrarToast("Plano compartido.");
+      return;
+    }
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    // si falla, seguimos con la descarga de respaldo
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = archivo;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  mostrarToast("Este navegador no permite compartir directo — se descargó la imagen.");
+}
+
 // Dibuja el plano + sus trazos/pines en un canvas temporal (para que el PDF
 // exportado los incluya, no solo la imagen pelada) y devuelve el dataURL.
 function dibujarPlanoConMarcasCanvas(plano) {
@@ -757,6 +1014,37 @@ function dibujarPlanoConMarcasCanvas(plano) {
         ctx.stroke();
       });
       ctx.globalAlpha = 1;
+      (plano.cotas || []).forEach(c => {
+        const maxDim = Math.max(plano.width, plano.height);
+        const grosor = maxDim * 0.004 * 0.3;
+        const x1 = c.x1Frac * plano.width, y1 = c.y1Frac * plano.height;
+        const x2 = c.x2Frac * plano.width, y2 = c.y2Frac * plano.height;
+        const dx = x2 - x1, dy = y2 - y1;
+        const largo = Math.hypot(dx, dy) || 1;
+        const px2 = -dy / largo, py2 = dx / largo;
+        const marca = maxDim * 0.012;
+        ctx.strokeStyle = c.color || "#111111";
+        ctx.lineWidth = grosor;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x1 - px2 * marca / 2, y1 - py2 * marca / 2); ctx.lineTo(x1 + px2 * marca / 2, y1 + py2 * marca / 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x2 - px2 * marca / 2, y2 - py2 * marca / 2); ctx.lineTo(x2 + px2 * marca / 2, y2 + py2 * marca / 2); ctx.stroke();
+        const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+        const fontSize = maxDim * 0.013;
+        ctx.font = `600 ${fontSize}px sans-serif`;
+        const texto = c.texto || "";
+        const anchoTexto = ctx.measureText(texto).width + fontSize;
+        ctx.save();
+        ctx.translate(midX, midY);
+        let angulo = Math.atan2(dy, dx);
+        if (angulo > Math.PI / 2 || angulo < -Math.PI / 2) angulo += Math.PI;
+        ctx.rotate(angulo);
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillRect(-anchoTexto / 2, -fontSize * 0.9, anchoTexto, fontSize * 1.5);
+        ctx.fillStyle = c.color || "#111111";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(texto, 0, 0);
+        ctx.restore();
+      });
       (plano.pines || []).forEach((pin, i) => {
         const px = pin.xFrac * plano.width, py = pin.yFrac * plano.height;
         const r = Math.max(plano.width, plano.height) * 0.006;
@@ -786,6 +1074,46 @@ function fraccionDesdeEvento(e) {
   return { xFrac: (e.clientX - rect.left) / rect.width, yFrac: (e.clientY - rect.top) / rect.height };
 }
 
+// --- Lupa de precisión para Calibrar/Regla — muestra un círculo con el plano
+// ampliado 3x y una mira "+" en el centro, para tocar el punto exacto sin que
+// el dedo lo tape. Se sigue del dedo mientras se arrastra el punto B.
+const PLANO_LUPA_ZOOM = 3;
+const PLANO_LUPA_PX = 130;
+function actualizarLupa(clientX, clientY, plano, frac) {
+  const img = document.getElementById("planos-img");
+  if (!img || !plano || !frac) return;
+  let lupa = document.getElementById("planos-lupa");
+  if (!lupa) {
+    lupa = document.createElement("div");
+    lupa.id = "planos-lupa";
+    lupa.className = "planos-lupa";
+    lupa.innerHTML = `<canvas id="planos-lupa-canvas" width="${PLANO_LUPA_PX}" height="${PLANO_LUPA_PX}"></canvas><div class="planos-lupa-cruz"></div>`;
+    document.body.appendChild(lupa);
+  }
+  // Se posiciona arriba y centrada respecto al dedo/cursor, para no taparlo.
+  lupa.style.left = (clientX - PLANO_LUPA_PX / 2) + "px";
+  lupa.style.top = (clientY - PLANO_LUPA_PX - 34) + "px";
+  const canvas = document.getElementById("planos-lupa-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, PLANO_LUPA_PX, PLANO_LUPA_PX);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(PLANO_LUPA_PX / 2, PLANO_LUPA_PX / 2, PLANO_LUPA_PX / 2, 0, Math.PI * 2);
+  ctx.clip();
+  const srcSize = PLANO_LUPA_PX / PLANO_LUPA_ZOOM;
+  const sx = frac.xFrac * plano.width - srcSize / 2;
+  const sy = frac.yFrac * plano.height - srcSize / 2;
+  try {
+    ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, PLANO_LUPA_PX, PLANO_LUPA_PX);
+  } catch (err) { /* fuera de rango en el borde del plano — no pasa nada, queda en blanco */ }
+  ctx.restore();
+}
+function ocultarLupa() {
+  const lupa = document.getElementById("planos-lupa");
+  if (lupa) lupa.remove();
+}
+
 // --- Rectángulo / Línea / Calibrar / Regla — todas usan el mismo gesto de
 // arrastre (tocar en el punto A, arrastrar hasta el punto B, soltar), con
 // una vista previa en vivo mientras se arrastra.
@@ -804,15 +1132,22 @@ function iniciarForma(e, tipo) {
     el.setAttribute("fill", PLANO_RECT_RELLENO ? PLANO_COLOR_MARCADOR : "none");
     if (PLANO_RECT_RELLENO) el.setAttribute("fill-opacity", String(PLANO_RECT_OPACIDAD));
   } else {
+    // "linea" respeta el grosor elegido (igual que se guarda al final —
+    // antes la previsualización quedaba siempre gruesa sin importar el
+    // grosor seleccionado). "calibrar"/"regla" siempre finas, ver grosorLineaFina().
     el = document.createElementNS("http://www.w3.org/2000/svg", "line");
     el.setAttribute("stroke", tipo === "calibrar" ? "#5856D6" : tipo === "regla" ? "#34C759" : PLANO_COLOR_MARCADOR);
-    el.setAttribute("stroke-width", String(Math.max(plano.width, plano.height) * 0.005));
+    const anchoLinea = tipo === "linea"
+      ? Math.max(plano.width, plano.height) * 0.005 * PLANO_GROSOR
+      : grosorLineaFina(plano);
+    el.setAttribute("stroke-width", String(anchoLinea));
     el.setAttribute("stroke-linecap", "round");
-    if (tipo === "calibrar" || tipo === "regla") el.setAttribute("stroke-dasharray", String(Math.max(plano.width, plano.height) * 0.008) + "," + String(Math.max(plano.width, plano.height) * 0.005));
+    if (tipo === "calibrar" || tipo === "regla") el.setAttribute("stroke-dasharray", String(anchoLinea * 2.5) + "," + String(anchoLinea * 1.6));
   }
   svg.appendChild(el);
   PLANO_FORMA_EN_CURSO = { tipo, inicio: frac, elemento: el, plano };
   actualizarForma(frac);
+  if (tipo === "calibrar" || tipo === "regla") actualizarLupa(e.clientX, e.clientY, plano, frac);
 }
 
 function actualizarForma(fracActual) {
@@ -837,6 +1172,9 @@ function continuarForma(e) {
   const frac = fraccionDesdeEvento(e);
   if (!frac || !PLANO_FORMA_EN_CURSO) return;
   actualizarForma(frac);
+  if (PLANO_FORMA_EN_CURSO.tipo === "calibrar" || PLANO_FORMA_EN_CURSO.tipo === "regla") {
+    actualizarLupa(e.clientX, e.clientY, PLANO_FORMA_EN_CURSO.plano, frac);
+  }
 }
 
 function finalizarForma(e) {
@@ -844,6 +1182,7 @@ function finalizarForma(e) {
   const { tipo, inicio, elemento, plano } = PLANO_FORMA_EN_CURSO;
   const fin = fraccionDesdeEvento(e) || inicio;
   elemento.remove();
+  ocultarLupa();
   const distFrac = Math.hypot(fin.xFrac - inicio.xFrac, fin.yFrac - inicio.yFrac);
   PLANO_FORMA_EN_CURSO = null;
   if (distFrac < 0.006) { renderVisorPlanos(); return; } // gesto muy chico, probable toque accidental
@@ -910,6 +1249,9 @@ function procesarCalibracion(plano, a, b) {
   renderVisorPlanos();
 }
 
+// Medir deja una "cota" persistente sobre el plano (línea + marcas de
+// extremo + texto de la distancia), no solo un toast que desaparece —
+// así queda documentada la medición como en un plano real.
 function procesarMedicion(plano, a, b) {
   if (!plano.escala) {
     mostrarToast("Este plano todavía no tiene escala calibrada — usá \"Calibrar\" primero.", "error");
@@ -919,6 +1261,10 @@ function procesarMedicion(plano, a, b) {
   const px = distanciaPx(plano, a, b);
   const cm = px / plano.escala.pxPorCm;
   const texto = cm >= 100 ? `${(cm / 100).toFixed(2)} m` : `${cm.toFixed(0)} cm`;
+  planoPushUndo(plano);
+  plano.cotas = plano.cotas || [];
+  plano.cotas.push({ id: Date.now(), x1Frac: a.xFrac, y1Frac: a.yFrac, x2Frac: b.xFrac, y2Frac: b.yFrac, texto, color: "#1a1a1a" });
+  marcarCambio();
   mostrarToast(`Distancia: ${texto}`);
   renderVisorPlanos();
 }
@@ -975,6 +1321,7 @@ function planoPushUndo(plano) {
     trazos: JSON.parse(JSON.stringify(plano.trazos)),
     rectangulos: JSON.parse(JSON.stringify(plano.rectangulos || [])),
     lineas: JSON.parse(JSON.stringify(plano.lineas || [])),
+    cotas: JSON.parse(JSON.stringify(plano.cotas || [])),
   });
   if (PLANO_UNDO_STACK.length > 25) PLANO_UNDO_STACK.shift();
 }
@@ -988,6 +1335,7 @@ function planoDeshacer() {
     plano.trazos = snap.trazos;
     plano.rectangulos = snap.rectangulos || [];
     plano.lineas = snap.lineas || [];
+    plano.cotas = snap.cotas || [];
     marcarCambio();
   }
   renderVisorPlanos();
@@ -1035,6 +1383,10 @@ function borrarCercaDe(e) {
     ];
     const d = Math.min(...bordes);
     if (!mejor || d < mejor.dist) mejor = { tipo: "rectangulos", idx: i, dist: d };
+  });
+  (plano.cotas || []).forEach((c, i) => {
+    const d = distanciaPuntoASegmento(px, py, c.x1Frac * plano.width, c.y1Frac * plano.height, c.x2Frac * plano.width, c.y2Frac * plano.height);
+    if (!mejor || d < mejor.dist) mejor = { tipo: "cotas", idx: i, dist: d };
   });
 
   if (mejor && mejor.dist <= umbral) {

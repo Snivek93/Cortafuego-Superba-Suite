@@ -729,35 +729,47 @@ body.modo-levantamiento #levantamiento-fullscreen {
   flex: 1; min-width: 0; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface-raised); color: var(--ink); font-size: var(--fs-base);
 }
-.planos-btn-subir {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: var(--radius-sm);
-  background: var(--hilti-red); color: white; font-size: var(--fs-sm); cursor: pointer; white-space: nowrap; flex-shrink: 0;
-}
 .planos-toolbar {
   display: flex; align-items: center; gap: 14px; padding: 8px 14px; border-bottom: 1px solid var(--border);
   background: var(--surface-raised); flex-shrink: 0; flex-wrap: wrap;
 }
-.planos-modo-group { display: flex; gap: 4px; }
+
+/* --- Riel de herramientas: estilo "apple/markup", monocromo, sin colores
+   por herramienta. En desktop queda fijo a la izquierda y siempre expandido;
+   en mobile flota a la derecha y se puede ocultar/expandir. --- */
+.planos-tools-rail {
+  background: rgba(28, 28, 30, 0.92); border-radius: 18px; padding: 6px 4px; z-index: 30;
+  display: flex; flex-direction: column; align-items: center; box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+}
+.planos-tools-list { display: flex; flex-direction: column; gap: 2px; }
+.planos-tools-toggle {
+  border: none; background: transparent; color: white; opacity: 0.85; cursor: pointer;
+  padding: 8px; display: flex; align-items: center; justify-content: center;
+}
+.planos-tools-toggle .icon { width: 18px; height: 18px; transition: transform 0.2s; }
+.planos-tools-collapsed .planos-tools-toggle .icon { transform: rotate(-90deg); }
 .planos-modo-btn {
-  border: none; border-radius: 12px; font-size: 18px; padding: 9px 13px; cursor: pointer; line-height: 1;
-  color: white; opacity: 0.62; transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+  border: none; border-radius: 11px; padding: 11px; cursor: pointer; line-height: 1;
+  color: white; opacity: 0.72; background: transparent; transition: opacity 0.15s, background 0.15s, transform 0.15s;
+  display: flex; align-items: center; justify-content: center;
 }
-.planos-modo-btn .icon { width: 20px; height: 20px; margin-right: 0; vertical-align: -4px; stroke-width: 2.1; }
-.planos-modo-btn.planos-modo-active { opacity: 1; box-shadow: 0 3px 10px rgba(0,0,0,0.35); transform: scale(1.08); }
+.planos-modo-btn .icon { width: 21px; height: 21px; margin-right: 0; stroke-width: 2.1; }
+.planos-modo-btn.planos-modo-active { opacity: 1; background: rgba(255,255,255,0.18); transform: scale(1.05); }
 @media (hover: hover) and (pointer: fine) {
-  .planos-modo-btn:hover { opacity: 0.85; }
-  .planos-modo-btn.planos-modo-active:hover { opacity: 1; }
+  .planos-modo-btn:hover { opacity: 1; background: rgba(255,255,255,0.10); }
+  .planos-modo-btn.planos-modo-active:hover { background: rgba(255,255,255,0.22); }
 }
-.planos-modo-btn[data-planos-modo="mano"] { background: #007AFF; }
-.planos-modo-btn[data-planos-modo="lapiz"] { background: #FF9500; }
-.planos-modo-btn[data-planos-modo="resaltador"] { background: #FF2D55; }
-.planos-modo-btn[data-planos-modo="punto"] { background: #FF3B30; }
-.planos-modo-btn[data-planos-modo="borrador"] { background: #8E8E93; }
-.planos-modo-btn[data-planos-modo="rectangulo"] { background: #AF52DE; }
-.planos-modo-btn[data-planos-modo="linea"] { background: #5AC8FA; }
-.planos-modo-btn[data-planos-modo="calibrar"] { background: #5856D6; }
-.planos-modo-btn[data-planos-modo="regla"] { background: #34C759; }
-.planos-modo-group { flex-wrap: wrap; }
+@media (max-width: 700px) {
+  .planos-tools-rail { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); }
+  .planos-tools-collapsed .planos-tools-list { display: none; }
+}
+@media (min-width: 701px) {
+  .planos-tools-rail { position: fixed; left: 14px; top: 96px; }
+  .planos-tools-toggle { display: none; }
+  .planos-tools-list { display: flex !important; }
+  /* deja lugar a la barra fija para que no tape el borde izquierdo del plano */
+  .planos-canvas-wrap { margin-left: 4px; }
+}
 .planos-relleno-group { display: flex; align-items: center; gap: 10px; }
 .planos-relleno-check { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); cursor: pointer; color: var(--ink); }
 .planos-relleno-check input { width: 16px; height: 16px; cursor: pointer; }
@@ -785,6 +797,11 @@ body.modo-levantamiento #levantamiento-fullscreen {
   border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); cursor: pointer;
   padding: 6px 12px; font-size: var(--fs-sm); min-width: 44px; color: var(--ink);
 }
+/* En mobile el zoom se maneja con pellizco/doble-tap — el indicador de
+   header/toolbar solo ocupa espacio, se oculta (item 9). */
+@media (max-width: 700px) {
+  .planos-zoom-group { display: none; }
+}
 .planos-canvas-wrap {
   flex: 1; overflow: hidden; position: relative; background: #33343a; touch-action: none; cursor: grab;
 }
@@ -801,9 +818,6 @@ body.modo-levantamiento #levantamiento-fullscreen {
   box-shadow: 0 2px 6px rgba(0,0,0,0.4); pointer-events: auto; cursor: pointer;
 }
 .planos-pin > * { transform: rotate(45deg); }
-.planos-vacio {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center;
-}
 .planos-cargando {
   position: absolute; inset: 0; z-index: 10; background: rgba(0,0,0,0.55); display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 16px; color: white; text-align: center; padding: 24px;
@@ -813,6 +827,62 @@ body.modo-levantamiento #levantamiento-fullscreen {
   animation: planos-spin 0.8s linear infinite;
 }
 @keyframes planos-spin { to { transform: rotate(360deg); } }
+
+/* --- Galería de planos: pantalla inicial del módulo (cuadrícula de
+   miniaturas verticales) — ver item 8. --- */
+.planos-galeria-wrap { flex: 1; overflow-y: auto; padding: 16px; }
+.planos-galeria-vacio-msg { text-align: center; color: var(--text-muted); margin: 24px 0 20px; }
+.planos-galeria-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; max-width: 1100px; margin: 0 auto;
+}
+.planos-galeria-card { position: relative; display: flex; flex-direction: column; }
+.planos-galeria-card-btn {
+  border: 1px solid var(--border); background: var(--surface-raised); border-radius: var(--radius-md);
+  padding: 0; cursor: pointer; overflow: hidden; aspect-ratio: 3 / 4; display: block; width: 100%;
+}
+.planos-galeria-card-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.planos-galeria-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 8px 2px 0; }
+.planos-galeria-card-nombre { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.planos-galeria-card-editar {
+  border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 6px; flex-shrink: 0;
+  display: flex; border-radius: var(--radius-sm);
+}
+.planos-galeria-card-editar .icon { width: 17px; height: 17px; }
+.planos-galeria-menu {
+  position: absolute; top: 100%; right: 0; margin-top: 4px; z-index: 5; min-width: 160px;
+  background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.2); overflow: hidden;
+}
+.planos-galeria-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; cursor: pointer;
+  padding: 10px 12px; font-size: var(--fs-sm); color: var(--ink); text-align: left;
+}
+.planos-galeria-menu button .icon { width: 16px; height: 16px; }
+.planos-galeria-menu button:hover { background: var(--surface); }
+.planos-galeria-menu-borrar { color: var(--hilti-red); }
+.planos-galeria-card-nueva {
+  aspect-ratio: 3 / 4; border: 2px dashed var(--border); border-radius: var(--radius-md);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; text-align: center; padding: 12px;
+}
+.planos-galeria-card-nueva-icono {
+  width: 44px; height: 44px; border-radius: 50%; background: var(--hilti-red); color: white;
+  display: flex; align-items: center; justify-content: center;
+}
+.planos-galeria-card-nueva-icono .icon { width: 22px; height: 22px; }
+
+/* --- Lupa de precisión (Calibrar/Regla) --- */
+.planos-lupa {
+  position: fixed; width: 130px; height: 130px; z-index: 5000; pointer-events: none;
+  border-radius: 50%; box-shadow: 0 4px 16px rgba(0,0,0,0.5); border: 2px solid white;
+}
+.planos-lupa canvas { width: 100%; height: 100%; border-radius: 50%; display: block; background: #ddd; }
+.planos-lupa-cruz { position: absolute; inset: 0; pointer-events: none; }
+.planos-lupa-cruz::before, .planos-lupa-cruz::after {
+  content: ""; position: absolute; background: rgba(226,0,26,0.9);
+}
+.planos-lupa-cruz::before { left: 50%; top: 12%; bottom: 12%; width: 1.5px; transform: translateX(-50%); }
+.planos-lupa-cruz::after { top: 50%; left: 12%; right: 12%; height: 1.5px; transform: translateY(-50%); }
 .lev-recent-main span:first-child { overflow-wrap: break-word; }
 .lev-recent-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
 .lev-recent-actions button { border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 9px 10px; display: inline-flex; border-radius: var(--radius-sm); }
