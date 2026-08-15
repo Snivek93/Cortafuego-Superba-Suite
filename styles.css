@@ -735,8 +735,9 @@ body.modo-levantamiento #levantamiento-fullscreen {
 }
 
 /* --- Riel de herramientas: estilo "apple/markup", monocromo, sin colores
-   por herramienta. En desktop queda fijo a la izquierda y siempre expandido;
-   en mobile flota a la derecha y se puede ocultar/expandir. --- */
+   por herramienta. En desktop queda fijo a la izquierda y siempre expandido.
+   En mobile queda anclado abajo a la izquierda, colapsable, y se despliega
+   hacia arriba (el toggle vive al final de la lista = abajo del todo). --- */
 .planos-tools-rail {
   background: rgba(28, 28, 30, 0.92); border-radius: 18px; padding: 6px 4px; z-index: 30;
   display: flex; flex-direction: column; align-items: center; box-shadow: 0 6px 20px rgba(0,0,0,0.35);
@@ -747,7 +748,9 @@ body.modo-levantamiento #levantamiento-fullscreen {
   padding: 8px; display: flex; align-items: center; justify-content: center;
 }
 .planos-tools-toggle .icon { width: 18px; height: 18px; transition: transform 0.2s; }
-.planos-tools-collapsed .planos-tools-toggle .icon { transform: rotate(-90deg); }
+/* Expandido: flecha apunta abajo ("tocá para cerrar"). Colapsado: apunta
+   arriba ("tocá para abrir hacia arriba"), ya que el toggle queda al fondo. */
+.planos-tools-collapsed .planos-tools-toggle .icon { transform: rotate(180deg); }
 .planos-modo-btn {
   border: none; border-radius: 11px; padding: 11px; cursor: pointer; line-height: 1;
   color: white; opacity: 0.72; background: transparent; transition: opacity 0.15s, background 0.15s, transform 0.15s;
@@ -759,14 +762,39 @@ body.modo-levantamiento #levantamiento-fullscreen {
   .planos-modo-btn:hover { opacity: 1; background: rgba(255,255,255,0.10); }
   .planos-modo-btn.planos-modo-active:hover { background: rgba(255,255,255,0.22); }
 }
+/* Separador fino entre grupos dentro del riel (herramientas / color-grosor / deshacer) */
+.planos-rail-divider { width: 60%; height: 1px; background: rgba(255,255,255,0.18); margin: 4px auto; }
+.planos-rail-flyout-wrap { position: relative; }
+.planos-rail-swatch-btn { padding: 9px; }
+.planos-rail-color-dot { width: 19px; height: 19px; border-radius: 50%; border: 2px solid white; display: block; box-shadow: 0 0 0 1px rgba(0,0,0,0.25); }
+.planos-rail-grosor-dot { border-radius: 50%; background: white; display: block; }
+/* Flyout de color/grosor: se abre hacia el lado del canvas (opuesto al borde
+   de pantalla donde está anclado el riel) para no salirse de la pantalla.
+   El riel vive en lados distintos según el tamaño de pantalla (ver los 2
+   @media de abajo): a la izquierda en desktop, a la derecha en mobile — así
+   que la dirección del flyout también se invierte entre uno y otro. */
+.planos-rail-flyout {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(28, 28, 30, 0.95); border-radius: 14px; padding: 9px; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  display: flex; gap: 8px; align-items: center; z-index: 40; max-width: 60vw; flex-wrap: wrap;
+  width: max-content;
+}
+.planos-rail-flyout-vertical { flex-direction: column; align-items: stretch; min-width: 168px; }
+.planos-rail-flyout-vertical .planos-relleno-check { color: white; }
 @media (max-width: 700px) {
-  .planos-tools-rail { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); }
+  /* Mobile: riel anclado abajo a la DERECHA, se expande hacia arriba. El
+     flyout abre hacia la izquierda (hacia el canvas). */
+  .planos-tools-rail { position: fixed; right: 10px; bottom: 10px; top: auto; left: auto; transform: none; }
   .planos-tools-collapsed .planos-tools-list { display: none; }
+  .planos-rail-flyout { right: 100%; left: auto; margin-right: 10px; }
 }
 @media (min-width: 701px) {
-  .planos-tools-rail { position: fixed; left: 14px; top: 96px; }
+  /* Desktop: riel fijo a la IZQUIERDA, siempre expandido. El flyout abre
+     hacia la derecha (hacia el canvas). */
+  .planos-tools-rail { position: fixed; left: 14px; top: 96px; right: auto; }
   .planos-tools-toggle { display: none; }
   .planos-tools-list { display: flex !important; }
+  .planos-rail-flyout { left: 100%; right: auto; margin-left: 10px; }
   /* deja lugar a la barra fija para que no tape el borde izquierdo del plano */
   .planos-canvas-wrap { margin-left: 4px; }
 }
@@ -781,17 +809,17 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .planos-btn-icono .icon { width: 18px; height: 18px; }
 .planos-color-group { display: flex; gap: 6px; align-items: center; }
 .planos-color-swatch {
-  width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--surface-raised); cursor: pointer;
-  box-shadow: 0 0 0 1px var(--border);
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); cursor: pointer;
+  flex-shrink: 0;
 }
-.planos-color-swatch.planos-color-activo { box-shadow: 0 0 0 2px var(--hilti-red); }
-.planos-grosor-group { display: flex; gap: 6px; align-items: center; }
+.planos-color-swatch.planos-color-activo { box-shadow: 0 0 0 2px var(--hilti-red); border-color: white; }
+.planos-grosor-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .planos-grosor-btn {
-  width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border);
-  background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.06); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.planos-grosor-btn span { display: block; border-radius: 50%; background: var(--ink); }
-.planos-grosor-btn.planos-grosor-activo { border-color: var(--hilti-red); background: var(--err-bg); }
+.planos-grosor-btn span { display: block; border-radius: 50%; background: white; }
+.planos-grosor-btn.planos-grosor-activo { border-color: var(--hilti-red); background: rgba(226,0,26,0.25); }
 .planos-zoom-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .planos-zoom-group button {
   border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); cursor: pointer;
@@ -808,6 +836,12 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .planos-canvas-inner {
   position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform;
 }
+/* -webkit-touch-callout: none evita que iOS muestre el menú nativo de
+   "Compartir / Guardar en Fotos / Copiar…" al mantener presionado el plano
+   (long-press). user-select ya estaba, pero no alcanza para ese menú en iOS. */
+.planos-img, .planos-svg-overlay, .planos-pines-layer, .planos-canvas-wrap, .planos-tools-rail {
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+}
 .planos-img { display: block; max-width: none; user-select: none; -webkit-user-drag: none; }
 .planos-svg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 .planos-pines-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -816,6 +850,7 @@ body.modo-levantamiento #levantamiento-fullscreen {
   transform: translate(-50%, -100%) rotate(-45deg); background: var(--hilti-red); border: 2px solid white; color: white;
   font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 6px rgba(0,0,0,0.4); pointer-events: auto; cursor: pointer;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
 }
 .planos-pin > * { transform: rotate(45deg); }
 .planos-cargando {
@@ -840,7 +875,7 @@ body.modo-levantamiento #levantamiento-fullscreen {
   border: 1px solid var(--border); background: var(--surface-raised); border-radius: var(--radius-md);
   padding: 0; cursor: pointer; overflow: hidden; aspect-ratio: 3 / 4; display: block; width: 100%;
 }
-.planos-galeria-card-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.planos-galeria-card-btn img { width: 100%; height: 100%; object-fit: cover; display: block; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .planos-galeria-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 8px 2px 0; }
 .planos-galeria-card-nombre { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
 .planos-galeria-card-editar {
