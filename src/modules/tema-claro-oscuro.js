@@ -61,11 +61,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const overlay = document.getElementById("modal-config-overlay");
   const btnAbrir = document.getElementById("btn-configuracion");
   const btnCerrar = document.getElementById("btn-cerrar-config");
+  const btnToggleBd = document.getElementById("btn-toggle-bd");
+  const cfgBdContenido = document.getElementById("cfg-bd-contenido");
 
   const abrirConfig = () => {
     if (!overlay) return;
     temaAplicar(temaActual);          // resalta el botón activo
     calcVisAplicar(calcVisLeer());    // resalta el botón activo
+    const spanVersion = document.getElementById("cfg-acerca-version");
+    if (spanVersion && window.APP_VERSION) spanVersion.textContent = window.APP_VERSION;
+    const spanAnio = document.getElementById("cfg-acerca-anio");
+    if (spanAnio) spanAnio.textContent = String(new Date().getFullYear());
+    // "Base de Datos" arranca siempre oculta — hay que abrirla a propósito
+    // para verla, para que no quede a la vista por accidente.
+    if (cfgBdContenido) cfgBdContenido.style.display = "none";
+    if (btnToggleBd) btnToggleBd.setAttribute("aria-expanded", "false");
     overlay.style.display = "flex";
     document.body.classList.add("modal-open");
   };
@@ -78,6 +88,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btnAbrir) btnAbrir.addEventListener("click", abrirConfig);
   if (btnCerrar) btnCerrar.addEventListener("click", cerrarConfig);
   if (overlay) overlay.addEventListener("click", e => { if (e.target === overlay) cerrarConfig(); });
+  if (btnToggleBd && cfgBdContenido) btnToggleBd.addEventListener("click", () => {
+    const abierta = cfgBdContenido.style.display !== "none";
+    cfgBdContenido.style.display = abierta ? "none" : "flex";
+    btnToggleBd.setAttribute("aria-expanded", String(!abierta));
+  });
 
   // Botones de tema
   document.querySelectorAll(".btn-tema-opt").forEach(btn => {

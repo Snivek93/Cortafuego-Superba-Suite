@@ -346,8 +346,62 @@ function initApp() {
       updateAllBadges();
       if (ACTIVE_TAB === "resumen") renderResumen();
       marcarCambio();
+      if (cfgPct.includes(id)) actualizarChipDesperdicio();
     });
   });
+
+  // Chip "Desperdicio" (fila de pestañas) — muestra Penetrantes/Juntas % y
+  // despliega un popover chico con los mismos inputs cfg-C17 / cfg-C17_JUNTAS
+  // que ya maneja el loop de arriba. Expuesto en window porque
+  // archivo-guardar-cargar.js necesita refrescar el texto del chip al cargar
+  // un proyecto (ahí los inputs se setean directo, sin disparar "input").
+  function actualizarChipDesperdicio() {
+    const p = document.getElementById("cfg-C17");
+    const j = document.getElementById("cfg-C17_JUNTAS");
+    const val = document.getElementById("desperdicio-chip-valor");
+    if (!p || !j || !val) return;
+    const pv = p.value === "" ? "0" : p.value;
+    const jv = j.value === "" ? "0" : j.value;
+    val.textContent = pv + "% · " + jv + "%";
+  }
+  window.actualizarChipDesperdicio = actualizarChipDesperdicio;
+  actualizarChipDesperdicio();
+
+  const btnDesperdicioChip = document.getElementById("btn-desperdicio-chip");
+  const desperdicioPopover = document.getElementById("desperdicio-popover");
+  const desperdicioChipWrap = document.getElementById("desperdicio-chip-wrap");
+  if (btnDesperdicioChip && desperdicioPopover && desperdicioChipWrap) {
+    function posicionarPopoverDesperdicio() {
+      const r = btnDesperdicioChip.getBoundingClientRect();
+      desperdicioPopover.style.visibility = "hidden";
+      desperdicioPopover.hidden = false;
+      const w = desperdicioPopover.offsetWidth;
+      desperdicioPopover.hidden = true;
+      desperdicioPopover.style.visibility = "";
+      const margen = 8;
+      let left = r.right - w;
+      left = Math.max(margen, Math.min(left, window.innerWidth - w - margen));
+      desperdicioPopover.style.left = left + "px";
+      desperdicioPopover.style.top = (r.bottom + 6) + "px";
+    }
+    btnDesperdicioChip.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const abrir = desperdicioPopover.hidden;
+      if (abrir) posicionarPopoverDesperdicio();
+      desperdicioPopover.hidden = !abrir;
+      btnDesperdicioChip.setAttribute("aria-expanded", abrir ? "true" : "false");
+    });
+    document.addEventListener("click", (e) => {
+      if (!desperdicioPopover.hidden && !desperdicioChipWrap.contains(e.target) && !desperdicioPopover.contains(e.target)) {
+        desperdicioPopover.hidden = true;
+        btnDesperdicioChip.setAttribute("aria-expanded", "false");
+      }
+    });
+    window.addEventListener("scroll", () => {
+      desperdicioPopover.hidden = true;
+      btnDesperdicioChip.setAttribute("aria-expanded", "false");
+    }, { capture: true, passive: true });
+  }
 
   attachTableEvents();
 

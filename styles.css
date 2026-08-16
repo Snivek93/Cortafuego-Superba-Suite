@@ -1,5 +1,9 @@
 
 :root {
+  /* Ancho máximo del contenido en pantallas grandes — en mobile/tablet
+     (donde 100% - 1180px da negativo) el max() cae siempre en 20px, así
+     que este mismo valor sirve para las 2 bandas sin necesitar @media. */
+  --edge-pad: max(20px, calc((100% - 1180px) / 2));
   --hilti-red: #E2001A;
   --hilti-red-dark: #B40014;
   --ink: #111111;
@@ -127,7 +131,7 @@ p { margin: 0 0 8px; }
    ENCABEZADO
    ============================================================ */
 header.app-header {
-  background: var(--bar-bg); color: white; padding: 14px 20px;
+  background: var(--bar-bg); color: white; padding: 14px var(--edge-pad);
   display: flex; flex-direction: column; align-items: stretch; gap: 10px;
   border-bottom: 3px solid var(--hilti-red);
 }
@@ -154,7 +158,20 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 #btn-configuracion { order: 4; }
 #save-status { order: 5; }
 
-.lev-launch-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+@media (min-width: 701px) {
+  /* En mobile el header siempre apila 3 filas (logo / campos / botones).
+     En desktop hay espacio de sobra — en vez de forzar ese mismo apilado
+     angosto, se acomodan lado a lado en una sola fila (o 2, si la ventana
+     no da para las 3 partes juntas), usando el ancho real disponible en
+     vez de quedar todo apretado en la esquina izquierda. */
+  header.app-header { flex-direction: row; flex-wrap: wrap; align-items: center; row-gap: 12px; }
+  header.app-header .header-banner { width: auto; flex-shrink: 0; }
+  .header-project-fields { width: auto; flex: 1 1 380px; max-width: 560px; }
+  .header-project-fields input[type="text"] { width: 200px; }
+  .header-actions { width: auto; flex-shrink: 0; }
+}
+
+.lev-launch-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px var(--edge-pad); display: flex; gap: 10px; flex-wrap: wrap; }
 .lev-launch-btn {
   flex: 1 1 260px; display: flex; align-items: center; justify-content: center; gap: 8px;
   border: none; background: var(--hilti-red); color: white; font-size: var(--fs-lg); font-weight: 700;
@@ -165,11 +182,57 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 }
 .lev-launch-btn .icon { width: 20px; height: 20px; }
 .lev-launch-label-short { display: none; }
+/* Planos es una herramienta de visualización/anotación, no una acción de
+   levantamiento como las otras dos — mismo tamaño y fila, pero un color
+   distinto para que no se lea como "un tercer tipo de levantamiento".
+   Gris claro FIJO (no usa variables de tema): --bar-bg quedaba casi negro
+   en modo oscuro y se perdía contra el fondo oscuro de la barra. Con un
+   gris claro + texto oscuro fijos, el contraste se mantiene igual de bien
+   en claro y en oscuro, en vez de depender de qué tema esté activo. */
+.lev-launch-btn-planos { background: #d6d6db; color: #1a1a1a; }
+@media (hover: hover) and (pointer: fine) {
+  .lev-launch-btn-planos:hover { background: #c3c3c9; }
+}
 
-.config-bar-wrap { background: var(--surface); border-bottom: 1px solid var(--border); }
+.tabs-spacer { flex: 1 1 auto; }
+.desperdicio-chip-wrap { position: relative; display: flex; align-items: center; flex-shrink: 0; margin: 6px var(--edge-pad) 6px 0; }
+.desperdicio-chip {
+  display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-raised); padding: 6px 12px; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; white-space: nowrap;
+}
+@media (hover: hover) and (pointer: fine) {
+  .desperdicio-chip:hover { border-color: var(--ink); }
+}
+.desperdicio-chip-label { font-weight: 600; }
+.desperdicio-chip-valor { font-weight: 700; color: var(--ink); }
+.desperdicio-chip .icon-chevron { width: 13px; height: 13px; transition: transform 0.15s ease; flex-shrink: 0; }
+.desperdicio-chip[aria-expanded="true"] .icon-chevron { transform: rotate(180deg); }
+.desperdicio-popover {
+  position: fixed; z-index: 500;
+  background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 28px rgba(0,0,0,0.16);
+}
+.desperdicio-popover-title { font-size: var(--fs-2xs); color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+.desperdicio-popover-fields { display: flex; gap: 14px; }
+.desperdicio-popover[hidden] { display: none; }
+.desperdicio-popover .cfg-field input { width: 68px; }
+.tab-label-short { display: none; }
+@media (max-width: 700px) {
+  /* "Resumen del Proyecto" se acorta a "Resumen" y el chip pierde la
+     palabra "Desperdicio" (queda solo el valor) para que las 2 pestañas
+     y el chip entren juntos en la misma línea sin desbordar. */
+  .tabs { padding: 0 14px; }
+  .tab-btn { padding: 12px 8px; }
+  .tab-label-full { display: none; }
+  .tab-label-short { display: inline; }
+  .desperdicio-chip-wrap { margin: 0 0 0 0; align-self: center; }
+  .desperdicio-chip { padding: 5px 9px; gap: 4px; }
+  .desperdicio-chip-label { display: none; }
+}
+
 .config-toggle {
   width: 100%; display: flex; align-items: center; gap: 8px; border: none; background: transparent;
-  padding: 9px 20px; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); cursor: pointer; text-align: left;
+  padding: 9px var(--edge-pad); font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); cursor: pointer; text-align: left;
 }
 @media (hover: hover) and (pointer: fine) {
   .config-toggle:hover { color: var(--ink); }
@@ -177,9 +240,20 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 .config-toggle .icon-chevron { width: 15px; height: 15px; transition: transform 0.15s ease; }
 .config-toggle.open .icon-chevron { transform: rotate(180deg); }
 .config-bar {
-  padding: 4px 20px 14px; display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end;
+  padding: 14px var(--edge-pad); display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end;
 }
 .config-bar[hidden] { display: none; }
+@media (min-width: 701px) {
+  /* Usado hoy solo por el bloque de "umbral de cubetas" dentro de Resumen
+     del Proyecto (Desperdicio del Proyecto pasó a vivir en el chip de la
+     fila de pestañas, ver .desperdicio-chip-wrap más arriba). En pantallas
+     anchas esta franja queda casi vacía a la derecha de los campos — un
+     recuadro acotado se lee como un control chico a propósito. */
+  .config-bar {
+    width: fit-content; margin: 12px var(--edge-pad) 14px; padding: 12px 18px;
+    background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius);
+  }
+}
 .cfg-field { display: flex; flex-direction: column; gap: 3px; }
 .cfg-field label {
   font-size: var(--fs-2xs); color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
@@ -191,6 +265,13 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 
 .cfg-group { display: flex; flex-direction: column; gap: 6px; }
 .cfg-group-title { font-size: var(--fs-2xs); color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+.cfg-group-title-toggle {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  border: none; background: transparent; padding: 0; cursor: pointer; text-align: left;
+}
+.cfg-group-title-toggle .icon-chevron { width: 15px; height: 15px; transition: transform 0.15s; flex-shrink: 0; }
+.cfg-group-title-toggle[aria-expanded="true"] .icon-chevron { transform: rotate(180deg); }
+.cfg-bd-contenido { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .cfg-group-fields { display: flex; gap: 14px; flex-wrap: wrap; }
 .cfg-divider { width: 1px; align-self: stretch; background: var(--border); }
 .cfg-hint { margin: 0 0 0 auto; max-width: 260px; }
@@ -266,7 +347,7 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
 /* ============================================================
    PESTAÑAS
    ============================================================ */
-.tabs { display: flex; gap: 2px; padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabs { display: flex; gap: 2px; padding: 0 var(--edge-pad); background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; }
 .tab-btn {
   border: none; background: transparent; padding: 12px 14px; font-size: var(--fs-base); font-weight: 600;
   color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
@@ -276,11 +357,11 @@ header.app-header h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; let
   .tab-btn:hover { color: var(--ink); }
 }
 
-main { padding: 16px 20px 60px; }
+main { padding: 16px var(--edge-pad) 60px; }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
-.app-footer { padding: 18px 20px 28px; text-align: center; }
+.app-footer { padding: 18px var(--edge-pad) 28px; text-align: center; }
 .app-footer p { margin: 0; font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.5; }
 
 /* ============================================================
@@ -592,6 +673,9 @@ body.modo-levantamiento #levantamiento-fullscreen {
 .lev-toggle-group .lev-chip { flex: 1; padding: 10px 4px; font-size: var(--fs-sm); }
 .lev-vista-toggle { display: flex; gap: 6px; margin-bottom: 12px; max-width: 280px; }
 .lev-vista-toggle .lev-chip { padding: 8px 16px; font-size: var(--fs-sm); }
+.lev-vista-toggle .lev-chip-active {
+  background: transparent; border-color: var(--hilti-red); color: var(--hilti-red); font-weight: 600;
+}
 .lev-lista-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .lev-lista-label-row label {
   display: block; font-size: var(--fs-xs); font-weight: 700; color: var(--ink); margin-bottom: 0;
@@ -1073,15 +1157,6 @@ body.modal-open { overflow: hidden; position: fixed; width: 100%; }
 
 /* ── Modal de configuración ── */
 #modal-config-overlay { align-items: center; justify-content: center; }
-
-.config-bar-visible {
-  display: flex !important;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
 
 .btn-tema-opt.active,
 .btn-calc-vis.active,

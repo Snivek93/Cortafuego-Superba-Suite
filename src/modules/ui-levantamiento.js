@@ -1111,8 +1111,8 @@ function renderLevantamiento() {
           ${levChip("barrera", "Entrepiso", "Entrepiso", LEV.barrera === "Entrepiso", LEV.tipo === "Caja Electromecánica UL")}
         </div>
         <div class="lev-toggle-group" style="margin-top:6px;">
-          ${levChip("material", "Concreto", "Concreto", LEV.material === "Concreto", LEV.tipo === "Caja Electromecánica UL")}
           ${levChip("material", "Panel de Yeso", "Panel de yeso", LEV.material === "Panel de Yeso", LEV.barrera === "Entrepiso")}
+          ${levChip("material", "Concreto", "Concreto", LEV.material === "Concreto", LEV.tipo === "Caja Electromecánica UL")}
         </div>
         ${LEV.tipo === "Caja Electromecánica UL" ? `<p class="hint" style="margin:6px 0 0;">Las cajas electromecánicas UL solo se instalan en pared de panel de yeso.</p>` : ""}
         ${LEV.barrera === "Pared" ? `

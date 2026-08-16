@@ -631,7 +631,8 @@ async function descargarSubmittalInterno() {
       : `Submittal generado. ${fallidos} documento(s) (alojados en Google Drive) no se pudieron incrustar automáticamente por CORS — quedaron como página de aviso con link externo para abrir con un toque.`
   );
 }
-const APP_VERSION = "0.2.3 alpha";
+const APP_VERSION = "1.0.0";
+window.APP_VERSION = APP_VERSION;
 
 
 // ============================================================================

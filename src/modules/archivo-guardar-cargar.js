@@ -162,6 +162,7 @@ function sincronizarCamposConfig() {
   ["C13", "C14", "C15"].forEach(id => { const el = document.getElementById("cfg-" + id); if (el) el.value = CONFIG[id]; });
   const c17 = document.getElementById("cfg-C17"); if (c17) c17.value = CONFIG.C17 * 100;
   const c17j = document.getElementById("cfg-C17_JUNTAS"); if (c17j) c17j.value = CONFIG.C17_JUNTAS * 100;
+  if (window.actualizarChipDesperdicio) window.actualizarChipDesperdicio();
   ["UMB_FS", "UMB_CP606", "UMB_SILGG"].forEach(id => { const el = document.getElementById("cfg-" + id); if (el) el.value = CONFIG[id]; });
   const pn = document.getElementById("proj-nombre"); if (pn) pn.value = PROJECT_INFO.nombre;
   const pc = document.getElementById("proj-cliente"); if (pc) pc.value = PROJECT_INFO.cliente;

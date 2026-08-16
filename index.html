@@ -193,25 +193,7 @@
 <div class="lev-launch-bar">
   <button type="button" id="btn-abrir-levantamiento" class="lev-launch-btn"><svg class="icon"><use href="#i-clipboard"/></svg><span class="lev-launch-label-full">Levantamiento Penetrantes</span><span class="lev-launch-label-short">Penetrantes</span></button>
   <button type="button" id="btn-abrir-levantamiento-juntas" class="lev-launch-btn"><svg class="icon"><use href="#i-clipboard"/></svg><span class="lev-launch-label-full">Levantamiento Juntas</span><span class="lev-launch-label-short">Juntas</span></button>
-  <button type="button" id="btn-abrir-planos" class="lev-launch-btn"><svg class="icon"><use href="#i-map"/></svg><span class="lev-launch-label-full">Planos</span><span class="lev-launch-label-short">Planos</span></button>
-</div>
-
-<div class="config-bar-wrap">
-  <div class="config-bar config-bar-visible">
-    <div class="cfg-group">
-      <div class="cfg-group-title">Desperdicio del proyecto</div>
-      <div class="cfg-group-fields">
-        <div class="cfg-field">
-          <label>Penetrantes (%)</label>
-          <input type="number" inputmode="numeric" id="cfg-C17" step="1">
-        </div>
-        <div class="cfg-field">
-          <label>Juntas (%)</label>
-          <input type="number" inputmode="numeric" id="cfg-C17_JUNTAS" step="1">
-        </div>
-      </div>
-    </div>
-  </div>
+  <button type="button" id="btn-abrir-planos" class="lev-launch-btn lev-launch-btn-planos"><svg class="icon"><use href="#i-map"/></svg><span class="lev-launch-label-full">Planos</span><span class="lev-launch-label-short">Planos</span></button>
 </div>
 
 <!-- Modal de Configuración -->
@@ -255,26 +237,41 @@
         </div>
       </div>
       <div class="cfg-group">
-        <div class="cfg-group-title">Base de Datos — matrices maestras</div>
-        <p class="hint" style="margin:0 0 8px;font-size:var(--fs-xs)">Editar sistemas UL, links o espesores. Se muestra un resumen antes de aplicar cambios.</p>
-        <table class="cfg-bd-table">
-          <thead><tr><th></th><th>Exportar</th><th>Importar</th></tr></thead>
-          <tbody>
-            <tr>
-              <td>Penetrantes</td>
-              <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-export-penetrantes" title="Exportar Penetrantes"><svg class="icon"><use href="#i-download"/></svg></button></td>
-              <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-import-penetrantes" title="Importar Penetrantes"><svg class="icon"><use href="#i-upload"/></svg></button></td>
-            </tr>
-            <tr>
-              <td>Juntas</td>
-              <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-export-juntas" title="Exportar Juntas"><svg class="icon"><use href="#i-download"/></svg></button></td>
-              <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-import-juntas" title="Importar Juntas"><svg class="icon"><use href="#i-upload"/></svg></button></td>
-            </tr>
-          </tbody>
-        </table>
-        <button class="secondary cfg-bd-restaurar" id="btn-bd-restaurar"><svg class="icon"><use href="#i-close"/></svg>Restaurar matrices originales</button>
-        <input type="file" id="file-import-matriz-penetrantes" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
-        <input type="file" id="file-import-matriz-juntas" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+        <button type="button" class="cfg-group-title cfg-group-title-toggle" id="btn-toggle-bd" aria-expanded="false">
+          Base de Datos — matrices maestras
+          <svg class="icon icon-chevron"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="cfg-bd-contenido" id="cfg-bd-contenido" style="display:none">
+          <p class="hint" style="margin:0 0 8px;font-size:var(--fs-xs)">Editar sistemas UL, links o espesores. Se muestra un resumen antes de aplicar cambios.</p>
+          <table class="cfg-bd-table">
+            <thead><tr><th></th><th>Exportar</th><th>Importar</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Penetrantes</td>
+                <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-export-penetrantes" title="Exportar Penetrantes"><svg class="icon"><use href="#i-download"/></svg></button></td>
+                <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-import-penetrantes" title="Importar Penetrantes"><svg class="icon"><use href="#i-upload"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Juntas</td>
+                <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-export-juntas" title="Exportar Juntas"><svg class="icon"><use href="#i-download"/></svg></button></td>
+                <td><button type="button" class="secondary cfg-bd-icon-btn" id="btn-bd-import-juntas" title="Importar Juntas"><svg class="icon"><use href="#i-upload"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+          <button class="secondary cfg-bd-restaurar" id="btn-bd-restaurar"><svg class="icon"><use href="#i-close"/></svg>Restaurar matrices originales</button>
+          <input type="file" id="file-import-matriz-penetrantes" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+          <input type="file" id="file-import-matriz-juntas" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+        </div>
+      </div>
+      <div class="cfg-group">
+        <div class="cfg-group-title">Acerca de</div>
+        <p class="hint" style="margin:0;font-size:var(--fs-xs);line-height:1.6">
+          Firestop Suite · Superba<br>
+          Versión <span id="cfg-acerca-version">1.0.0</span><br>
+          Desarrollado por Ing. Kevin Soto Navarro, IC-31624<br>
+          San José, Costa Rica<br>
+          © <span id="cfg-acerca-anio">2026</span> — Todos los derechos reservados
+        </p>
       </div>
     </div>
   </div>
@@ -283,7 +280,28 @@
 <div class="tabs">
   <button class="tab-btn" data-tab="calculadora" style="display:none">Calculadora</button>
   <button class="tab-btn active" data-tab="levantamiento-tab">Levantamiento</button>
-  <button class="tab-btn" data-tab="resumen">Resumen del Proyecto</button>
+  <button class="tab-btn" data-tab="resumen"><span class="tab-label-full">Resumen del Proyecto</span><span class="tab-label-short">Resumen</span></button>
+  <div class="tabs-spacer"></div>
+  <div class="desperdicio-chip-wrap" id="desperdicio-chip-wrap">
+    <button type="button" class="desperdicio-chip" id="btn-desperdicio-chip" aria-expanded="false">
+      <span class="desperdicio-chip-label">Desperdicio</span>
+      <span class="desperdicio-chip-valor" id="desperdicio-chip-valor">10% · 10%</span>
+      <svg class="icon icon-chevron"><use href="#i-chevron-down"/></svg>
+    </button>
+    <div class="desperdicio-popover" id="desperdicio-popover" hidden>
+      <div class="desperdicio-popover-title">Desperdicio del proyecto</div>
+      <div class="desperdicio-popover-fields">
+        <div class="cfg-field">
+          <label>Penetrantes (%)</label>
+          <input type="number" inputmode="numeric" id="cfg-C17" step="1">
+        </div>
+        <div class="cfg-field">
+          <label>Juntas (%)</label>
+          <input type="number" inputmode="numeric" id="cfg-C17_JUNTAS" step="1">
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <main>
