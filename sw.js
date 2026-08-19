@@ -17,7 +17,7 @@
  * (se agrega o se saca un archivo de ARCHIVOS_PRECACHE) — no por ediciones
  * normales de contenido.
  */
-const CACHE_VERSION = "v1.0.63";
+const CACHE_VERSION = "v1.0.64";
 const CACHE_NAME = `cortafuego-hilti-${CACHE_VERSION}`;
 
 const ARCHIVOS_PRECACHE = [
@@ -39,6 +39,7 @@ const ARCHIVOS_PRECACHE = [
   "./src/modules/excel-export-import.js",
   "./src/modules/helpers.js",
   "./src/modules/importar-texto-libre.js",
+  "./src/modules/informes-acreditacion.js",
   "./src/modules/pdf-comun.js",
   "./src/modules/pdf-memoria.js",
   "./src/modules/pdf-submittal-y-descargas.js",
@@ -74,8 +75,6 @@ self.addEventListener("activate", (event) => {
       )
     ).then(() => {
       self.clients.claim();
-      // Avisa a todas las pestañas/ventanas abiertas que hay una versión
-      // nueva lista — la app escucha este mensaje y recarga.
       return self.clients.matchAll({ type: "window" }).then((clientes) => {
         clientes.forEach((cliente) => cliente.postMessage({ tipo: "SW_ACTUALIZADO", version: CACHE_VERSION }));
       });
@@ -83,8 +82,6 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Un archivo es "de la app" (cambia seguido, prioridad = siempre lo más
-// nuevo) si es HTML/CSS/JS del propio sitio, o si es la navegación misma.
 function esArchivoDeLaApp(request) {
   if (request.mode === "navigate") return true;
   const url = new URL(request.url);
@@ -95,8 +92,6 @@ function esArchivoDeLaApp(request) {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
-  // Red primero: HTML/CSS/JS propios. Siempre se pide la versión actual del
-  // servidor; si no hay internet, se cae a la copia guardada como respaldo.
   if (esArchivoDeLaApp(event.request)) {
     event.respondWith(
       fetch(event.request, { cache: "no-store" })
@@ -112,8 +107,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Caché primero (con actualización en segundo plano): vendor/ e icons/,
-  // que pesan más y cambian poco — priorizamos velocidad de carga.
   event.respondWith(
     caches.match(event.request).then((respuestaGuardada) => {
       const buscarEnRed = fetch(event.request)

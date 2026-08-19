@@ -2,26 +2,7 @@
 // archivo-estado-app.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
 // ============================================================================
 (function () {
-// ============================================================================
-// archivo-estado-app.js
-// Archivo — Nuevo/Abrir/Guardar/Guardar como (comportamiento tipo Word), autoguardado en localStorage, pila de Deshacer, y Borrar Todo.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
-// ============================================================================
-
 // ARCHIVO — Nuevo / Abrir / Guardar / Guardar como (comportamiento tipo Word)
-//
-// El "documento" de esta app es un .html autocontenido con el proyecto
-// embebido (igual a "Descargar app con este proyecto"). Al abrirlo de nuevo
-// (doble clic, o con "Abrir"), la app carga los datos automáticamente — como
-// abrir un .docx. Abrir el archivo plantilla (sin datos embebidos) arranca
-// en blanco — como abrir Word sin ningún documento.
-//
-// Donde el navegador lo permite (File System Access API, requiere http(s) o
-// localhost — no funciona sobre file://), "Guardar" reescribe el mismo
-// archivo en disco sin volver a preguntar. Si no está disponible, "Guardar"
-// vuelve a descargar el archivo con el mismo nombre (mejor esfuerzo posible
-// desde el navegador).
-// ============================================================================
 let CURRENT_FILE_HANDLE = null;
 let CURRENT_FILE_NAME = null;
 let ULTIMO_GUARDADO = null;
@@ -179,10 +160,6 @@ function nuevoProyecto() {
   }
 }
 
-// ============================================================================
-// AUTOGUARDADO (localStorage) — guarda automáticamente cada cambio para no
-// perder el trabajo si se cierra o recarga el navegador por accidente.
-// ============================================================================
 const AUTOSAVE_KEY = "hiltiCortafuegoAutoguardado_v1";
 let autosaveTimer = null;
 function guardarAutoAhora() {
@@ -191,9 +168,7 @@ function guardarAutoAhora() {
     payload.guardadoEn = new Date().toISOString();
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
     marcarGuardado();
-  } catch (e) {
-    // localStorage puede fallar (cuota llena, modo privado, etc.) — no debe interrumpir la app
-  }
+  } catch (e) {}
 }
 function marcarCambio() {
   if (autosaveTimer) clearTimeout(autosaveTimer);
@@ -209,28 +184,19 @@ function cargarAutoguardado() {
   } catch (e) { return null; }
 }
 function borrarAutoguardado() {
-  try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* ignorar */ }
+  try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
 }
 
-// ============================================================================
-// DESHACER — pila de snapshots de ROWS tomados antes de acciones destructivas
-// (borrar fila, borrar todo, importar/reemplazar, editar cantidades, etc.)
-// ============================================================================
 let UNDO_STACK = [];
 const UNDO_MAX = 25;
 function pushUndo() {
   try {
     UNDO_STACK.push(JSON.stringify({ rows: ROWS, rowsJ: ROWS_J }));
     if (UNDO_STACK.length > UNDO_MAX) UNDO_STACK.shift();
-  } catch (e) { /* ignorar */ }
+  } catch (e) {}
   actualizarBotonDeshacer();
 }
 function actualizarBotonDeshacer() {
-  // Hay 3 botones "Deshacer" en la app apuntando al mismo UNDO_STACK: el
-  // original en el toolbar de Calculadora (pestaña oculta hoy, se deja por
-  // compatibilidad), y los dos agregados en Levantamiento (vista fullscreen
-  // de captura y tabla del tab) — Kevin pidió poder deshacer un borrado
-  // desde la lista del Levantamiento, que es donde realmente se trabaja.
   ["btn-deshacer", "btn-deshacer-lev-fs", "btn-deshacer-lev-tab"].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) btn.disabled = UNDO_STACK.length === 0;
@@ -254,9 +220,6 @@ function deshacerCambio() {
   mostrarToast("Cambio revertido.");
 }
 
-// ============================================================================
-// BORRAR TODO
-// ============================================================================
 function borrarTodo() {
   if (ROWS.length === 0 && ROWS_J.length === 0) { mostrarToast("No hay filas para borrar."); return; }
   pedirConfirmacion(
@@ -284,8 +247,6 @@ function initApp() {
 
   document.getElementById("btn-abrir-levantamiento").addEventListener("click", abrirLevantamiento);
 
-  // Toggle único Detallado/Resumido: controla a la vez la tabla de
-  // Penetrantes y la de Juntas dentro del tab Levantamiento.
   document.querySelectorAll("#lev-vista-toggle-global [data-lev-vista-global]").forEach(btn => {
     btn.addEventListener("click", () => {
       VISTA_LEVANTAMIENTO_TAB = btn.dataset.levVistaGlobal;
@@ -297,13 +258,26 @@ function initApp() {
     });
   });
 
-  // Configuración ahora es un modal — ver tema-claro-oscuro.js
   document.getElementById("btn-abrir-levantamiento-juntas").addEventListener("click", abrirLevantamientoJuntas);
   document.getElementById("btn-abrir-planos").addEventListener("click", () => abrirVisorPlanos());
   document.getElementById("btn-cerrar-levantamiento").addEventListener("click", cerrarLevantamiento);
   document.getElementById("btn-ver-planos-lev").addEventListener("click", () => abrirVisorPlanos());
 
+  function contextoInstrucciones() {
+    if (document.getElementById("planos-visor-overlay")) return "planos";
+    if (document.body.classList.contains("modo-levantamiento") && window.getLevMode && window.getLevMode() === "juntas") return "juntas";
+    return "penetrantes";
+  }
+  function activarTabInstrucciones(tab) {
+    document.querySelectorAll(".instr-tab-btn").forEach(b => b.classList.toggle("active", b.dataset.instrTab === tab));
+    document.querySelectorAll(".instr-tab-panel").forEach(p => p.classList.toggle("active", p.dataset.instrPanel === tab));
+  }
+  document.querySelectorAll(".instr-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => activarTabInstrucciones(btn.dataset.instrTab));
+  });
+
   document.getElementById("btn-abrir-instrucciones").addEventListener("click", () => {
+    activarTabInstrucciones(contextoInstrucciones());
     document.getElementById("instrucciones-modal").classList.add("open");
   });
   document.getElementById("btn-cerrar-instrucciones").addEventListener("click", () => {
@@ -333,7 +307,6 @@ function initApp() {
     b.addEventListener("click", () => switchTab(b.dataset.tab));
   });
 
-  // Config panel
   const cfgIds = ["C13", "C14", "C15", "C17", "C17_JUNTAS", "UMB_FS", "UMB_CP606", "UMB_SILGG"];
   const cfgPct = ["C17", "C17_JUNTAS"];
   cfgIds.forEach(id => {
@@ -350,11 +323,6 @@ function initApp() {
     });
   });
 
-  // Chip "Desperdicio" (fila de pestañas) — muestra Penetrantes/Juntas % y
-  // despliega un popover chico con los mismos inputs cfg-C17 / cfg-C17_JUNTAS
-  // que ya maneja el loop de arriba. Expuesto en window porque
-  // archivo-guardar-cargar.js necesita refrescar el texto del chip al cargar
-  // un proyecto (ahí los inputs se setean directo, sin disparar "input").
   function actualizarChipDesperdicio() {
     const p = document.getElementById("cfg-C17");
     const j = document.getElementById("cfg-C17_JUNTAS");
@@ -405,7 +373,6 @@ function initApp() {
 
   attachTableEvents();
 
-  // Datos del proyecto
   const projIds = [["proj-nombre", "nombre"], ["proj-cliente", "cliente"], ["proj-fecha", "fecha"]];
   projIds.forEach(([elId, key]) => {
     const el = document.getElementById(elId);
@@ -415,11 +382,8 @@ function initApp() {
 
   document.getElementById("btn-compartir").addEventListener("click", compartirReporte);
 
-  // Menús desplegables del header (Archivo / PDF / Base de Datos) — abrir uno
-  // cierra los demás, y un solo listener global cierra todos al hacer clic afuera.
   function posicionarDropdown(btn, panel) {
     const r = btn.getBoundingClientRect();
-    // Ancho real del panel (aún oculto -> se mide con display:flex forzado brevemente)
     panel.style.left = "0px";
     panel.style.top = "0px";
     panel.style.visibility = "hidden";
@@ -430,11 +394,11 @@ function initApp() {
     panel.style.visibility = "";
 
     const margen = 8;
-    let left = r.right - panelWidth; // alineado por defecto al borde derecho del botón
+    let left = r.right - panelWidth;
     left = Math.max(margen, Math.min(left, window.innerWidth - panelWidth - margen));
     let top = r.bottom + 6;
     if (top + panelHeight > window.innerHeight - margen) {
-      top = Math.max(margen, r.top - panelHeight - 6); // si no cabe abajo, se abre hacia arriba
+      top = Math.max(margen, r.top - panelHeight - 6);
     }
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
@@ -464,9 +428,6 @@ function initApp() {
       if (!document.getElementById(contId).contains(e.target)) panel.classList.remove("open");
     });
   });
-  // Los paneles usan position:fixed calculado al abrirse; si la página (o cualquier
-  // contenedor interno) hace scroll, el panel queda "flotando" desconectado del botón.
-  // Se cierran ambos ante cualquier scroll (capture:true para detectar scroll de listas internas).
   window.addEventListener("scroll", () => {
     [menuPdfPanel, menuPanel].forEach(p => p.classList.remove("open"));
   }, { capture: true, passive: true });
@@ -538,10 +499,6 @@ function initApp() {
   } else {
     const auto = cargarAutoguardado();
     if (auto) {
-      // Se respeta el _id guardado (si existe) en vez de reasignarlo siempre —
-      // los pines de planos vinculan filas por _id, y perderlo acá rompería
-      // ese vínculo cada vez que se restaura el autoguardado. Compatibilidad
-      // hacia atrás: si el autoguardado es viejo y no trae _id, se asigna uno nuevo.
       ROWS = auto.filas.map(f => Object.assign(nuevaFila(), f, { _id: typeof f._id === "number" ? f._id : ROW_SEQ++ }));
       ROW_SEQ = Math.max(ROW_SEQ, ...ROWS.map(r => r._id), 0) + 1;
       if (Array.isArray(auto.filasJuntas)) {
@@ -553,6 +510,8 @@ function initApp() {
       if (auto.projectInfo) Object.assign(PROJECT_INFO, auto.projectInfo);
       PLANOS = Array.isArray(auto.planos) ? auto.planos : [];
       PLANO_SEQ = PLANOS.reduce((m, p) => Math.max(m, p.id || 0), 0) + 1;
+      INFORMES_ACREDITACION = Array.isArray(auto.informes) ? auto.informes : [];
+      INFORME_ACR_SEQ = INFORMES_ACREDITACION.reduce((m, i) => Math.max(m, i.id || 0), 0) + 1;
       sincronizarCamposConfig();
       const pn = document.getElementById("proj-nombre"); if (pn) pn.value = PROJECT_INFO.nombre;
       const pc = document.getElementById("proj-cliente"); if (pc) pc.value = PROJECT_INFO.cliente;
@@ -561,7 +520,6 @@ function initApp() {
       renderLevantamientoTab();
       mostrarToast(`Se restauró tu último autoguardado: ${ROWS.length} fila(s).`);
     } else {
-      // Filas iniciales de ejemplo
       for (let i = 0; i < 3; i++) ROWS.push(nuevaFila());
       renderTable();
       renderLevantamientoTab();
@@ -571,7 +529,6 @@ function initApp() {
 
 document.addEventListener("DOMContentLoaded", initApp);
 
-// --- Exports usados por otros módulos ---
 window.marcarCambio = marcarCambio;
 window.UNDO_STACK = UNDO_STACK;
 window.pushUndo = pushUndo;

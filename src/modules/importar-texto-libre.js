@@ -2,14 +2,6 @@
 // importar-texto-libre.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
 // ============================================================================
 (function () {
-// ============================================================================
-// importar-texto-libre.js
-// Importar un levantamiento desde un archivo de texto libre (.txt).
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
-// ============================================================================
-
-// Importar un levantamiento desde un archivo de texto libre (.txt)
-// ============================================================================
 function materialRecomendado(L, diamIn) {
   const map = {
     "Tubería Metal": "Pasta FS ONE MAX",
@@ -36,18 +28,15 @@ function materialRecomendado(L, diamIn) {
   return map[L] || OPTS_P[0];
 }
 
-// Convierte "1", "1/2", "3.5" -> número decimal
 function parseFraccion(txt) {
   if (!txt) return null;
-  txt = txt.trim().replace(/"$/, ""); // tolerar la comilla de pulgadas al final
+  txt = txt.trim().replace(/"$/, "");
   if (!txt) return null;
-  // Número mixto: "1 1/2" (entero + espacio + fracción)
   let m = txt.match(/^(-?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
   if (m) {
     const whole = parseFloat(m[1]), num = parseFloat(m[2]), den = parseFloat(m[3]);
     if (den) return (whole < 0 ? -1 : 1) * (Math.abs(whole) + num / den);
   }
-  // Fracción simple: "1/2"
   m = txt.match(/^(-?\d+)\s*\/\s*(\d+)$/);
   if (m) {
     const num = parseFloat(m[1]), den = parseFloat(m[2]);
@@ -58,7 +47,6 @@ function parseFraccion(txt) {
 }
 
 const TXT_KEYWORDS = [
-  // [regex, tipoDePenetrante, requiereDims(AxB) ]
   [/ducto\s*barra|ducto\s*rectangular/i, "Ducto Rectangular", true],
   [/gaveta/i, "Pasante Múltiple", true],
   [/(bandeja|canasta)/i, "Bandeja de Cables", true],
@@ -76,7 +64,6 @@ function parsearTxtLevantamiento(text) {
   const warnings = [];
   const lines = text.replace(/\r\n/g, "\n").split("\n");
 
-  // --- Encabezado del proyecto: todo antes del primer bloque de zona ---
   let headerEndIdx = 0;
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim() === "" && i > 0) { headerEndIdx = i; break; }
@@ -87,7 +74,7 @@ function parsearTxtLevantamiento(text) {
   const projectInfo = {};
   const config = {};
   let defaultI = null;
-  let defaultN = null; // material de barrera por defecto
+  let defaultN = null;
 
   headerLines.forEach(line => {
     const l = line.trim();
@@ -102,7 +89,6 @@ function parsearTxtLevantamiento(text) {
   if (defaultN === null) defaultN = OPTS_N[0];
   if (defaultI === null) defaultI = 0.5;
 
-  // --- Bloques de zona separados por línea en blanco ---
   const blocks = bodyText.split(/\n\s*\n/).map(b => b.split("\n").map(l => l.trim()).filter(Boolean)).filter(b => b.length > 0);
 
   const filas = [];
@@ -111,22 +97,18 @@ function parsearTxtLevantamiento(text) {
     const itemLines = blockLines.slice(1);
     itemLines.forEach(line => {
       const original = line;
-      // cantidad al inicio: "7x", "6 x", "1", "I " (typo por 1)
       const qm = line.match(/^(\d+|[Ii])\s*[xX]?\s*(.*)$/);
       if (!qm) { warnings.push(`No se pudo leer (sin cantidad): "${original}"`); return; }
       const qty = /^[Ii]$/.test(qm[1]) ? 1 : parseInt(qm[1], 10);
       let rest = qm[2].trim();
 
-      // tipo de penetrante por palabra clave
       let L = null, esDim = false;
       for (const [re, tipo, requiereDims] of TXT_KEYWORDS) {
         if (re.test(rest)) { L = tipo; esDim = requiereDims; break; }
       }
       if (!L) { warnings.push(`Tipo de penetrante no reconocido: "${original}"`); return; }
 
-      // dimensión AxB (cm) — ductos, bandejas, gavetas
       const dimM = rest.match(/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/);
-      // diámetro con comilla de pulgada o fracción — tuberías, cables
       const diamM = rest.match(/(\d+\/\d+|\d+(?:\.\d+)?)\s*[”"″]/) || rest.match(/(\d+\/\d+)/);
 
       const row = {
@@ -140,7 +122,7 @@ function parsearTxtLevantamiento(text) {
         row.G = parseFloat(dimM[2]);
       } else if (!esDim && diamM) {
         row.D = parseFraccion(diamM[1]);
-      } else if (dimM) { // por si acaso viene con dims aunque no se esperaban
+      } else if (dimM) {
         row.F = parseFloat(dimM[1]); row.G = parseFloat(dimM[2]);
       } else {
         warnings.push(`No se encontró tamaño/diámetro en: "${original}" (se agregó sin dimensión, revisar manualmente)`);
@@ -197,24 +179,17 @@ function datosProyectoActual() {
     fechaExportacion: new Date().toISOString(),
     projectInfo: PROJECT_INFO,
     config: CONFIG,
-    // OJO: a diferencia de antes, ACÁ SE CONSERVA el _id de filas y filasJuntas
-    // (no se borra). Los pines de planos vinculan una fila por su _id — si se
-    // volviera a borrar acá, cualquier pin vinculado quedaría apuntando a la
-    // fila equivocada (o a ninguna) en cuanto se guarde y se vuelva a cargar
-    // el proyecto. Ver "aplicarProyectoImportado"/"cargarDatosEmbebidos" para
-    // la otra mitad del fix: ahí se respeta este _id en vez de reasignarlo siempre.
     filas: ROWS.map(r => Object.assign({}, r)),
     filasJuntas: ROWS_J.map(r => Object.assign({}, r)),
     itemsManuales: MANUAL_ITEMS.map(m => { const c = Object.assign({}, m); delete c._id; return c; }),
     planos: PLANOS,
+    informes: INFORMES_ACREDITACION,
   };
   if (JSON.stringify(MAIN_TABLE) !== MAIN_TABLE_DEFAULT_JSON) payload.mainTableOverride = MAIN_TABLE;
   if (JSON.stringify(JUNTAS_TABLE) !== JUNTAS_TABLE_DEFAULT_JSON) payload.juntasTableOverride = JUNTAS_TABLE;
   return payload;
 }
 
-// Si este archivo HTML fue descargado con "Descargar app con este proyecto",
-// trae los datos incrustados en un <script> oculto — los cargamos automáticamente.
 function cargarDatosEmbebidos() {
   const tag = document.getElementById("embedded-project-data");
   if (!tag) return false;
@@ -223,9 +198,6 @@ function cargarDatosEmbebidos() {
   try {
     const data = JSON.parse(txt);
     if (!data || !Array.isArray(data.filas) || data.filas.length === 0) return false;
-    // Se respeta el _id guardado (si existe) — ver nota igual en
-    // archivo-estado-app.js/archivo-guardar-cargar.js sobre por qué esto es
-    // necesario (vínculo de pines de planos a filas específicas).
     ROWS = data.filas.map(f => Object.assign(nuevaFila(), f, { _id: typeof f._id === "number" ? f._id : ROW_SEQ++ }));
     ROW_SEQ = Math.max(ROW_SEQ, ...ROWS.map(r => r._id), 0) + 1;
     if (Array.isArray(data.filasJuntas)) {
@@ -239,6 +211,8 @@ function cargarDatosEmbebidos() {
     if (data.juntasTableOverride) JUNTAS_TABLE = data.juntasTableOverride;
     PLANOS = Array.isArray(data.planos) ? data.planos : [];
     PLANO_SEQ = PLANOS.reduce((m, p) => Math.max(m, p.id || 0), 0) + 1;
+    INFORMES_ACREDITACION = Array.isArray(data.informes) ? data.informes : [];
+    INFORME_ACR_SEQ = INFORMES_ACREDITACION.reduce((m, i) => Math.max(m, i.id || 0), 0) + 1;
     return true;
   } catch (e) {
     return false;
@@ -268,9 +242,6 @@ function descargarAppConProyecto() {
   }
 }
 
-// ============================================================================
-
-// --- Exports usados por otros módulos ---
 window.materialRecomendado = materialRecomendado;
 window.parseFraccion = parseFraccion;
 window.importarTxt = importarTxt;

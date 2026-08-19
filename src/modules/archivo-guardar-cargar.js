@@ -2,33 +2,10 @@
 // archivo-guardar-cargar.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
 // ============================================================================
 (function () {
-// ============================================================================
-// archivo-guardar-cargar.js
-// Guardar/Cargar proyecto como archivo .json — memoria portátil del proyecto.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
-// ============================================================================
-
-// Guardar / Cargar proyecto (.fss) — memoria portátil, sin guardado local
-// ============================================================================
-// El .fss es un .json "enmascarado": mismo contenido, pero en base64 con un
-// prefijo identificador, para que no se abra/edite por error como texto
-// plano. Los .json exportados con versiones anteriores se siguen aceptando
-// al importar (se detecta por la ausencia del prefijo FSS_MAGIC).
-//
-// v2 (FSS2) — evita el doble-base64 en fotos/planos: las fotos de las filas
-// (row.fotos[]) y las imágenes de los planos (plano.dataUrl) YA vienen en
-// base64 desde que se generaron (canvas/cámara) — envolver TODO el JSON en
-// btoa() de nuevo (como hacía v1) las codifica una segunda vez, +33% de peso
-// sin necesidad. v2 saca esas imágenes a una tabla aparte que NO pasa por esa
-// segunda capa; el resto del JSON (chico, texto) sí se sigue enmascarando
-// igual que antes. v1 (archivos viejos) se sigue leyendo sin problema.
 const FSS_MAGIC = "FSS1:";
 const FSS_MAGIC_V2 = "FSS2:";
 const FSS_IMG_SEP = "\n@@FSSIMG@@\n";
 
-// Saca row.fotos[] y plano.dataUrl del JSON, dejando un placeholder "@@IMG:N"
-// en su lugar. Devuelve el JSON liviano (para enmascarar) y la tabla de
-// imágenes aparte (se guarda tal cual, sin re-codificar).
 function extraerImagenesGrandes(jsonString) {
   const obj = JSON.parse(jsonString);
   const imagenes = {};
@@ -56,8 +33,6 @@ function extraerImagenesGrandes(jsonString) {
   return { jsonSinImagenes: JSON.stringify(obj), imagenesJson: JSON.stringify(imagenes) };
 }
 
-// Inverso de extraerImagenesGrandes — reinserta las imágenes reales donde
-// estaban los placeholders "@@IMG:N".
 function reinsertarImagenesGrandes(jsonSinImagenes, imagenesJson) {
   const obj = JSON.parse(jsonSinImagenes);
   const imagenes = JSON.parse(imagenesJson);
@@ -80,7 +55,7 @@ function desenmascararFSS(contenido) {
   if (contenido.startsWith(FSS_MAGIC_V2)) {
     const resto = contenido.slice(FSS_MAGIC_V2.length);
     const sepIdx = resto.indexOf(FSS_IMG_SEP);
-    if (sepIdx === -1) return decodeURIComponent(escape(atob(resto))); // no debería pasar, fallback defensivo
+    if (sepIdx === -1) return decodeURIComponent(escape(atob(resto)));
     const b64 = resto.slice(0, sepIdx);
     const imagenesJson = resto.slice(sepIdx + FSS_IMG_SEP.length);
     const jsonSinImagenes = decodeURIComponent(escape(atob(b64)));
@@ -90,7 +65,7 @@ function desenmascararFSS(contenido) {
     const b64 = contenido.slice(FSS_MAGIC.length);
     return decodeURIComponent(escape(atob(b64)));
   }
-  return contenido; // compatibilidad: .json plano exportado antes del formato .fss
+  return contenido;
 }
 
 function descargarArchivo(filename, content, mime) {
@@ -112,9 +87,6 @@ function exportarProyectoJSON() {
 
 function aplicarProyectoImportado(data) {
   pushUndo();
-  // Se respeta el _id guardado (si existe) en vez de reasignarlo siempre — ver
-  // nota igual en archivo-estado-app.js sobre por qué esto es necesario
-  // (vínculo de pines de planos a filas específicas).
   ROWS = data.filas.map(f => Object.assign(nuevaFila(), f, { _id: typeof f._id === "number" ? f._id : ROW_SEQ++ }));
   ROW_SEQ = Math.max(ROW_SEQ, ...ROWS.map(r => r._id), 0) + 1;
   if (Array.isArray(data.filasJuntas)) {
@@ -128,6 +100,8 @@ function aplicarProyectoImportado(data) {
   if (data.juntasTableOverride) { JUNTAS_TABLE = data.juntasTableOverride; guardarMatricesLocalStorage(); }
   PLANOS = Array.isArray(data.planos) ? data.planos : [];
   PLANO_SEQ = PLANOS.reduce((m, p) => Math.max(m, p.id || 0), 0) + 1;
+  INFORMES_ACREDITACION = Array.isArray(data.informes) ? data.informes : [];
+  INFORME_ACR_SEQ = INFORMES_ACREDITACION.reduce((m, i) => Math.max(m, i.id || 0), 0) + 1;
   sincronizarCamposConfig();
   renderTable();
   if (ACTIVE_TAB === "resumen") renderResumen();
@@ -169,9 +143,6 @@ function sincronizarCamposConfig() {
   const pf = document.getElementById("proj-fecha"); if (pf) pf.value = PROJECT_INFO.fecha;
 }
 
-// ============================================================================
-
-// --- Exports usados por otros módulos ---
 window.descargarArchivo = descargarArchivo;
 window.exportarProyectoJSON = exportarProyectoJSON;
 window.aplicarProyectoImportado = aplicarProyectoImportado;
