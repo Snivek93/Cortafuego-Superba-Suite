@@ -38,6 +38,8 @@
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M7 14l5-5 5 5"/><path d="M4 5h16"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M13 3h6v6"/><path d="M10 14L19 5"/><path d="M19 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
   <symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
@@ -194,6 +196,7 @@
   <button type="button" id="btn-abrir-levantamiento" class="lev-launch-btn"><svg class="icon"><use href="#i-clipboard"/></svg><span class="lev-launch-label-full">Levantamiento Penetrantes</span><span class="lev-launch-label-short">Penetrantes</span></button>
   <button type="button" id="btn-abrir-levantamiento-juntas" class="lev-launch-btn"><svg class="icon"><use href="#i-clipboard"/></svg><span class="lev-launch-label-full">Levantamiento Juntas</span><span class="lev-launch-label-short">Juntas</span></button>
   <button type="button" id="btn-abrir-planos" class="lev-launch-btn lev-launch-btn-planos"><svg class="icon"><use href="#i-map"/></svg><span class="lev-launch-label-full">Planos</span><span class="lev-launch-label-short">Planos</span></button>
+  <button type="button" id="btn-abrir-acreditacion" class="lev-launch-btn lev-launch-btn-acreditacion"><svg class="icon"><use href="#i-check"/></svg><span class="lev-launch-label-full">Acreditación</span><span class="lev-launch-label-short">Acreditación</span></button>
 </div>
 
 <!-- Modal de Configuración -->
@@ -465,6 +468,13 @@
         <strong>DISCLAIMER:</strong> Las cantidades, sistemas y normativas UL utilizadas en esta calculadora son diseñados exclusivamente para productos Hilti, por lo que el uso de cualquier otro producto no se encuentra respaldado por la normativa ni por los valores acá utilizados. Es responsabilidad del usuario el uso correcto de esta calculadora.
       </div>
 
+      <div class="instr-tabs">
+        <button type="button" class="instr-tab-btn" id="instr-tab-btn-penetrantes" data-instr-tab="penetrantes">Penetrantes</button>
+        <button type="button" class="instr-tab-btn" id="instr-tab-btn-juntas" data-instr-tab="juntas">Juntas</button>
+        <button type="button" class="instr-tab-btn" id="instr-tab-btn-planos" data-instr-tab="planos">Planos</button>
+      </div>
+
+      <div class="instr-tab-panel" id="instr-tab-panel-penetrantes" data-instr-panel="penetrantes">
       <h2>1. Datos a ingresar</h2>
       <ul class="instr-list">
         <li>Definí los espesores predominantes del proyecto (pared de concreto, pared de panel de yeso, entrepiso de concreto) en la barra de configuración superior. En cada fila también podés ajustar el espesor de pared/losa para casos puntuales editando los campos correspondientes.</li>
@@ -531,6 +541,66 @@
         <li>Si además hay un paso de cables repenetrable, agregá una fila adicional específica para esos cables.</li>
       </ol>
       <p class="hint">El resumen del proyecto va a sumar automáticamente los materiales de todas las filas asociadas al mismo pasante múltiple.</p>
+      </div>
+
+      <div class="instr-tab-panel" id="instr-tab-panel-juntas" data-instr-panel="juntas">
+      <h2>1. Datos a ingresar</h2>
+      <ul class="instr-list">
+        <li>Igual que en Penetrantes: definí espesores predominantes y % de desperdicio en la barra de configuración antes de empezar a cargar juntas.</li>
+      </ul>
+
+      <h2>2. Tipo de junta y aplicación</h2>
+      <ul class="instr-list">
+        <li>Elegí primero el tipo de junta (por ejemplo, junta de piso a piso, cabeza de muro, muro a muro, muro cortina) y luego la aplicación específica dentro de ese tipo — las opciones disponibles cambian según lo que elijas antes.</li>
+        <li>Definí las barreras a ambos lados de la junta (material de cada lado).</li>
+      </ul>
+
+      <h2>3. Posición</h2>
+      <p>Algunas combinaciones de junta requieren indicar la posición (superior, inferior, o ambas) — la calculadora solo te la pide cuando aplica según lo seleccionado arriba.</p>
+
+      <h2>4. Producto Hilti</h2>
+      <p>Según el tipo de junta, barreras y posición seleccionados, la calculadora filtra automáticamente los productos Hilti válidos para esa combinación. Cuando hay una sola opción válida se autoselecciona; si hay varias, se prioriza CP 606 por ser el más usado, pero podés cambiarlo.</p>
+
+      <h2>5. Dimensiones</h2>
+      <ul class="instr-list">
+        <li>Ancho de la junta (cm o in, con opciones preestablecidas rápidas para los anchos más comunes).</li>
+        <li>Longitud total de la junta (cm) — es lo que se multiplica por la cantidad de filas iguales para el total del proyecto.</li>
+        <li>Espesor de pared, cuando la combinación seleccionada lo requiere (algunas juntas dependen del espesor de la pared que atraviesan).</li>
+      </ul>
+
+      <h2>6. Lana mineral</h2>
+      <p>Cuando el sistema lo requiere, la calculadora puede estimar también la cantidad de lana mineral necesaria (en unidades de rollo), ademas del sellador. Esto se activa automáticamente según el producto/sistema elegido.</p>
+
+      <p class="hint">Nota: esta sección es un primer borrador de instrucciones para Juntas — revisala y avisame si algo no coincide con la terminología o el flujo real que usás en campo, para ajustarla.</p>
+      </div>
+
+      <div class="instr-tab-panel" id="instr-tab-panel-planos" data-instr-panel="planos">
+      <h2>1. Subir un plano</h2>
+      <p>Desde la pantalla de Planos, subí un PDF del plano de planta. Se convierte automáticamente a imagen para poder dibujar y anotar sobre él. Un mismo proyecto puede tener varios planos (varias hojas/niveles) — se organizan en la galería de miniaturas.</p>
+
+      <h2>2. Navegación</h2>
+      <ul class="instr-list">
+        <li>Zoom: pellizcar con dos dedos (táctil), doble toque, o rueda del mouse (desktop).</li>
+        <li>Pan (mover el plano): arrastrar con un dedo, o clic y arrastrar con el mouse.</li>
+      </ul>
+
+      <h2>3. Herramientas de dibujo</h2>
+      <ul class="instr-list">
+        <li>Marcador y lápiz para anotaciones a mano alzada, rectángulo y línea para marcar zonas o recorridos, y borrador para corregir.</li>
+        <li>Podés elegir color y grosor de trazo desde la barra de herramientas.</li>
+      </ul>
+
+      <h2>4. Calibración y cotas</h2>
+      <p>Usá la herramienta de calibración para indicarle a la app una medida real conocida en el plano (por ejemplo, la longitud de un muro) — a partir de ahí, la regla y las cotas que agregues muestran la medida real en el plano, no solo en píxeles.</p>
+
+      <h2>5. Pines</h2>
+      <p>Los pines marcan la ubicación exacta de un penetrante o junta dentro del plano. Se pueden vincular a una fila específica del Levantamiento (para poder saltar directo del plano a esa fila y viceversa), o dejarse como pines libres si todavía no cargaste esa fila.</p>
+
+      <h2>6. Exportar</h2>
+      <p>Podés descargar el plano anotado como PDF, o compartirlo directamente, desde los botones de la parte superior del visor.</p>
+
+      <p class="hint">Nota: esta sección es un primer borrador de instrucciones para Planos — revisala y avisame si querés que agregue o ajuste algo.</p>
+      </div>
     </div>
   </div>
 </div>
@@ -565,6 +635,7 @@
 <script src="src/modules/pdf-submittal-y-descargas.js"></script>
 <script src="src/modules/ui-levantamiento.js"></script>
 <script src="src/modules/planos.js"></script>
+<script src="src/modules/informes-acreditacion.js"></script>
 <script type="module">
   import * as pdfjsLib from './vendor/pdf.min.mjs';
   window.pdfjsLib = pdfjsLib;
