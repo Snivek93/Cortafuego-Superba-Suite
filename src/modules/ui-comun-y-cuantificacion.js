@@ -2,15 +2,6 @@
 // ui-comun-y-cuantificacion.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
 // ============================================================================
 (function () {
-// ============================================================================
-// ui-comun-y-cuantificacion.js
-// Modal/Toast propios (compatibilidad con navegadores móviles) y productos agregados a mano en Cuantificación de Materiales.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
-// ============================================================================
-
-// Modal / Toast propios — algunos navegadores móviles bloquean o ignoran
-// confirm()/alert() en silencio, así que usamos una interfaz propia y visible.
-// ============================================================================
 function mostrarToast(mensaje, tipo) {
   let box = document.getElementById("toast-box");
   if (!box) {
@@ -25,11 +16,30 @@ function mostrarToast(mensaje, tipo) {
   setTimeout(() => { el.classList.add("toast-out"); setTimeout(() => el.remove(), 300); }, 4200);
 }
 
-// ============================================================================
-// PRODUCTOS AGREGADOS A MANO en Cuantificación de Materiales — para casos
-// como "el cliente ya pidió 3 manguitos CP 653 aparte" o "una cubeta de FS
-// ONE MAX a pedido", sin que pasen por el cálculo de las filas.
-// ============================================================================
+function mostrarToastProgreso(mensaje) {
+  let box = document.getElementById("toast-box");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "toast-box";
+    document.body.appendChild(box);
+  }
+  const el = document.createElement("div");
+  el.className = "toast toast-progreso";
+  const spinner = document.createElement("span");
+  spinner.className = "toast-spinner";
+  el.appendChild(spinner);
+  const texto = document.createElement("span");
+  texto.textContent = mensaje;
+  el.appendChild(texto);
+  box.appendChild(el);
+  return el;
+}
+function ocultarToastProgreso(el) {
+  if (!el) return;
+  el.classList.add("toast-out");
+  setTimeout(() => el.remove(), 300);
+}
+
 function opcionesCatalogoProductoManual() {
   return PRODUCTOS.map((p, i) => `<option value="${i}">${escapeHtml(p.nombre.trim())} — ${escapeHtml(p.presentacion)}</option>`).join("");
 }
@@ -132,10 +142,9 @@ function pedirConfirmacion(mensaje, onConfirm) {
   });
 }
 
-// ============================================================================
-
-// --- Exports usados por otros módulos ---
 window.mostrarToast = mostrarToast;
+window.mostrarToastProgreso = mostrarToastProgreso;
+window.ocultarToastProgreso = ocultarToastProgreso;
 window.abrirModalAgregarManual = abrirModalAgregarManual;
 window.quitarItemManual = quitarItemManual;
 window.pedirConfirmacion = pedirConfirmacion;

@@ -2,17 +2,6 @@
 // pdf-submittal-y-descargas.js — encapsulado en IIFE (sin exponer todo a window; ver export list abajo)
 // ============================================================================
 (function () {
-// ============================================================================
-// pdf-submittal-y-descargas.js
-// Descarga de fichas técnicas/certificados reales, PDF Submittal (índice + fichas + sistemas UL + certificados), y links internos dentro del PDF.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
-// ============================================================================
-
-// Descarga de archivos reales (no solo enlaces): sistemas UL, fichas técnicas,
-// y el Submittal combinado. Usa la carpeta elegida por el usuario cuando el
-// navegador lo permite (Chrome/Edge); si no, abre cada archivo en una pestaña
-// nueva para que se guarde manualmente (siempre funciona, sin depender de CORS).
-// ============================================================================
 function sanitizarNombreArchivo(nombre) {
   return (nombre || "archivo").replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim().slice(0, 120) || "archivo";
 }
@@ -26,12 +15,6 @@ function urlDescargaDirecta(url) {
   return id ? `https://drive.google.com/uc?export=download&id=${id}` : url;
 }
 
-// Intenta traer los bytes reales del PDF. Si el navegador bloquea la petición
-// (CORS) o el contenido no es un PDF válido, devuelve null.
-// Nota: Google Drive no habilita CORS en sus enlaces de descarga para
-// dominios externos, así que para esos enlaces ni se intenta — se sabe que
-// siempre van a fallar — y se pasa directo al respaldo (enlace clickeable /
-// pestaña nueva) para no perder tiempo.
 async function intentarObtenerBytesPDF(url) {
   if (/drive\.google\.com/.test(String(url || ""))) return null;
   try {
@@ -41,10 +24,10 @@ async function intentarObtenerBytesPDF(url) {
     const bytes = new Uint8Array(buf);
     if (bytes.length < 5) return null;
     const firma = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]);
-    if (firma !== "%PDF-") return null; // Google Drive a veces devuelve una página HTML de advertencia
+    if (firma !== "%PDF-") return null;
     return bytes;
   } catch (e) {
-    return null; // bloqueado por CORS, sin conexión, etc.
+    return null;
   }
 }
 
@@ -56,7 +39,7 @@ async function descargarArchivosMultiples(items, etiqueta) {
     try {
       dirHandle = await window.showDirectoryPicker();
     } catch (e) {
-      return; // el usuario cerró el selector de carpeta sin elegir
+      return;
     }
     let ok = 0, fallidos = 0;
     const usados = new Set();
@@ -75,7 +58,7 @@ async function descargarArchivosMultiples(items, etiqueta) {
           await writable.close();
           ok++;
           continue;
-        } catch (e) { /* sigue al respaldo abajo */ }
+        } catch (e) { }
       }
       fallidos++;
       window.open(it.url, "_blank");
@@ -111,11 +94,6 @@ function descargarFichasTecnicas() {
   descargarArchivosMultiples(items, "Fichas técnicas");
 }
 
-// ============================================================================
-// Submittal: un solo PDF con índice + fichas técnicas + índice + sistemas UL,
-// todos combinados. Cuando un documento no se puede descargar automáticamente
-// (bloqueo de CORS), se deja una nota en el índice en vez de omitirlo en silencio.
-// ============================================================================
 function construirIndicePDF(titulo, filas, columnas, links) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -145,10 +123,6 @@ function construirIndicePDF(titulo, filas, columnas, links) {
   return new Uint8Array(doc.output("arraybuffer"));
 }
 
-// Variante para el Submittal: sin links externos (se agregan después, como
-// links internos al documento ya unido). Devuelve además, por cada fila, en
-// qué página de este mini-documento cae y su rectángulo exacto, para poder
-// colocar el link interno una vez que este PDF se copie dentro del maestro.
 function construirIndiceInternoPDF(titulo, filas, columnas, opciones) {
   const opts = Object.assign({ colLink: 0, columnStyles: {} }, opciones);
   const { jsPDF } = window.jspdf;
@@ -188,13 +162,6 @@ function construirIndiceInternoPDF(titulo, filas, columnas, opciones) {
   return { bytes: new Uint8Array(doc.output("arraybuffer")), rects, paginaPorFila };
 }
 
-// ============================================================================
-// Certificados FM / UL — se traen por link (igual que fichas técnicas y
-// sistemas UL), en vez de ir embebidos en la app como antes. Esto sacó ~4MB
-// del archivo .html. Todos estos links son del propio servidor de Hilti
-// (productdata.hilti.com), que ya confirmamos que sí permite descargarlos
-// directo desde el navegador (a diferencia de Google Drive).
-// ============================================================================
 const CERTIFICADO_FM_URL = "https://productdata.hilti.com/APQ_HC_RAW/ASSET_DOC_LOC_1545898.pdf";
 
 const CERTIFICADOS_UL_POR_PRODUCTO = [
@@ -224,8 +191,6 @@ function obtenerCertificadosAplicables(computedRows, computedJRows) {
   return encontrados;
 }
 
-// Separa las normativas de Penetrantes (pared liviana / concreto) y de Juntas,
-// usando el texto de "aplicación" que ya distingue el tipo de barrera.
 function categorizarNormativas(normas) {
   const juntas = normas.filter(n => /^junta/i.test(n.aplicacion || ""));
   const resto = normas.filter(n => !/^junta/i.test(n.aplicacion || ""));
@@ -234,17 +199,12 @@ function categorizarNormativas(normas) {
   return { paredLiviana, concreto, juntas };
 }
 
-// Ya separamos las tablas por Pared Liviana / Concreto / Juntas, así que el
-// "... en pared liviana" / "... en losa o pared de concreto" al final de cada
-// aplicación es redundante ahí — se recorta para dejar solo el penetrante.
 function stripAplicacionSufijo(aplicacion) {
   return (aplicacion || "")
     .replace(/\s+en\s+(losa\s+o\s+pared\s+de\s+concreto|pared\s+o\s+losa\s+de\s+concreto|pared\s+de\s+concreto|losa\s+de\s+concreto|pared\s+liviana)\.?$/i, "")
     .trim();
 }
 
-// Familias de producto Hilti (para agrupar fichas técnicas con sus
-// presentaciones y los sistemas UL del proyecto que las usan).
 const FAMILIAS_PRODUCTO_HILTI = [
   /fs.?one.?max/i, /cp\s*606/i, /sil\s*gg/i, /sp\s*wb/i, /lana\s*mineral/i,
   /putty|cp\s*617/i, /espuma|cp\s*620/i, /manga|cp\s*653/i,
@@ -266,18 +226,8 @@ function datosFichaProducto(ficha, resumen) {
   return { presentaciones: Array.from(presSet), sistemas: Array.from(sisSet).sort() };
 }
 
-// ============================================================================
-// Links internos (dentro del mismo PDF, no URLs externas) y marcadores
-// (outline/bookmarks) — pdf-lib no trae una API de alto nivel para esto, así
-// que se arma a mano con su API de bajo nivel (context.obj / context.register).
-// ============================================================================
 function agregarLinkInternoPDF(pdfDoc, page, rectJsPDF, paginaDestino) {
   const { PDFName } = window.PDFLib;
-  // rectJsPDF viene de autoTable/jsPDF, donde Y crece hacia ABAJO desde el
-  // borde superior de la página. El /Rect de un PDF real usa el sistema
-  // nativo, donde Y crece hacia ARRIBA desde el borde inferior — sin esta
-  // conversión el recuadro clickeable queda en un lugar distinto al texto
-  // visible (por eso no se podía tocar, aunque el link "existía").
   const { height: alturaPagina } = page.getSize();
   const y1 = alturaPagina - (rectJsPDF.y + rectJsPDF.height);
   const y2 = alturaPagina - rectJsPDF.y;
@@ -298,8 +248,6 @@ function agregarLinkInternoPDF(pdfDoc, page, rectJsPDF, paginaDestino) {
   }
 }
 
-// Constructor simple de marcadores (outline). Se van agregando en orden con
-// agregar(titulo, pagina, nivel) y al final aplicar(pdfDoc) arma el árbol.
 function crearConstructorMarcadores() {
   const items = [];
   return {
@@ -311,7 +259,6 @@ function crearConstructorMarcadores() {
       const { PDFName, PDFString, PDFNumber } = window.PDFLib;
       const ctx = pdfDoc.context;
 
-      // Arma la jerarquía según "nivel" (0 = raíz, 1 = hijo del anterior de nivel 0, etc.)
       const nodos = items.map(it => ({ ...it, ref: null, first: null, last: null, next: null, prev: null, parent: null, count: 0 }));
       const pila = [];
       nodos.forEach(n => {
@@ -320,10 +267,8 @@ function crearConstructorMarcadores() {
         pila[n.nivel] = n;
       });
 
-      // Reservar referencias para todos los nodos primero
       nodos.forEach(n => { n.ref = ctx.nextRef(); });
 
-      // Enlazar hermanos y padres/hijos
       nodos.forEach((n, i) => {
         const hermanos = nodos.filter(x => x.parent === n.parent);
         const idx = hermanos.indexOf(n);
@@ -360,7 +305,6 @@ function crearConstructorMarcadores() {
       if (raices.length > 0) {
         outlineDict.First = raices[0].ref;
         outlineDict.Last = raices[raices.length - 1].ref;
-        // Re-vincula los Parent de las raíces al outline root
         raices.forEach(n => {
           const obj = ctx.lookup(n.ref);
           obj.set(PDFName.of("Parent"), outlineRef);
@@ -373,8 +317,6 @@ function crearConstructorMarcadores() {
   };
 }
 
-// Numeración final "Página X de N" en TODAS las páginas del documento final
-// (incluidas las fichas/certificados/sistemas UL incorporados de otros PDF).
 async function agregarNumeracionFinalPDF(pdfDoc) {
   const font = await pdfDoc.embedFont(window.PDFLib.StandardFonts.Helvetica);
   const paginas = pdfDoc.getPages();
@@ -475,24 +417,19 @@ async function descargarSubmittalInterno() {
     return;
   }
 
-  mostrarToast("Armando el Submittal... esto puede tardar unos segundos.");
+  const toastProgreso = mostrarToastProgreso("Armando el Submittal... esto puede tardar unos segundos.");
+  try {
 
   const PDFLib = window.PDFLib;
   const master = await PDFLib.PDFDocument.create();
   let fallidos = 0;
 
-  // Copia las páginas de `bytes` dentro de `master` (sin insertarlas en el
-  // árbol visible todavía) y devuelve el array de PDFPage. Si no hay bytes o
-  // no se pudieron leer, genera una página de aviso con el link externo de
-  // respaldo (esto es lo único que todavía depende de que el link externo
-  // funcione — hoy pasa con las fichas/sistemas de Google Drive por el
-  // bloqueo de CORS que ya charlamos).
   async function copiarOAviso(bytes, tituloAviso, linkExterno) {
     if (bytes) {
       try {
         const src = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
         return await master.copyPages(src, src.getPageIndices());
-      } catch (e) { /* cae al aviso de abajo */ }
+      } catch (e) { }
     }
     fallidos++;
     const avisoBytes = construirIndicePDF(tituloAviso, [["No se pudo incorporar automáticamente — toque para abrir"]], ["Documento"], [linkExterno]);
@@ -509,34 +446,28 @@ async function descargarSubmittalInterno() {
     return out;
   }
 
-  // --- 1. Portada ---
   const portadaSrc = await PDFLib.PDFDocument.load(construirPortadaSubmittalPDF());
   const portadaPaginas = await master.copyPages(portadaSrc, portadaSrc.getPageIndices());
 
-  // --- 2. Fichas técnicas (PDFs primero, para tener sus páginas listas antes del índice) ---
   const fichaPaginas = [];
   for (const f of fichas) {
     const bytes = await intentarObtenerBytesPDF(f.link);
     fichaPaginas.push(await copiarOAviso(bytes, `Ficha no disponible — ${f.nombre || ""}`, f.link));
   }
 
-  // --- 3. Certificado FM (siempre incluido, por link) ---
   const fmBytes = await intentarObtenerBytesPDF(CERTIFICADO_FM_URL);
   const fmPaginas = await copiarOAviso(fmBytes, "Certificado FM no disponible", CERTIFICADO_FM_URL);
 
-  // --- 4. Certificados UL de los productos que apliquen (por link) ---
   const certPaginas = [];
   for (const c of certificados) {
     const bytes = await intentarObtenerBytesPDF(c.url);
     certPaginas.push(await copiarOAviso(bytes, `Certificado no disponible — ${c.nombre}`, c.url));
   }
 
-  // --- 5. Sistemas UL: PDFs por categoría, antes que sus índices ---
   const paginasParedLiviana = await copiarSistemas(normasParedLiviana);
   const paginasConcreto = await copiarSistemas(normasConcreto);
   const paginasJuntas = await copiarSistemas(normasJuntas);
 
-  // --- 6. Ahora sí, las tablas índice — ya existen todas las páginas destino ---
   async function construirIndiceConRefs(titulo, columnas, filasSrc, mapaFila, opciones) {
     if (filasSrc.length === 0) return null;
     const filas = filasSrc.map(mapaFila);
@@ -556,7 +487,6 @@ async function descargarSubmittalInterno() {
   const idxConcreto = await construirIndiceConRefs("Sistemas UL — Concreto (Penetrantes)", ["Sistema UL", "Aplicación", "Producto Hilti"], normasConcreto, n => [n.norma, stripAplicacionSufijo(n.aplicacion) || "-", n.productoHilti || "-"], anchoSistemasCols);
   const idxJuntas = await construirIndiceConRefs("Sistemas UL — Juntas", ["Sistema UL", "Aplicación", "Producto Hilti"], normasJuntas, n => [n.norma, n.aplicacion || "-", n.productoHilti || "-"], anchoSistemasCols);
 
-  // --- 7. Insertar todo en el orden final pedido ---
   let cursor = 0;
   const insertar = (paginas) => { (paginas || []).forEach(p => { master.insertPage(cursor, p); cursor++; }); };
   insertar(portadaPaginas);
@@ -571,7 +501,6 @@ async function descargarSubmittalInterno() {
   paginasConcreto.forEach(insertar);
   paginasJuntas.forEach(insertar);
 
-  // --- 8. Links internos en las tres tablas de sistemas UL y en la de fichas ---
   function agregarLinksIndice(idxInfo, filasSrc, paginasPorFila) {
     if (!idxInfo) return;
     filasSrc.forEach((_, i) => {
@@ -586,7 +515,6 @@ async function descargarSubmittalInterno() {
   agregarLinksIndice(idxConcreto, normasConcreto, paginasConcreto);
   agregarLinksIndice(idxJuntas, normasJuntas, paginasJuntas);
 
-  // --- 9. Marcadores (outline), siguiendo el mismo índice, y cada sistema por su código ---
   const marcadores = crearConstructorMarcadores();
   marcadores.agregar("Portada", portadaPaginas[0], 0);
   if (idxFichas) {
@@ -612,10 +540,8 @@ async function descargarSubmittalInterno() {
   }
   marcadores.aplicar(master);
 
-  // --- 10. Numeración final, en TODAS las páginas del documento ya unido ---
   await agregarNumeracionFinalPDF(master);
 
-  // --- 11. Descargar ---
   const finalBytes = await master.save();
   const blob = new Blob([finalBytes], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
@@ -630,14 +556,13 @@ async function descargarSubmittalInterno() {
       ? "Submittal generado con todos los documentos incluidos, con marcadores y links internos."
       : `Submittal generado. ${fallidos} documento(s) (alojados en Google Drive) no se pudieron incrustar automáticamente por CORS — quedaron como página de aviso con link externo para abrir con un toque.`
   );
+  } finally {
+    ocultarToastProgreso(toastProgreso);
+  }
 }
 const APP_VERSION = "1.0.0";
 window.APP_VERSION = APP_VERSION;
 
-
-// ============================================================================
-
-// --- Exports usados por otros módulos ---
 window.descargarSistemasUL = descargarSistemasUL;
 window.descargarFichasTecnicas = descargarFichasTecnicas;
 window.descargarSubmittal = descargarSubmittal;
