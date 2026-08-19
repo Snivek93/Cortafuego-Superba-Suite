@@ -7,14 +7,6 @@
 var VISTA_LEVANTAMIENTO_TAB = "detallado";
 
 (function () {
-// ============================================================================
-// ui-levantamiento.js
-// Levantamiento ('Modo campo') — captura rápida en sitio de Penetrantes y de Juntas, un elemento a la vez.
-// (Parte del proyecto Calculadora Cortafuego Hilti — ver README.md para el mapa completo de módulos.)
-// ============================================================================
-
-// LEVANTAMIENTO ("Modo campo"): captura rápida en sitio, un penetrante a la vez
-// ============================================================================
 const DIAMETROS_COMUNES = [
   { label: '1/4"', v: 0.25 }, { label: '1/2"', v: 0.5 }, { label: '5/8"', v: 0.625 }, { label: '3/4"', v: 0.75 },
   { label: '7/8"', v: 0.875 }, { label: '1"', v: 1 }, { label: '1 1/4"', v: 1.25 }, { label: '1 1/2"', v: 1.5 },
@@ -22,8 +14,6 @@ const DIAMETROS_COMUNES = [
   { label: '6"', v: 6 }, { label: '8"', v: 8 },
 ];
 const DIAMETROS_COMUNES_REDUCIDO = DIAMETROS_COMUNES.filter(d => d.v !== 0.625 && d.v !== 0.875);
-// Cables sueltos y cables en paso repenetrable mantienen la lista completa (con 5/8" y 7/8");
-// el resto (tuberías, cable armado, etc.) usa la lista reducida, sin esos dos.
 function levDiametrosParaTipo(L) {
   return ["Cables Sueltos", "Cables en Paso Repenetrable"].includes(L) ? DIAMETROS_COMUNES : DIAMETROS_COMUNES_REDUCIDO;
 }
@@ -37,14 +27,13 @@ function levEsAislado(L) { return /aislad/i.test(L || ""); }
 function levUsaOcupacion(L) { return ["Bandeja de Cables", "Pasante Múltiple"].includes(L); }
 function levUsaSelectorMultiple(L) { return ["Bandeja de Cables", "Pasante Múltiple", "Vacío"].includes(L); }
 
-// Dimensiones predefinidas para Caja Electromecánica UL (en cm: A x B x Profundidad)
 const CAJA_PRESETS = {
   "10x10x5": [10, 10, 5],
   "10x5x5": [10, 5, 5],
 };
 function aplicarPresetCaja(preset) {
   LEV.cajaPreset = preset;
-  if (preset === "custom") return; // el usuario ingresa A/B/Prof manualmente
+  if (preset === "custom") return;
   const [a, b, h] = CAJA_PRESETS[preset];
   const factor = LEV.dimUnidad === "in" ? (1 / 2.54) : 1;
   const round2 = (v) => Math.round(v * factor * 100) / 100;
@@ -53,19 +42,15 @@ function aplicarPresetCaja(preset) {
 function levOcultaAnular(L) { return ["Pasante Múltiple", "Vacío", "Caja Electromecánica UL"].includes(L); }
 function levPermiteVacioRedondo(L) { return L === "Vacío"; }
 function levUsaDiametroLibre(L) { return ["Ducto Redondo", "Ducto Redondo Aislado"].includes(L); }
-// Cables en Paso Repenetrable (Manga CP 653 / Paso MSL): el diámetro del
-// cable no calza con los diámetros de tubería predefinidos (DIAMETROS_COMUNES
-// son tamaños de tubería estándar) — se ingresa directo en un campo de texto,
-// sin chips predefinidos. Kevin, 10/08/2026.
 function levUsaDiametroCable(L) { return L === "Cables en Paso Repenetrable"; }
-const UMBRAL_CAJA_PUTTY_CM2 = 444.1775; // caja 4-11/16" x 4-11/16" x 2-1/2" — igual que en engine.js
+const UMBRAL_CAJA_PUTTY_CM2 = 444.1775;
 function levAreaCajaActualCm2() {
   const factor = LEV.dimUnidad === "in" ? 2.54 : 1;
   const a = parseFloat(LEV.dimA) * factor, b = parseFloat(LEV.dimB) * factor, h = parseFloat(LEV.profCaja) * factor;
-  if (isNaN(a) || isNaN(b) || isNaN(h)) return null; // faltan datos, no se puede saber todavía
+  if (isNaN(a) || isNaN(b) || isNaN(h)) return null;
   return a * b + 2 * a * h + 2 * b * h;
 }
-const TIPOS_LEVANTAMIENTO = OPTS_L; // mismo listado de 19 tipos, en el mismo orden
+const TIPOS_LEVANTAMIENTO = OPTS_L;
 const TIPO_LABEL_CORTO = {
   "Tubería Metal": "Tubería metal",
   "Tubería Metal Aislado": "Metal aislada",
@@ -89,9 +74,6 @@ const TIPO_LABEL_CORTO = {
   "Viga Tubo Rectangular": "Viga tubo rect.",
 };
 
-// Visor de fotos de una fila — muestra todas las fotos guardadas en esa línea
-// (Penetrante o Junta) en una superposición de pantalla completa, apiladas y
-// con scroll si hay varias. Se cierra con el botón × o tocando el fondo.
 function abrirVisorFotosFila(id, tipo) {
   const row = tipo === "junta" ? ROWS_J.find(r => r._id === id) : ROWS.find(r => r._id === id);
   const fotos = row && row.fotos ? row.fotos : [];
@@ -120,11 +102,6 @@ function abrirVisorFotosFila(id, tipo) {
 
 let LEV_MODE = "penetrantes"; // "penetrantes" | "juntas"
 
-
-// Comprime una foto tomada con la cámara antes de guardarla en la fila: la
-// redimensiona a un ancho máximo razonable (no hace falta resolución de
-// galería para una foto de evidencia) y la reexporta como JPEG con calidad
-// moderada. Devuelve un dataURL listo para guardar en LEV.foto / LEV_J.foto.
 function comprimirFotoFile(file, maxAncho = 1200, calidad = 0.78) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -148,10 +125,6 @@ function comprimirFotoFile(file, maxAncho = 1200, calidad = 0.78) {
   });
 }
 
-// HTML compartido para la sección de fotos del formulario (Penetrantes y Juntas
-// usan el mismo bloque, con distintos ids de input via prefijo). Soporta varias
-// fotos por línea: galería de miniaturas, cada una con su botón de quitar, y el
-// botón de agregar queda siempre visible para poder sumar más.
 function fotoSectionHtml(prefijo, fotosArray) {
   const fotos = fotosArray || [];
   return `
@@ -175,9 +148,6 @@ function fotoSectionHtml(prefijo, fotosArray) {
   `;
 }
 
-// Busca si una fila ya guardada tiene un pin vinculado en algún plano.
-// PLANOS es una variable global de verdad (declarada fuera de un IIFE en
-// planos.js) — se puede leer directo desde acá sin necesidad de exportarla.
 function buscarPinDeFila(filaId, filaTipo) {
   if (filaId == null || typeof PLANOS === "undefined") return null;
   for (const plano of PLANOS) {
@@ -187,15 +157,6 @@ function buscarPinDeFila(filaId, filaTipo) {
   return null;
 }
 
-// Sección "Vincular punto en plano" del formulario — siempre visible (a
-// diferencia de antes, que solo aparecía editando una fila ya guardada).
-// - Si la fila ya existe (editandoId) y ya tiene un pin: muestra dónde está,
-//   con opción de quitarlo.
-// - Si la fila ya existe y no tiene pin: botón para vincular directo (ya
-//   tiene _id real).
-// - Si la fila es nueva (sin editandoId): usa el pin "pendiente" del estado
-//   LEV/LEV_J — se guarda recién cuando se guarda la fila (ver
-//   agregarDesdeLevantamiento / guardarItemLevJ).
 function pinSectionHtml(prefijo, filaId, filaTipo, pinPendiente) {
   const existente = filaId != null ? buscarPinDeFila(filaId, filaTipo) : null;
   let cuerpo;
@@ -240,15 +201,11 @@ const LEV = {
   editandoId: null,
 };
 
-// Anchos de junta preseleccionables (in) — "Otro" habilita el campo libre.
 const ANCHOS_JUNTA_PRESET = [
   { v: 0, label: "0\"" }, { v: 0.25, label: "1/4\"" }, { v: 0.5, label: "1/2\"" },
   { v: 0.625, label: "5/8\"" }, { v: 1, label: "1\"" }, { v: 2, label: "2\"" },
   { v: 4, label: "4\"" }, { v: 6, label: "6\"" }, { v: 8, label: "8\"" },
 ];
-// Dado un ancho en pulgadas (o "" ), devuelve {ancho, anchoEsOtro} listo para
-// el estado LEV_J: si calza con un preset lo deja seleccionado, si no, cae en
-// "Otro" con el valor tal cual (redondeado a 3 decimales por precisión de conversión).
 function anchoJuntaComoPreset(anchoPulgadas) {
   if (anchoPulgadas === "" || anchoPulgadas === null || anchoPulgadas === undefined || isNaN(anchoPulgadas)) {
     return { ancho: "", anchoEsOtro: false };
@@ -258,12 +215,11 @@ function anchoJuntaComoPreset(anchoPulgadas) {
   return match ? { ancho: String(match.v), anchoEsOtro: false } : { ancho: String(val), anchoEsOtro: true };
 }
 
-// Estado del capturador de Levantamiento Juntas
 const LEV_J = {
   zona: "", nivel: "",
   junta: null, tipo: null, barreras: null, posicion: null,
-  pePosicion: null, // solo Pared-Entrepiso: Lateral/Superior/Inferior/Superior e Inferior (se pregunta primero)
-  posicionPI: "Superior e Inferior", // solo Pared-Entrepiso / Panel de yeso-Concreto
+  pePosicion: null,
+  posicionPI: "Superior e Inferior",
   lados: "Ambos lados",
   producto: null,
   dimUnidad: "cm", longitud: "", ancho: "", anchoEsOtro: false, anchoLana: "", anchoLanaManual: false,
@@ -284,9 +240,6 @@ function levChip(grupo, valor, label, activo, deshabilitado) {
   return `<button type="button" class="lev-chip ${activo ? "lev-chip-active" : ""}" data-lev-grupo="${grupo}" data-lev-valor="${escapeHtml(valor)}">${label}</button>`;
 }
 
-// ============================================================================
-// LEVANTAMIENTO JUNTAS — pantalla de captura
-// ============================================================================
 function levJChip(grupo, valor, label, activo, iconIds) {
   if (iconIds) {
     const ids = Array.isArray(iconIds) ? iconIds : [iconIds];
@@ -316,9 +269,6 @@ function iconoJuntaPosicion(tipo, posicion) {
   return null;
 }
 
-// Pared - Entrepiso: acá se pregunta primero la Posición (con su ícono) y
-// recién después la Barrera Cortafuego, porque en campo es más natural mirar
-// la junta y decir "esto es un lateral" antes que pensar en los materiales.
 function iconoPosicionPE(macro) {
   if (macro === "Lateral") return "ij-horiz-pared-entrepiso-lateral";
   if (macro === "Superior") return "ij-horiz-pared-entrepiso-superior";
@@ -326,8 +276,6 @@ function iconoPosicionPE(macro) {
   if (macro === "Superior e Inferior") return ["ij-horiz-pared-entrepiso-superior", "ij-horiz-pared-entrepiso-inferior"];
   return null;
 }
-// Estos casos son siempre "un lado" físicamente (no hay una cara opuesta que
-// sellar), así que ni se pregunta: se fuerza el valor y no se muestra el selector.
 function usaLadosSelector(tipo, pePosicionOPosicion) {
   if (tipo === "Entrepiso - Entrepiso") return false;
   if (tipo === "Muro Cortina") return false;
@@ -335,11 +283,9 @@ function usaLadosSelector(tipo, pePosicionOPosicion) {
   return true;
 }
 
-// Cuando hay más de una Posición posible pero en la práctica casi siempre es
-// la misma, se preselecciona (el chip queda tocable por si hace falta cambiarlo).
 const POSICION_DEFAULT_PREFERIDA = {
-  "Concreto - Panel de yeso": "Perpendicular", // Vertical Pared-Pared
-  "Concreto - Fachada": "Sistema Intertek", // Muro Cortina
+  "Concreto - Panel de yeso": "Perpendicular",
+  "Concreto - Fachada": "Sistema Intertek",
 };
 
 function barrerasParaPosicionPE(macro) {
@@ -349,12 +295,10 @@ function barrerasParaPosicionPE(macro) {
   if (macro === "Superior e Inferior") return ["Panel de yeso - Concreto"];
   return [];
 }
-// Traduce la Posición macro (elegida primero) + la Barrera ya elegida al par
-// posicion/posicionPI que usa el motor de cálculo (computeJuntaRow).
 function aplicarPosicionDesdeMacroPE() {
   const macro = LEV_J.pePosicion;
   if (LEV_J.barreras === "Concreto - Concreto") {
-    LEV_J.posicion = macro; // "Lateral" o "Superior"
+    LEV_J.posicion = macro;
     LEV_J.posicionPI = null;
   } else if (LEV_J.barreras === "Panel de yeso - Concreto") {
     LEV_J.posicion = null;
@@ -362,7 +306,6 @@ function aplicarPosicionDesdeMacroPE() {
   }
 }
 
-// "Panel de yeso" se muestra como "Gypsum" (el dato interno no cambia, solo el rótulo)
 function materialSwatchClase(material) {
   if (/panel de yeso/i.test(material || "")) return "swatch-gypsum";
   if (/fachada/i.test(material || "")) return "swatch-fachada";
@@ -414,9 +357,6 @@ function tieneDatosCompletosLevJ(o) {
   return true;
 }
 
-// Si con la selección actual solo hay un producto posible, se elige solo. Si
-// hay varios pero CP 606 es uno de ellos, se prioriza porque es el más usado
-// — igual queda tocable por si hace falta otro producto.
 function autoseleccionarProductoLevJ() {
   const o = opcionesLevJ();
   if (o.productos.includes("CP 606")) LEV_J.producto = "CP 606";
@@ -661,7 +601,7 @@ function editarItemLevJ(id) {
   let pePosicion = null;
   if (row.tipo === "Pared - Entrepiso") {
     if (row.posicionPI) pePosicion = row.posicionPI === "Solo superior" ? "Superior" : row.posicionPI === "Solo inferior" ? "Inferior" : "Superior e Inferior";
-    else pePosicion = row.posicion; // "Lateral" o "Superior"
+    else pePosicion = row.posicion;
   }
   Object.assign(LEV_J, {
     zona: row.A, nivel: row.B, junta: row.junta, tipo: row.tipo, barreras: row.barreras, posicion: row.posicion,
@@ -685,9 +625,6 @@ function limpiarFormularioLevJ(mantenerZona) {
   if (!mantenerZona) { LEV_J.zona = ""; LEV_J.nivel = ""; }
 }
 
-// Reset "liviano": para agregar la siguiente junta en la misma zona lo más rápido
-// posible se mantiene toda la clasificación (junta/tipo/barreras/posición/lados/
-// producto) y solo se limpian las medidas — igual que en Levantamiento Penetrantes.
 function limpiarMedidasLevJ() {
   LEV_J.longitud = ""; LEV_J.ancho = ""; LEV_J.anchoEsOtro = false; LEV_J.anchoLana = ""; LEV_J.anchoLanaManual = false;
   LEV_J.cantidad = 1; LEV_J.nota = ""; LEV_J.fotos = []; LEV_J.editandoId = null; LEV_J.pinPendiente = null;
@@ -780,8 +717,6 @@ function attachLevantamientoJuntasEvents(cont) {
     btn.addEventListener("click", () => {
       const grupo = btn.dataset.levjGrupo;
       const valor = btn.dataset.levjValor;
-      // Tocar de nuevo un chip que ya estaba activo no debe reiniciar las
-      // selecciones de abajo (tipo/barreras/posición pegadas entre juntas).
       const yaActivo = { tipo: LEV_J.tipo, pePosicion: LEV_J.pePosicion, barreras: LEV_J.barreras, posicion: LEV_J.posicion, posicionPI: LEV_J.posicionPI, lados: LEV_J.lados, producto: LEV_J.producto, dimUnidad: LEV_J.dimUnidad };
       if (yaActivo[grupo] === valor) return;
       if (grupo === "tipo") {
@@ -851,9 +786,6 @@ function attachLevantamientoJuntasEvents(cont) {
       if (campo === "espesorPared") LEV_J.espesorParedManual = true;
     });
   });
-  // Ancho de junta: chips preseleccionados (en pulgadas) + "Otro" con campo libre.
-  // Muro Cortina: el ancho del sector de lana/bandeja copia el ancho de la
-  // junta (convertido a la unidad activa) hasta que se edite manualmente.
   const espejearAnchoLana = () => {
     if (LEV_J.anchoLanaManual) return;
     LEV_J.anchoLana = LEV_J.ancho === "" ? "" : (LEV_J.dimUnidad === "in" ? LEV_J.ancho : String(round2(n(LEV_J.ancho) * 2.54)));
@@ -1274,13 +1206,9 @@ function attachLevantamientoEvents() {
         LEV.tipo = valor;
         LEV.diametro = ""; LEV.dimA = ""; LEV.dimB = ""; LEV.profCaja = ""; LEV.vacioModo = "dim"; LEV.diametroLibre = "";
         LEV.espesorAislamiento = ""; LEV.espesorAislamientoOtro = false; LEV.ocupacion = ""; LEV.materialMultiple = "Pasta FS ONE MAX";
-        // Espacio anular preseleccionado: 0" en Bandeja de Cables (típicamente no
-        // hay espacio anular real en ese tipo de instalación), 1/2" en el resto.
         LEV.anularOtro = false;
         LEV.anular = valor === "Bandeja de Cables" ? 0 : 0.5;
         if (valor === "Caja Electromecánica UL") {
-          // Las cajas electromecánicas UL solo se instalan en pared de panel de yeso,
-          // y son siempre una penetración de membrana (se sella por un solo lado).
           LEV.barrera = "Pared"; LEV.material = "Panel de Yeso"; LEV.membrana = true;
           aplicarPresetCaja("10x10x5");
         }
@@ -1289,7 +1217,7 @@ function attachLevantamientoEvents() {
         LEV.diametro = ""; LEV.dimA = ""; LEV.dimB = "";
       } else if (grupo === "dimUnidad") {
         if (valor !== LEV.dimUnidad) {
-          const factor = valor === "in" ? (1 / 2.54) : 2.54; // convirtiendo desde la unidad anterior
+          const factor = valor === "in" ? (1 / 2.54) : 2.54;
           const conv = (v) => (v === "" || v === null || isNaN(parseFloat(v))) ? v : Math.round(parseFloat(v) * factor * 100) / 100;
           LEV.dimA = conv(LEV.dimA); LEV.dimB = conv(LEV.dimB); LEV.profCaja = conv(LEV.profCaja);
           LEV.dimUnidad = valor;
@@ -1304,7 +1232,7 @@ function attachLevantamientoEvents() {
         else { LEV.anularOtro = false; LEV.anular = parseFloat(valor); }
       } else if (grupo === "barrera") {
         LEV.barrera = valor;
-        if (valor === "Entrepiso") { LEV.material = "Concreto"; LEV.membrana = false; } // no existe Entrepiso + Panel de Yeso
+        if (valor === "Entrepiso") { LEV.material = "Concreto"; LEV.membrana = false; }
       } else if (grupo === "material") {
         LEV.material = valor;
       } else if (grupo === "frating") {
@@ -1377,7 +1305,7 @@ function editarItemLevantamiento(id, abrirFullscreen) {
     LEV.dimA = ""; LEV.dimB = ""; LEV.diametro = "";
   } else if (usaDim) { LEV.dimA = row.F; LEV.dimB = row.G; LEV.diametro = ""; }
   else if (levUsaDiametroCable(row.L)) {
-    LEV.diametro = "otro"; // fuerza el campo de texto directo, sin chips
+    LEV.diametro = "otro";
     LEV.diametroOtroValor = row.D;
   } else {
     const esComun = levDiametrosParaTipo(row.L).some(d => d.v === row.D);
@@ -1409,11 +1337,11 @@ function editarItemLevantamiento(id, abrirFullscreen) {
   LEV.materialMultiple = levUsaSelectorMultiple(row.L) && ["Pasta FS ONE MAX", "Almohadilla CFS-BL", "Espuma CP 620"].includes(row.P) ? row.P : "Pasta FS ONE MAX";
   LEV.nota = row.R || "";
   LEV.fotos = (row.fotos || (row.foto ? [row.foto] : [])).slice();
-  LEV.pinPendiente = null; // al editar una fila ya guardada se usa el vínculo directo, no el pendiente
+  LEV.pinPendiente = null;
   LEV.editandoId = id;
 
-  LEV._filaRespaldo = Object.assign({}, row); // por si se cancela la edición, se restaura
-  ROWS.splice(idx, 1); // se vuelve a agregar al guardar
+  LEV._filaRespaldo = Object.assign({}, row);
+  ROWS.splice(idx, 1);
 
   if (abrirFullscreen) {
     abrirLevantamiento();
@@ -1439,7 +1367,7 @@ function agregarDesdeLevantamiento() {
       const parsed = parseFraccion(LEV.anularOtroTexto || "");
       if (parsed === null) { mostrarToast("Ingresá un espacio anular válido (ej. 0.5 o 5/8).", "error"); return; }
       anularVal = parsed;
-      LEV.anular = parsed; // queda recordado también para el próximo
+      LEV.anular = parsed;
     }
   }
 
@@ -1448,8 +1376,6 @@ function agregarDesdeLevantamiento() {
     diametroVal = parseFraccion(String(LEV.diametroLibre || ""));
     if (diametroVal === null || diametroVal <= 0) { mostrarToast("Ingresá el diámetro del ducto en pulgadas.", "error"); return; }
   } else if (!usaDim) {
-    // Nota: antes esta rama excluía modoRedondo (Vacío redondo), así que ese
-    // caso nunca leía el diámetro elegido y quedaba en 0 — corregido 05/08/2026.
     if (LEV.diametro === "otro" || levUsaDiametroCable(LEV.tipo)) {
       diametroVal = parseFraccion(String(document.getElementById("lev-diametro-otro")?.value || ""));
       if (diametroVal === null) { mostrarToast("Ingresá un diámetro válido.", "error"); return; }
@@ -1469,14 +1395,9 @@ function agregarDesdeLevantamiento() {
     }
     if (LEV.dimUnidad === "in") { dimA *= 2.54; dimB *= 2.54; }
   } else if (diametroLibreActivo) {
-    // Ducto redondo: se trata como una abertura cuadrada equivalente al diámetro (aproximación conservadora)
     const diamCm = n(diametroVal) * 2.54;
     dimA = diamCm; dimB = diamCm;
   }
-  // Vacío redondo (modoRedondo) YA NO se aproxima a un cuadrado — se guarda el
-  // diámetro real en D y F/G quedan en blanco, para que computeRow calcule el
-  // área real del círculo (π/4×DIÁM.², según Word 05/08/2026). Antes también
-  // tenía el bug de que diametroVal nunca se leía para este caso (quedaba 0).
 
   let profCajaVal = "";
   let ppInstFinal = LEV.puttyInst;
@@ -1488,7 +1409,7 @@ function agregarDesdeLevantamiento() {
     }
     if (LEV.dimUnidad === "in") profCajaVal *= 2.54;
     const areaCajaCm2 = dimA * dimB + 2 * dimA * profCajaVal + 2 * dimB * profCajaVal;
-    if (areaCajaCm2 > UMBRAL_CAJA_PUTTY_CM2) ppInstFinal = "Fuera"; // sobre el umbral solo aplica por fuera
+    if (areaCajaCm2 > UMBRAL_CAJA_PUTTY_CM2) ppInstFinal = "Fuera";
   }
 
   let espesorVal = 0;
@@ -1500,7 +1421,6 @@ function agregarDesdeLevantamiento() {
     } else if (LEV.espesorAislamiento !== "") {
       espesorVal = LEV.espesorAislamiento;
     }
-    // si no se eligió nada, queda en 0 (opcional)
   }
 
   let ocupacionVal = 0;
@@ -1521,37 +1441,25 @@ function agregarDesdeLevantamiento() {
     PPINST: LEV.tipo === "Caja Electromecánica UL" ? ppInstFinal : "Fuera",
     P: levUsaSelectorMultiple(LEV.tipo) ? LEV.materialMultiple : materialRecomendado(LEV.tipo, usaDim ? null : diametroVal),
   });
-  // Si se está editando una fila existente, se conserva su _id original en
-  // vez del que nuevaFila() acaba de generar — si no, cualquier pin de plano
-  // vinculado a esta fila se desconecta apenas se edita algo, sin necesidad
-  // de guardar/recargar el proyecto.
   if (LEV.editandoId != null) nueva._id = LEV.editandoId;
-  // Si la Calculadora todavía tiene solo las filas de ejemplo vacías, se limpian
-  // al agregar el primer penetrante real desde Levantamiento.
   if (ROWS.length > 0 && ROWS.every(r => !tieneDatosMinimos(r))) {
     ROWS = [];
   }
 
   ROWS.unshift(nueva);
-  LEV._filaRespaldo = null; // ya se guardó, no hace falta restaurar nada
+  LEV._filaRespaldo = null;
 
-  // Si había un pin "pendiente" (colocado antes de guardar, en una fila que
-  // todavía no tenía _id), recién ahora se confirma en el plano con el _id real.
   if (LEV.pinPendiente) {
     confirmarPinPendiente(LEV.pinPendiente, nueva._id, "penetrante");
     LEV.pinPendiente = null;
   }
 
   const fueEdicion = !!LEV.editandoId;
-  // Reset solo lo que suele cambiar penetrante a penetrante; el resto queda pegado
-  // El tipo de penetrante se mantiene seleccionado para agilizar el ingreso
-  // de múltiples penetrantes del mismo tipo; solo se limpian los valores variables.
   LEV.diametro = ""; LEV.dimA = ""; LEV.dimB = ""; LEV.profCaja = ""; LEV.vacioModo = "dim"; LEV.diametroLibre = "";
   LEV.espesorAislamiento = ""; LEV.espesorAislamientoOtro = false; LEV.ocupacion = ""; LEV.cantidad = 1; LEV.editandoId = null; LEV.nota = ""; LEV.fotos = []; LEV.pinPendiente = null;
 
   marcarCambio();
   renderLevantamiento();
-  // Scroll al inicio — el levantamiento corre en el div fullscreen
   const levFs = document.getElementById("levantamiento-fullscreen");
   if (levFs) levFs.scrollTop = 0;
   const levContent = document.getElementById("levantamiento-content");
@@ -1559,8 +1467,6 @@ function agregarDesdeLevantamiento() {
   mostrarToast(fueEdicion ? "Cambios guardados." : `Agregado: ${nueva.C}x ${nueva.L}`);
 }
 
-// Productos válidos en MAIN_TABLE para cada tipo de penetrante
-// (pre-calculado para no iterar la tabla en cada render de fila)
 const PRODUCTOS_POR_TIPO = {
   "Tubería Metal": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
   "Tubería Metal Aislado": ["Pasta FS ONE MAX","Sellador CP 606","Sellador CFS SIL GG"],
@@ -1584,7 +1490,6 @@ const PRODUCTOS_POR_TIPO = {
   "Viga Tubo Rectangular": ["Pasta FS ONE MAX"],
 };
 
-// Etiquetas cortas para el selector de producto
 const PROD_LABEL = {
   "Pasta FS ONE MAX": "Pasta FS ONE MAX",
   "Cinta con Collar Metálico CP 648-E/ER": "Cinta + Collar",
@@ -1623,7 +1528,6 @@ function renderTablaAgrupadaHTML(grupos) {
           ${filas.map(({ r, esInicioZona, zona }) => {
             const c = computeRow(r, CONFIG);
 
-            // — Dimensión con detalle de aislamiento —
             const esAisl = n(r.E) > 0;
             const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
             let dimBase, dimAisl = "";
@@ -1638,25 +1542,20 @@ function renderTablaAgrupadaHTML(grupos) {
             } else { dimBase = "—"; }
             const dimHtml = dimBase + (dimAisl ? `<br><span class="lev-dim-aisl">${dimAisl.trim()}</span>` : "");
 
-            // — % ocupación —
             const pctOcup = levUsaOcupacion(r.L) && r.J ? Math.round(n(r.J)*100)+"%" : "—";
 
-            // — Caja electromecánica: dentro/fuera —
             const esCaja = r.L === "Caja Electromecánica UL";
             const tipoLabel = escapeHtml(TIPO_LABEL_CORTO[r.L] || r.L)
               + (esCaja ? `<br><span class="lev-sub-label">${r.PPINST === "Dentro" ? "Por dentro" : "Por fuera"}</span>` : "");
 
-            // — Sistema UL —
             const ulBadge = (c.Qtext && c.Qtext !== "-" && !["Sin sistema","Cambiar material a Pasta FS ONE MAX","Cambiar material a pasta FS ONE MAX"].includes(c.Qtext))
               ? `<a href="${escapeHtml(c.Qlink||"")}" target="_blank" rel="noopener" class="badge badge-ok" title="${escapeHtml(c.Qtext)}">${escapeHtml(c.Qtext.split(" ")[0])}</a>`
               : "—";
 
-            // — Resultados: usar el mismo formato que la columna detalle de la Calculadora —
             const esCinta = r.P === MAT_CINTA_CON || r.P === MAT_CINTA_SIN;
             const vueltas = esCinta ? vueltasCintaPenetrante(r) : null;
             const detalleRes = detalleCalculoTexto(c);
 
-            // — Selector de producto —
             const opcs = PRODUCTOS_POR_TIPO[r.L] || [];
             const prodCell = opcs.length <= 1
               ? `<span>${escapeHtml(r.P) || "—"}</span>`
@@ -1693,20 +1592,10 @@ function renderTablaAgrupadaHTML(grupos) {
     </div>`;
 }
 
-// Clase CSS para los números de las tarjetas de estado del Levantamiento:
-// gris/atenuado cuando todavía no hay datos (0), color normal cuando sí hay.
 function claseStatNum(valor) {
   return valor > 0 ? "lev-stat-num" : "lev-stat-num is-zero";
 }
 
-// Vista de las tablas de Levantamiento (Penetrantes y Juntas a la vez):
-// "detallado" (una fila por elemento, editable) o "resumido" (agrupado por
-// características, de solo lectura). Un solo toggle controla ambas tablas.
-
-// Agrupa penetrantes que comparten: tipo, dimensión, espacio anular,
-// producto Hilti, tipo de barrera y material de barrera — sin importar
-// zona/nivel ni F Rating (el F Rating solo cambia en cajas electromecánicas
-// grandes, que ya son casos muy puntuales/únicos).
 function agruparPenetrantesPorCaracteristicas() {
   const grupos = [];
   const idxPorClave = new Map();
@@ -1733,6 +1622,7 @@ function renderTablaResumidaPenetrantesHTML(grupos) {
           <th class="num">Cant. Total</th>
           <th>Penetrante</th><th>Dimensión</th><th>Anular</th>
           <th>Barrera</th><th>Producto</th><th>Sistema UL</th>
+          <th class="num">Espesor</th><th class="num">Vueltas</th>
           <th colspan="2">Resultados</th>
         </tr></thead>
         <tbody>
@@ -1755,6 +1645,9 @@ function renderTablaResumidaPenetrantesHTML(grupos) {
               ? `<a href="${escapeHtml(c.Qlink||"")}" target="_blank" rel="noopener" class="badge badge-ok" title="${escapeHtml(c.Qtext)}">${escapeHtml(c.Qtext.split(" ")[0])}</a>`
               : "—";
 
+            const esCinta = r.P === MAT_CINTA_CON || r.P === MAT_CINTA_SIN;
+            const vueltas = esCinta ? vueltasCintaPenetrante(r) : null;
+
             const detalleRes = detalleCalculoTexto(c);
 
             return `<tr>
@@ -1765,6 +1658,8 @@ function renderTablaResumidaPenetrantesHTML(grupos) {
               <td>${escapeHtml(r.M)}<br><span class="lev-sub-label">${escapeHtml(r.N)}${r.MEM ? " · membrana" : ""}</span></td>
               <td>${escapeHtml(PROD_LABEL[r.P] || r.P) || "—"}</td>
               <td>${ulBadge}</td>
+              <td class="num">${formatEspesorPenetrante(r.P, c.V)}</td>
+              <td class="num">${vueltas !== null ? vueltas : "—"}</td>
               <td colspan="2" class="lev-col-resultado" style="font-size:var(--fs-xs)">${detalleRes}</td>
             </tr>`;
           }).join("")}
@@ -1822,7 +1717,6 @@ function renderLevantamientoTab() {
     });
   });
 
-  // Selector de producto inline en la tabla del levantamiento
   listaBox.querySelectorAll(".lev-prod-select").forEach(sel => {
     sel.addEventListener("change", () => {
       const id = Number(sel.dataset.levProdId);
@@ -1845,8 +1739,6 @@ function juntaLabelCorta(r, superiorInferior) {
   return `${r.tipo} · ${pos}`;
 }
 
-// Unidades de lana (sin redondear, para ver el detalle exacto fila por fila;
-// el redondeo hacia arriba para compra sucede solo en el Resumen).
 function lanaUnidadesSinRedondear(f) {
   if (f.lanaVolumenCm3 > 0) return f.lanaVolumenCm3 / (122 * 61 * 10);
   if (f.lanaAreaCm2 > 0) return f.lanaAreaCm2 / (122 * 61);
@@ -1898,17 +1790,6 @@ function renderTablaJuntasHTML(grupos) {
     </div>`;
 }
 
-// (La vista Detallado/Resumido de Juntas usa la misma variable compartida
-// VISTA_LEVANTAMIENTO_TAB, definida arriba junto a Penetrantes — un solo
-// toggle controla ambas tablas.)
-
-// Agrupa juntas que comparten: tipo de junta, barreras, producto y ancho
-// (criterio pedido). También se separa por lados/posición porque esos sí
-// cambian la fórmula de cálculo por unidad de longitud (mezclarlos daría
-// un resultado incorrecto, no solo una simplificación visual). Se suma la
-// longitud total (longitud × cantidad de cada fila) para que el cálculo
-// de sellador/lana sobre el grupo dé exactamente lo mismo que sumar cada
-// fila por separado.
 function agruparJuntasPorCaracteristicas() {
   const grupos = [];
   const idxPorClave = new Map();
@@ -2031,11 +1912,9 @@ async function compartirReporte() {
       return;
     }
   } catch (err) {
-    if (err && err.name === "AbortError") return; // el usuario cerró la ventana de compartir
-    // si falla compartir el archivo, seguimos con la descarga de respaldo abajo
+    if (err && err.name === "AbortError") return;
   }
 
-  // Respaldo: el navegador no permite compartir archivos directamente
   doc.save(archivo);
   mostrarToast("Este navegador no permite compartir el PDF directo — se descargó para que lo adjuntes en WhatsApp, correo, etc.");
 }
@@ -2049,15 +1928,13 @@ function switchTab(tab) {
   if (tab === "levantamiento-tab") renderLevantamientoTab();
 }
 
-// ============================================================================
-
-// --- Exports usados por otros módulos ---
 window.levOcultaAnular = levOcultaAnular;
 window.levUsaDiametroLibre = levUsaDiametroLibre;
 window.TIPO_LABEL_CORTO = TIPO_LABEL_CORTO;
 window.barrerasLabelCorto = barrerasLabelCorto;
 window.agruparJuntasPorZona = agruparJuntasPorZona;
 window.abrirLevantamiento = abrirLevantamiento;
+window.getLevMode = () => LEV_MODE;
 window.abrirLevantamientoJuntas = abrirLevantamientoJuntas;
 window.cerrarLevantamiento = cerrarLevantamiento;
 window.agruparPorZona = agruparPorZona;
@@ -2072,4 +1949,6 @@ window.agruparJuntasPorCaracteristicas = agruparJuntasPorCaracteristicas;
 window.renderLevantamientoTabJuntas = renderLevantamientoTabJuntas;
 window.compartirReporte = compartirReporte;
 window.switchTab = switchTab;
+window.iconoJuntaTipo = iconoJuntaTipo;
+window.iconoJuntaPosicion = iconoJuntaPosicion;
 })();
