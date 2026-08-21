@@ -1609,6 +1609,12 @@ function agruparPenetrantesPorCaracteristicas() {
     g.cantidad += n(r.C);
     g.filas += 1;
   });
+  const ordenTipo = TIPOS_LEVANTAMIENTO || [];
+  grupos.sort((a, b) => {
+    const ia = ordenTipo.indexOf(a.rep.L), ib = ordenTipo.indexOf(b.rep.L);
+    if (ia !== ib) return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    return b.cantidad - a.cantidad;
+  });
   return grupos;
 }
 
