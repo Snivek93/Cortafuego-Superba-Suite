@@ -142,121 +142,121 @@ function construirReportePDF(opciones) {
     y += 6;
   }
 
-  // Levantamiento: detalle fila por fila, tal como se registró
+  // Levantamiento: detalle fila por fila, tal como se registró.
+  // Cada subsección (Penetrantes / Juntas) solo se dibuja si tiene datos —
+  // si un proyecto no tiene juntas, por ejemplo, no aparece ni el título.
   if (opts.levantamiento) {
-    asegurarEspacio(alturaTablaAprox(computed.length, 8, 4));
-    dibujarTituloSeccion("Levantamiento — Penetrantes");
-    doc.autoTable({
-      startY: y,
-      margin: tableMargin,
-      pageBreak: "avoid",
-      head: [["Zona", "Nivel", "Cant.", "Penetrante", "Dimensión", "Anular", "Barrera", "Producto", "Espesor", "Vueltas Cinta", "F Rating", "Nota"]],
-      body: computed.length
-        ? computed.map(r => {
-            const esCinta = r.P === MAT_CINTA_CON || r.P === MAT_CINTA_SIN;
-            const vueltas = esCinta ? vueltasCintaPenetrante(r) : null;
-            return [
-              r.A || "-", r.B || "-", String(r.C), TIPO_LABEL_CORTO[r.L] || r.L,
-              r.F !== "" ? `${r.F}×${r.G} cm` : formatFraccionPulgadas(r.D),
-              formatFraccionPulgadas(r.I), `${r.M}${r.MEM ? " (membrana)" : ""} / ${r.N}`,
-              r.P || "—",
-              formatEspesorPenetrante(r.P, r.V),
-              vueltas !== null ? vueltas : "—", r.O, r.R || "",
-            ];
-          })
-        : [["Sin filas registradas", "", "", "", "", "", "", "", "", "", "", ""]],
-      styles: { fontSize: 8, cellPadding: 4 },
-      headStyles: { fillColor: [26, 26, 26], textColor: 255 },
-      didDrawPage: dibujarCabeceraPagina,
-    });
-    y = doc.lastAutoTable.finalY + espacioEntreTablas;
+    if (computed.length > 0) {
+      asegurarEspacio(alturaTablaAprox(computed.length, 8, 4));
+      dibujarTituloSeccion("Levantamiento — Penetrantes");
+      doc.autoTable({
+        startY: y,
+        margin: tableMargin,
+        pageBreak: "avoid",
+        head: [["Zona", "Nivel", "Cant.", "Penetrante", "Dimensión", "Anular", "Barrera", "Producto", "Espesor", "Vueltas Cinta", "F Rating", "Nota"]],
+        body: computed.map(r => {
+          const esCinta = r.P === MAT_CINTA_CON || r.P === MAT_CINTA_SIN;
+          const vueltas = esCinta ? vueltasCintaPenetrante(r) : null;
+          return [
+            r.A || "-", r.B || "-", String(r.C), TIPO_LABEL_CORTO[r.L] || r.L,
+            r.F !== "" ? `${r.F}×${r.G} cm` : formatFraccionPulgadas(r.D),
+            formatFraccionPulgadas(r.I), `${r.M}${r.MEM ? " (membrana)" : ""} / ${r.N}`,
+            r.P || "—",
+            formatEspesorPenetrante(r.P, r.V),
+            vueltas !== null ? vueltas : "—", r.O, r.R || "",
+          ];
+        }),
+        styles: { fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: [26, 26, 26], textColor: 255 },
+        didDrawPage: dibujarCabeceraPagina,
+      });
+      y = doc.lastAutoTable.finalY + espacioEntreTablas;
+    }
 
-    asegurarEspacio(alturaTablaAprox(computedJ_pdf.length, 8, 4));
-    dibujarTituloSeccion("Levantamiento — Juntas");
-    doc.autoTable({
-      startY: y,
-      margin: tableMargin,
-      pageBreak: "avoid",
-      head: [["Zona", "Nivel", "Cant.", "Junta", "Barreras", "Producto", "Longitud (cm)", "Ancho (cm)", "Espesor", "Nota"]],
-      body: computedJ_pdf.length
-        ? computedJ_pdf.map(r => [
+    if (computedJ_pdf.length > 0) {
+      asegurarEspacio(alturaTablaAprox(computedJ_pdf.length, 8, 4));
+      dibujarTituloSeccion("Levantamiento — Juntas");
+      doc.autoTable({
+        startY: y,
+        margin: tableMargin,
+        pageBreak: "avoid",
+        head: [["Zona", "Nivel", "Cant.", "Junta", "Barreras", "Producto", "Longitud (cm)", "Ancho (cm)", "Espesor", "Nota"]],
+        body: computedJ_pdf.map(r => [
               r.A || "-", r.B || "-", String(r.cantidad),
               juntaLabelCorta(r, r.superiorInferior), barrerasLabelCorto(r.barreras), r.producto,
               String(r.longitud), String(r.ancho),
               r.espesorProductoIn !== null && r.espesorProductoIn !== undefined ? formatFraccionPulgadas(r.espesorProductoIn) : "—",
               r.nota || "-",
-          ])
-        : [["Sin filas registradas", "", "", "", "", "", "", "", "", ""]],
-      styles: { fontSize: 8, cellPadding: 4 },
-      headStyles: { fillColor: [26, 26, 26], textColor: 255 },
-      didDrawPage: dibujarCabeceraPagina,
-    });
-    y = doc.lastAutoTable.finalY + espacioEntreTablas;
+          ]),
+        styles: { fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: [26, 26, 26], textColor: 255 },
+        didDrawPage: dibujarCabeceraPagina,
+      });
+      y = doc.lastAutoTable.finalY + espacioEntreTablas;
+    }
   }
 
   // Levantamiento resumido: penetrantes agrupados por características
   // (tipo, dimensión, anular, producto, barrera y material — sin F Rating),
   // con cantidad total por grupo. Juntas se muestra igual que en el
   // detallado, ya que hoy no tiene una vista agrupada propia.
+  // Cada subsección (Penetrantes / Juntas) solo se dibuja si tiene datos —
+  // si un proyecto no tiene juntas, por ejemplo, no aparece ni el título.
   if (opts.levantamientoResumido) {
     const gruposPen = agruparPenetrantesPorCaracteristicas();
-    asegurarEspacio(alturaTablaAprox(gruposPen.length, 8, 4));
-    dibujarTituloSeccion("Levantamiento Resumido — Penetrantes");
-    doc.autoTable({
-      startY: y,
-      margin: tableMargin,
-      pageBreak: "avoid",
-      head: [["Cant. Total", "Penetrante", "Dimensión", "Anular", "Barrera", "Producto", "Resultados"]],
-      body: gruposPen.length
-        ? gruposPen.map(({ rep: r, cantidad }) => {
-            const filaSintetica = Object.assign({}, r, { C: cantidad });
-            const c = computeRow(filaSintetica, CONFIG);
-            const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
-            let dim;
-            if (r.D !== "") dim = formatFraccionPulgadas(r.D);
-            else if (esRedondoLibre) dim = `⌀${formatFraccionPulgadas(n(r.F)/2.54)}`;
-            else if (r.F !== "") dim = `${r.F}×${r.G}${r.H !== "" ? "×"+r.H : ""} cm`;
-            else dim = "—";
-            return [
-              String(cantidad), TIPO_LABEL_CORTO[r.L] || r.L, dim,
-              levOcultaAnular(r.L) ? "—" : formatFraccionPulgadas(r.I),
-              `${r.M} / ${r.N}`, PROD_LABEL[r.P] || r.P || "—",
-              detalleCalculoTexto(c, true),
-            ];
-          })
-        : [["", "Sin filas registradas", "", "", "", "", ""]],
-      styles: { fontSize: 8, cellPadding: 4 },
-      headStyles: { fillColor: [26, 26, 26], textColor: 255 },
-      didDrawPage: dibujarCabeceraPagina,
-    });
-    y = doc.lastAutoTable.finalY + espacioEntreTablas;
-
-    asegurarEspacio(alturaTablaAprox(computedJ_pdf.length, 8, 4));
-    dibujarTituloSeccion("Levantamiento Resumido — Juntas");
     const gruposJ = agruparJuntasPorCaracteristicas();
-    doc.autoTable({
-      startY: y,
-      margin: tableMargin,
-      pageBreak: "avoid",
-      head: [["Junta", "Barreras", "Producto", "Longitud Total (cm)", "Ancho (cm)", "Sellador (cm3)", "Lana (unid.)"]],
-      body: gruposJ.length
-        ? gruposJ.map(({ rep: r, longitudTotal }) => {
-            const filaSintetica = Object.assign({}, r, { longitud: longitudTotal, cantidad: 1 });
-            const f = computeJuntaRow(filaSintetica);
-            const lanaUnid = r.calcularLana ? lanaUnidadesSinRedondear(f) : 0;
-            return [
-              juntaLabelCorta(r, f.superiorInferior), barrerasLabelCorto(r.barreras), r.producto,
-              String(Math.round(longitudTotal)),
-              String(r.ancho), String(roundup(f.volumenSellador, 0)),
-              r.calcularLana ? (lanaUnid > 0 ? lanaUnid.toFixed(2) : "—") : "No",
-            ];
-          })
-        : [["Sin filas registradas", "", "", "", "", "", ""]],
-      styles: { fontSize: 8, cellPadding: 4 },
-      headStyles: { fillColor: [26, 26, 26], textColor: 255 },
-      didDrawPage: dibujarCabeceraPagina,
-    });
-    y = doc.lastAutoTable.finalY + espacioEntreTablas;
+
+    if (gruposPen.length > 0) {
+      asegurarEspacio(alturaTablaAprox(gruposPen.length, 8, 4));
+      dibujarTituloSeccion("Levantamiento Resumido — Penetrantes");
+      doc.autoTable({
+        startY: y,
+        margin: tableMargin,
+        pageBreak: "auto",
+        head: [["Cant. Total", "Penetrante", "Dimensión", "Anular", "Barrera", "Producto"]],
+        body: gruposPen.map(({ rep: r, cantidad }) => {
+          const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
+          let dim;
+          if (r.D !== "") dim = formatFraccionPulgadas(r.D);
+          else if (esRedondoLibre) dim = `⌀${formatFraccionPulgadas(n(r.F)/2.54)}`;
+          else if (r.F !== "") dim = `${r.F}×${r.G}${r.H !== "" ? "×"+r.H : ""} cm`;
+          else dim = "—";
+          return [
+            String(cantidad), TIPO_LABEL_CORTO[r.L] || r.L, dim,
+            levOcultaAnular(r.L) ? "—" : formatFraccionPulgadas(r.I),
+            `${r.M} / ${r.N}`, PROD_LABEL[r.P] || r.P || "—",
+          ];
+        }),
+        styles: { fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: [26, 26, 26], textColor: 255 },
+        didDrawPage: dibujarCabeceraPagina,
+      });
+      y = doc.lastAutoTable.finalY + espacioEntreTablas;
+    }
+
+    if (gruposJ.length > 0) {
+      asegurarEspacio(alturaTablaAprox(gruposJ.length, 8, 4));
+      dibujarTituloSeccion("Levantamiento Resumido — Juntas");
+      doc.autoTable({
+        startY: y,
+        margin: tableMargin,
+        pageBreak: "avoid",
+        head: [["Junta", "Barreras", "Producto", "Longitud Total (cm)", "Ancho (cm)"]],
+        body: gruposJ.map(({ rep: r, longitudTotal }) => {
+          const filaSintetica = Object.assign({}, r, { longitud: longitudTotal, cantidad: 1 });
+          const f = computeJuntaRow(filaSintetica);
+          return [
+            juntaLabelCorta(r, f.superiorInferior), barrerasLabelCorto(r.barreras), r.producto,
+            String(Math.round(longitudTotal)),
+            String(r.ancho),
+          ];
+        }),
+        styles: { fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: [26, 26, 26], textColor: 255 },
+        didDrawPage: dibujarCabeceraPagina,
+      });
+      y = doc.lastAutoTable.finalY + espacioEntreTablas;
+    }
   }
 
   if (opts.resumen) {
