@@ -349,6 +349,7 @@ body.modo-levantamiento #levantamiento-fullscreen { display: block; position: fi
 .lev-vista-toggle { display: flex; gap: 6px; margin-bottom: 12px; max-width: 280px; }
 .lev-vista-toggle .lev-chip { padding: 8px 16px; font-size: var(--fs-sm); }
 .lev-vista-toggle .lev-chip-active { background: transparent; border-color: var(--hilti-red); color: var(--hilti-red); font-weight: 600; }
+#lev-vista-toggle-global { max-width: none; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
 .lev-lista-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .lev-lista-label-row label { display: block; font-size: var(--fs-xs); font-weight: 700; color: var(--ink); margin-bottom: 0; text-transform: uppercase; letter-spacing: 0.3px; }
 .lev-undo-link { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--hilti-red); font-size: var(--fs-xs); font-weight: 700; text-transform: none; letter-spacing: normal; cursor: pointer; padding: 2px; flex-shrink: 0; }
