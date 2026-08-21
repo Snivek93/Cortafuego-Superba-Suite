@@ -54,6 +54,32 @@ function dibujarNumeroPaginaPDF(doc, pagina, total) {
   doc.setTextColor(20, 20, 20);
 }
 
+// Texto de "Dimensión" para una fila de penetrante en el PDF, reutilizado por
+// las tablas de Levantamiento (detallado) y Levantamiento Resumido. Replica
+// la misma lógica que la vista en pantalla (renderTablaAgrupadaHTML /
+// renderTablaResumidaPenetrantesHTML): dimensión base + espesor de
+// aislamiento si aplica, más el diámetro total (tubo + 2× aislamiento)
+// cuando la fila usa diámetro simple (campo D en pulgadas).
+function dimensionPenetrantePDF(r) {
+  const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
+  const esAisl = n(r.E) > 0;
+  let dimBase;
+  if (r.D !== "") dimBase = formatFraccionPulgadas(r.D);
+  else if (esRedondoLibre) dimBase = `⌀${formatFraccionPulgadas(n(r.F) / 2.54)}`;
+  else if (r.F !== "") dimBase = `${r.F}×${r.G}${r.H !== "" ? "×" + r.H : ""} cm`;
+  else dimBase = "—";
+
+  let texto = dimBase;
+  if (esAisl) {
+    texto += `\n+${formatFraccionPulgadas(r.E)} aisl`;
+    if (r.D !== "") {
+      const diametroTotal = n(r.D) + 2 * n(r.E);
+      texto += `\nØ total ${formatFraccionPulgadas(diametroTotal)}`;
+    }
+  }
+  return texto;
+}
+
 function construirReportePDF(opciones) {
   const opts = Object.assign({ levantamiento: true, levantamientoResumido: false, resumen: true }, opciones);
   const computed = computeAllRows().filter(tieneDatosMinimos);
@@ -159,7 +185,7 @@ function construirReportePDF(opciones) {
           const vueltas = esCinta ? vueltasCintaPenetrante(r) : null;
           return [
             r.A || "-", r.B || "-", String(r.C), TIPO_LABEL_CORTO[r.L] || r.L,
-            r.F !== "" ? `${r.F}×${r.G} cm` : formatFraccionPulgadas(r.D),
+            dimensionPenetrantePDF(r),
             formatFraccionPulgadas(r.I), `${r.M}${r.MEM ? " (membrana)" : ""} / ${r.N}`,
             r.P || "—",
             formatEspesorPenetrante(r.P, r.V),
@@ -207,26 +233,23 @@ function construirReportePDF(opciones) {
     const gruposJ = agruparJuntasPorCaracteristicas();
 
     if (gruposPen.length > 0) {
-      asegurarEspacio(alturaTablaAprox(gruposPen.length, 8, 4));
+      // Reserva solo título + 1 fila: esta tabla puede ser muy larga (decenas
+      // de grupos) y nunca entra completa en una sola página. Si acá se
+      // reservara el alto estimado de la tabla completa, la sección entera
+      // saltaría a la página siguiente dejando la portada en blanco.
+      // pageBreak:"auto" ya se encarga de paginar el resto de las filas solo.
+      asegurarEspacio(alturaTablaAprox(1, 8, 4));
       dibujarTituloSeccion("Levantamiento Resumido — Penetrantes");
       doc.autoTable({
         startY: y,
         margin: tableMargin,
         pageBreak: "auto",
         head: [["Cant. Total", "Penetrante", "Dimensión", "Anular", "Barrera", "Producto"]],
-        body: gruposPen.map(({ rep: r, cantidad }) => {
-          const esRedondoLibre = levUsaDiametroLibre(r.L) && r.F !== "";
-          let dim;
-          if (r.D !== "") dim = formatFraccionPulgadas(r.D);
-          else if (esRedondoLibre) dim = `⌀${formatFraccionPulgadas(n(r.F)/2.54)}`;
-          else if (r.F !== "") dim = `${r.F}×${r.G}${r.H !== "" ? "×"+r.H : ""} cm`;
-          else dim = "—";
-          return [
-            String(cantidad), TIPO_LABEL_CORTO[r.L] || r.L, dim,
-            levOcultaAnular(r.L) ? "—" : formatFraccionPulgadas(r.I),
-            `${r.M} / ${r.N}`, PROD_LABEL[r.P] || r.P || "—",
-          ];
-        }),
+        body: gruposPen.map(({ rep: r, cantidad }) => [
+          String(cantidad), TIPO_LABEL_CORTO[r.L] || r.L, dimensionPenetrantePDF(r),
+          levOcultaAnular(r.L) ? "—" : formatFraccionPulgadas(r.I),
+          `${r.M} / ${r.N}`, PROD_LABEL[r.P] || r.P || "—",
+        ]),
         styles: { fontSize: 8, cellPadding: 4 },
         headStyles: { fillColor: [26, 26, 26], textColor: 255 },
         didDrawPage: dibujarCabeceraPagina,
