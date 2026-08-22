@@ -220,6 +220,7 @@ function nuevoBorradorInforme() {
     seguimientoTexto: "",
     observaciones: "",
     textoInformeManual: null,
+    planoRefs: [],
   };
 }
 function textoFinalInforme(d) {
@@ -631,6 +632,12 @@ function renderFormularioHTML() {
       </div>
 
       <div class="acr-subseccion">
+        <div class="acr-subseccion-titulo">Plano del recorrido</div>
+        <p class="hint" style="margin:0 0 8px">Anotá el recorrido o zonas revisadas sobre el plano. Las marcas son exclusivas de este informe y no afectan los pines de Levantamiento.</p>
+        ${renderSeccionPlanosHTML()}
+      </div>
+
+      <div class="acr-subseccion">
         <div class="acr-subseccion-titulo">Tipos de penetrante / juntas presentes</div>
         ${renderElementosLista()}
         ${renderSelectorElemento()}
@@ -849,6 +856,51 @@ function bindModalElementoEventos(overlay) {
 }
 
 let ACR_TEXTO_INFORME_EDITANDO = false;
+// --- Plano del recorrido ligado al informe ---
+// Abre el visor de planos en modo "capa de informe": misma imagen y calibración
+// del plano real, pero con trazos/pines propios de este informe — aislados de
+// los pines de Levantamiento y de otros informes.
+function abrirPlanoDelInforme(planoId) {
+  if (!window.abrirVisorPlanosConCapaInforme) {
+    if (window.mostrarToast) mostrarToast("El módulo de Planos no está cargado.", "error");
+    return;
+  }
+  if (!ACR_DRAFT.planoRefs) ACR_DRAFT.planoRefs = [];
+  let ref = ACR_DRAFT.planoRefs.find(r => r.planoId === planoId);
+  if (!ref) {
+    ref = { planoId, pines: [], trazos: [], rectangulos: [], lineas: [], cotas: [] };
+    ACR_DRAFT.planoRefs.push(ref);
+  }
+  window.abrirVisorPlanosConCapaInforme(planoId, ref, () => {
+    if (window.marcarCambio) marcarCambio();
+    renderAcreditacion();
+  });
+}
+
+function renderSeccionPlanosHTML() {
+  const planos = window.PLANOS || [];
+  if (!planos.length) {
+    return `<p class="hint">No hay planos cargados en este proyecto. Subí un plano PDF desde el módulo Planos y volvé acá para anotarlo.</p>`;
+  }
+  const refs = ACR_DRAFT.planoRefs || [];
+  const items = planos.map(p => {
+    const ref = refs.find(r => r.planoId === p.id);
+    const tieneAnotaciones = ref && (ref.trazos.length || ref.rectangulos.length || ref.lineas.length || ref.pines.length);
+    return `
+      <div class="acr-plano-item">
+        <img src="${p.dataUrl}" class="acr-plano-thumb" alt="${escapeHtml(p.nombre)}">
+        <div class="acr-plano-info">
+          <span class="acr-plano-nombre">${escapeHtml(p.nombre)}</span>
+          ${tieneAnotaciones ? `<span class="acr-badge acr-badge-ok">Anotado</span>` : `<span class="hint">Sin anotaciones</span>`}
+        </div>
+        <button type="button" class="secondary" data-acr-action="abrir-plano-informe" data-id="${p.id}">
+          <svg class="icon"><use href="#i-edit"/></svg>${tieneAnotaciones ? "Editar" : "Anotar"}
+        </button>
+      </div>`;
+  }).join("");
+  return `<div class="acr-planos-lista">${items}</div>`;
+}
+
 function abrirModalTextoInforme() {
   ACR_TEXTO_INFORME_EDITANDO = false;
   let overlay = document.getElementById("acr-texto-overlay");
@@ -918,8 +970,6 @@ function bindModalTextoInformeEventos(overlay) {
 }
 
 // --- Redacción del informe: gramática del informe modelo de Superba ---------
-// El sujeto de cada frase es el TIPO de elemento en plural (no el número de
-// sistema UL), igual que en el informe que se entrega en obra.
 const ACR_TIPO_PLURAL = {
   "Tubería Metal": "Las tuberías de metal",
   "Tubería Metal Aislado": "Las tuberías de metal aisladas",
@@ -942,7 +992,6 @@ const ACR_TIPO_PLURAL = {
   "Viga Canal": "Las vigas canal",
   "Viga Tubo Rectangular": "Las vigas de tubo rectangular",
 };
-// Nombre comercial en prosa, para el párrafo de "productos considerados".
 const ACR_PRODUCTO_PROSA = {
   "Pasta FS ONE MAX": "pasta intumescente FS ONE MAX",
   "FS ONE MAX": "pasta intumescente FS ONE MAX",
@@ -963,20 +1012,9 @@ const ACR_PRODUCTO_PROSA = {
   'Paso de cables MSL M 3"x4"': 'paso de cables MSL M 3"x4"',
   'Paso de cables MSL L 6"x4"': 'paso de cables MSL L 6"x4"',
 };
-function productoProsa(producto) {
-  return ACR_PRODUCTO_PROSA[producto] || producto;
-}
-// Nombre corto para citar dentro de una frase de espesor ("espesor mínimo de
-// Pasta FS ONE MAX de: 1/4""). Se deja el nombre comercial tal cual.
-function productoCorto(producto) {
-  return String(producto || "").replace(/^Sellador /, "").replace(/^Pasta /, "Pasta ");
-}
-// La coletilla "se encuentran instalados por ambos lados" solo aplica a
-// penetrantes en pared: en losa se sella por una cara, y en el informe modelo
-// ninguna frase de junta la lleva.
-function aplicaAmbosLados(el) {
-  return el.categoria === "penetrante" && el.ubicacion === "Pared";
-}
+function productoProsa(producto) { return ACR_PRODUCTO_PROSA[producto] || producto; }
+function productoCorto(producto) { return String(producto || "").replace(/^Sellador /, "").replace(/^Pasta /, "Pasta "); }
+function aplicaAmbosLados(el) { return el.categoria === "penetrante" && el.ubicacion === "Pared"; }
 function barreraFrase(el) {
   if (el.material === "Panel de Yeso") return el.ubicacion === "Pared" ? "en pared liviana" : "en entrepiso liviano";
   return el.ubicacion === "Pared" ? "en pared de concreto" : "en losa de concreto";
@@ -986,7 +1024,6 @@ function diametroFrase(el) {
   if (el.diametro === "mayor2") return " con diámetro mayor a 2 pulgadas";
   return "";
 }
-// Sujeto plural de la frase, con su género para que concuerden los participios.
 function sujetoElemento(el) {
   if (el.categoria === "penetrante") {
     const base = ACR_TIPO_PLURAL[el.tipoPenetrante] || `Los elementos de tipo ${el.tipoPenetrante}`;
@@ -997,30 +1034,20 @@ function sujetoElemento(el) {
   const pos = el.juntaPosicion && el.juntaPosicion !== "-" ? ` en posición ${el.juntaPosicion.toLowerCase()}` : "";
   return `Las juntas cortafuego de tipo ${el.juntaTipo} entre ${el.juntaBarreras}${pos}`;
 }
-function sujetoEsFemenino(sujeto) {
-  return /^Las /.test(sujeto);
-}
-// Espesor mínimo del sistema en texto. CFS SP WB se reporta en húmedo, con el
-// equivalente en seco (la mitad) entre paréntesis — confirmado por Kevin.
+function sujetoEsFemenino(sujeto) { return /^Las /.test(sujeto); }
 function espesorFrase(el) {
   if (!el.espesor) return "";
   const prod = productoCorto(el.producto);
-  if (el.producto === "CFS SP WB") {
-    return `espesor mínimo de ${prod} de: ${fraccion(el.espesor)} en húmedo (${fraccion(el.espesor / 2)} en seco)`;
-  }
+  if (el.producto === "CFS SP WB") return `espesor mínimo de ${prod} de: ${fraccion(el.espesor)} en húmedo (${fraccion(el.espesor / 2)} en seco)`;
   return `espesor mínimo de ${prod} de: ${fraccion(el.espesor)}`;
 }
-function traslapeFrase(el) {
-  return el.traslape ? ` y traslape mínimo de ${fraccion(el.traslape)}` : "";
-}
-// Criterio principal contra el que se verifica el elemento cuando SÍ cumple.
+function traslapeFrase(el) { return el.traslape ? ` y traslape mínimo de ${fraccion(el.traslape)}` : ""; }
 function criterioCumple(el) {
   if (elementoUsaCinta(el)) return "vueltas";
   const esp = espesorFrase(el);
   if (esp) return `${esp}${traslapeFrase(el)}`;
   return "instalación indicada por el sistema";
 }
-// Traducción de cada ítem del checklist de incumplimiento al texto del informe.
 function criterioNoCumple(item, el) {
   switch (item) {
     case "Espesor insuficiente respecto al mínimo del sistema": return espesorFrase(el) || "espesor mínimo";
@@ -1036,8 +1063,6 @@ function criterioNoCumple(item, el) {
     default: return null;
   }
 }
-// Ítems que no se redactan como "no cumplen con el requerimiento de X", sino
-// con una frase propia (igual que en el informe modelo).
 const ACR_ESTADO_PROPIO = {
   "Instalación pendiente (aún no ejecutada, con método/producto ya definido)": (suj) => `${suj} se encuentran con instalación pendiente.`,
   "Daño por terceros / contratistas externos, requiere reparación": (suj) => `${suj} presentan daño ocasionado por terceros y requieren reparación.`,
@@ -1050,33 +1075,25 @@ function fraseCumple(el, prefijoZona) {
 }
 function frasesNoCumple(el, estado, prefijoZona) {
   const suj = sujetoElemento(el);
-  const out = [];
-  const propios = [];
-  const criterios = [];
+  const out = [], propios = [], criterios = [];
   (estado.marcados || []).forEach((m) => {
     if (ACR_ESTADO_PROPIO[m]) { propios.push(ACR_ESTADO_PROPIO[m](prefijoZona + suj)); return; }
     const c = criterioNoCumple(m, el);
     if (c) criterios.push(c);
   });
   if (criterios.length) {
-    const recomendaciones = Array.from(new Set((estado.marcados || []).map((m) => ACR_RECOMENDACION[m]).filter(Boolean)));
-    const rec = recomendaciones.length ? ` Se recomienda ${recomendaciones.join("; ")}.` : "";
+    const recs = Array.from(new Set((estado.marcados || []).map((m) => ACR_RECOMENDACION[m]).filter(Boolean)));
+    const rec = recs.length ? ` Se recomienda ${recs.join("; ")}.` : "";
     out.push(`${prefijoZona}${suj} no cumplen con el requerimiento de ${criterios.join(", ni con el requerimiento de ")} según el sistema ${el.sistemaUL}.${rec}`);
   }
   propios.forEach((p) => out.push(p));
-  if (!out.length) {
-    out.push(`${prefijoZona}${suj} presentan un incumplimiento respecto al sistema ${el.sistemaUL}.`);
-  }
+  if (!out.length) out.push(`${prefijoZona}${suj} presentan un incumplimiento respecto al sistema ${el.sistemaUL}.`);
   if (estado.observacion) out[out.length - 1] += ` ${estado.observacion}`;
   return out;
 }
-// Recorre los elementos (por zona si aplica) y devuelve cumplimientos y
-// hallazgos por separado, con los hallazgos numerados H-01, H-02, ...
 function recorrerEstados(d, visitar) {
   if (d.checklistModo === "general" || !d.zonas.length) {
-    d.elementos.forEach((el) => {
-      visitar(el, d.checklist.general[el.id] || estadoChecklistDefault(), "");
-    });
+    d.elementos.forEach((el) => visitar(el, d.checklist.general[el.id] || estadoChecklistDefault(), ""));
     return;
   }
   d.zonas.forEach((zona) => {
@@ -1092,34 +1109,20 @@ function hayHallazgos(d) {
   return hay;
 }
 function generarTextoCumplimiento(d) {
-  if (!d.elementos.length) {
-    return "Aún no se agregaron tipos de penetrante ni juntas a este informe.";
-  }
-  const cumplen = [];
-  const hallazgos = [];
+  if (!d.elementos.length) return "Aún no se agregaron tipos de penetrante ni juntas a este informe.";
+  const cumplen = [], hallazgos = [];
   recorrerEstados(d, (el, estado, prefijo) => {
     if (estado.cumple) cumplen.push(fraseCumple(el, prefijo));
     else frasesNoCumple(el, estado, prefijo).forEach((f) => hallazgos.push(f));
   });
   const partes = [];
-  if (cumplen.length) {
-    partes.push("Cumplimientos verificados:");
-    cumplen.forEach((f) => partes.push(f));
-  }
-  if (hallazgos.length) {
-    partes.push("Hallazgos de no cumplimiento:");
-    hallazgos.forEach((f, i) => partes.push(`H-${String(i + 1).padStart(2, "0")}. ${f}`));
-  }
+  if (cumplen.length) { partes.push("Cumplimientos verificados:"); cumplen.forEach((f) => partes.push(f)); }
+  if (hallazgos.length) { partes.push("Hallazgos de no cumplimiento:"); hallazgos.forEach((f, i) => partes.push(`H-${String(i + 1).padStart(2, "0")}. ${f}`)); }
   return partes.join("\n\n");
 }
 
 function leerArchivoComoDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
 }
 function redimensionarImagenDataUrl(dataUrl, maxDim) {
   return new Promise((resolve) => {
@@ -1129,10 +1132,8 @@ function redimensionarImagenDataUrl(dataUrl, maxDim) {
       if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return; }
       const escala = Math.min(maxDim / w, maxDim / h);
       w = Math.round(w * escala); h = Math.round(h * escala);
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, w, h);
+      const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
       resolve(canvas.toDataURL("image/jpeg", 0.85));
     };
     img.onerror = () => resolve(dataUrl);
@@ -1162,10 +1163,8 @@ function abrirPromptCaption() {
   if (!ACR_CAPTION_QUEUE.length) { cerrarPromptCaption(); return; }
   let overlay = document.getElementById("acr-caption-overlay");
   if (!overlay) {
-    overlay = document.createElement("div");
-    overlay.id = "acr-caption-overlay";
-    overlay.className = "instr-modal-overlay open";
-    document.body.appendChild(overlay);
+    overlay = document.createElement("div"); overlay.id = "acr-caption-overlay";
+    overlay.className = "instr-modal-overlay open"; document.body.appendChild(overlay);
   }
   const fotoId = ACR_CAPTION_QUEUE[0];
   const foto = ACR_DRAFT.fotos.find((f) => f.id === fotoId);
@@ -1186,55 +1185,28 @@ function abrirPromptCaption() {
         </div>
       </div>
     </div>`;
-  const input = document.getElementById("acr-caption-input");
-  input.focus();
+  const input = document.getElementById("acr-caption-input"); input.focus();
   const avanzar = (guardarTexto) => {
     if (guardarTexto) foto.descripcion = input.value.trim();
     ACR_CAPTION_QUEUE.shift();
     if (ACR_CAPTION_QUEUE.length) { abrirPromptCaption(); return; }
     cerrarPromptCaption();
-    if (ACR_ALTA_FOTOS_PENDIENTES.length) continuarAltaFotos();
-    else renderAcreditacion();
+    if (ACR_ALTA_FOTOS_PENDIENTES.length) continuarAltaFotos(); else renderAcreditacion();
   };
   document.getElementById("acr-caption-omitir").addEventListener("click", () => avanzar(false));
   document.getElementById("acr-caption-guardar").addEventListener("click", () => avanzar(true));
   document.getElementById("acr-caption-cerrar").addEventListener("click", () => { ACR_CAPTION_QUEUE = []; ACR_ALTA_FOTOS_PENDIENTES = []; ACR_ALTA_TOTAL = 0; cerrarPromptCaption(); renderAcreditacion(); });
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); avanzar(true); } });
 }
-function cerrarPromptCaption() {
-  const overlay = document.getElementById("acr-caption-overlay");
-  if (overlay) overlay.remove();
-}
-function toggleSeleccionFoto(idx) {
-  const f = ACR_DRAFT.fotos[idx];
-  if (f) f.seleccionada = !f.seleccionada;
-  renderAcreditacion();
-}
-function toggleSeleccionTodas() {
-  const marcar = !todasSeleccionadas();
-  ACR_DRAFT.fotos.forEach((f) => { f.seleccionada = marcar; });
-  renderAcreditacion();
-}
-function borrarFoto(idx) {
-  ACR_DRAFT.fotos.splice(idx, 1);
-  renderAcreditacion();
-}
+function cerrarPromptCaption() { const o = document.getElementById("acr-caption-overlay"); if (o) o.remove(); }
+function toggleSeleccionFoto(idx) { const f = ACR_DRAFT.fotos[idx]; if (f) f.seleccionada = !f.seleccionada; renderAcreditacion(); }
+function toggleSeleccionTodas() { const marcar = !todasSeleccionadas(); ACR_DRAFT.fotos.forEach((f) => { f.seleccionada = marcar; }); renderAcreditacion(); }
+function borrarFoto(idx) { ACR_DRAFT.fotos.splice(idx, 1); renderAcreditacion(); }
 
 function abrirEditorFoto(fotoId, esAlta = false) {
   const foto = ACR_DRAFT.fotos.find((f) => f.id === fotoId);
   if (!foto) return;
-  ACR_FOTO_EDIT = {
-    fotoId,
-    esAlta,
-    modo: "anotar",
-    img: null,
-    rect: { left: 0, top: 0, right: 1, bottom: 1 },
-    trazos: [], trazoActual: null,
-    textos: [], textoPendiente: null,
-    color: ACR_PALETA[0],
-    grosorFrac: 0.006,
-    arrastre: null,
-  };
+  ACR_FOTO_EDIT = { fotoId, esAlta, modo: "anotar", img: null, rect: { left: 0, top: 0, right: 1, bottom: 1 }, trazos: [], trazoActual: null, textos: [], textoPendiente: null, color: ACR_PALETA[0], grosorFrac: 0.006, arrastre: null };
   ACR_VISTA = "editorFoto";
   renderAcreditacion();
 }
@@ -1247,9 +1219,7 @@ function renderEditorFotoHTML() {
         <button type="button" class="secondary ${e.modo === "texto" ? "active" : ""}" data-acr-action="editor-modo" data-modo="texto"><svg class="icon"><use href="#i-list"/></svg>Texto</button>
         <button type="button" class="secondary ${e.modo === "recortar" ? "active" : ""}" data-acr-action="editor-modo" data-modo="recortar"><svg class="icon"><use href="#i-crop"/></svg>Recortar</button>
       </div>
-      <div class="acr-editor-canvas-wrap" id="acr-editor-canvas-wrap">
-        <canvas id="acr-editor-canvas"></canvas>
-      </div>
+      <div class="acr-editor-canvas-wrap" id="acr-editor-canvas-wrap"><canvas id="acr-editor-canvas"></canvas></div>
       ${e.modo === "texto" && e.textoPendiente ? `
         <div class="acr-editor-texto-input-row">
           <input type="text" id="acr-editor-texto-input" placeholder="Escribí el texto..." autofocus>
@@ -1258,19 +1228,13 @@ function renderEditorFotoHTML() {
         </div>` : ""}
       <div class="acr-editor-controles">
         ${e.modo === "anotar" ? `
-          <div class="acr-editor-colores">
-            ${ACR_PALETA.map((c) => `<button type="button" class="acr-color-swatch ${e.color === c ? "active" : ""}" data-acr-action="editor-color" data-color="${c}" style="background:${c}"></button>`).join("")}
-          </div>
+          <div class="acr-editor-colores">${ACR_PALETA.map((c) => `<button type="button" class="acr-color-swatch ${e.color === c ? "active" : ""}" data-acr-action="editor-color" data-color="${c}" style="background:${c}"></button>`).join("")}</div>
           <button type="button" class="secondary" data-acr-action="editor-deshacer">Deshacer trazo</button>
         ` : e.modo === "texto" ? `
-          <div class="acr-editor-colores">
-            ${ACR_PALETA.map((c) => `<button type="button" class="acr-color-swatch ${e.color === c ? "active" : ""}" data-acr-action="editor-color" data-color="${c}" style="background:${c}"></button>`).join("")}
-          </div>
+          <div class="acr-editor-colores">${ACR_PALETA.map((c) => `<button type="button" class="acr-color-swatch ${e.color === c ? "active" : ""}" data-acr-action="editor-color" data-color="${c}" style="background:${c}"></button>`).join("")}</div>
           <p class="hint" style="margin:0">Tocá la foto donde querés poner el texto</p>
           <button type="button" class="secondary" data-acr-action="editor-deshacer-texto">Deshacer texto</button>
-        ` : `
-          <button type="button" class="secondary" data-acr-action="editor-reset-recorte">Reiniciar selección</button>
-        `}
+        ` : `<button type="button" class="secondary" data-acr-action="editor-reset-recorte">Reiniciar selección</button>`}
       </div>
     </div>`;
 }
@@ -1285,11 +1249,8 @@ function inicializarCanvasEditor() {
     const availW = Math.max(200, wrap.clientWidth || window.innerWidth - 20);
     const availH = Math.max(200, wrap.clientHeight || window.innerHeight - 170);
     const escala = Math.min(availW / e.img.naturalWidth, availH / e.img.naturalHeight, 1);
-    canvas.width = Math.round(e.img.naturalWidth * escala);
-    canvas.height = Math.round(e.img.naturalHeight * escala);
-    dibujarEditor();
-    ligarPunterosEditor(canvas);
-    return;
+    canvas.width = Math.round(e.img.naturalWidth * escala); canvas.height = Math.round(e.img.naturalHeight * escala);
+    dibujarEditor(); ligarPunterosEditor(canvas); return;
   }
   const img = new Image();
   img.onload = () => {
@@ -1298,97 +1259,66 @@ function inicializarCanvasEditor() {
     const availW = Math.max(200, wrap.clientWidth || window.innerWidth - 20);
     const availH = Math.max(200, wrap.clientHeight || window.innerHeight - 170);
     const escala = Math.min(availW / img.naturalWidth, availH / img.naturalHeight, 1);
-    canvas.width = Math.round(img.naturalWidth * escala);
-    canvas.height = Math.round(img.naturalHeight * escala);
-    dibujarEditor();
-    ligarPunterosEditor(canvas);
+    canvas.width = Math.round(img.naturalWidth * escala); canvas.height = Math.round(img.naturalHeight * escala);
+    dibujarEditor(); ligarPunterosEditor(canvas);
   };
   img.src = foto.dataUrl;
 }
 function dibujarTextoEnCanvas(ctx, t, W, H) {
   const tamano = Math.max(14, Math.round(W * 0.035));
-  ctx.font = `700 ${tamano}px Arial, sans-serif`;
-  ctx.textBaseline = "middle";
-  const x = t.x * W, y = t.y * H;
-  const metrics = ctx.measureText(t.texto);
+  ctx.font = `700 ${tamano}px Arial, sans-serif`; ctx.textBaseline = "middle";
+  const x = t.x * W, y = t.y * H, metrics = ctx.measureText(t.texto);
   const padX = tamano * 0.4, padY = tamano * 0.3;
   ctx.fillStyle = "rgba(0,0,0,0.55)";
   ctx.fillRect(x - padX, y - tamano / 2 - padY, metrics.width + padX * 2, tamano + padY * 2);
-  ctx.fillStyle = t.color;
-  ctx.fillText(t.texto, x, y);
+  ctx.fillStyle = t.color; ctx.fillText(t.texto, x, y);
 }
 function dibujarEditor() {
   const e = ACR_FOTO_EDIT;
   const canvas = document.getElementById("acr-editor-canvas");
   if (!canvas || !e.img) return;
-  const ctx = canvas.getContext("2d");
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
-  ctx.drawImage(e.img, 0, 0, W, H);
+  const ctx = canvas.getContext("2d"), W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H); ctx.drawImage(e.img, 0, 0, W, H);
   const trazos = e.trazoActual ? e.trazos.concat([e.trazoActual]) : e.trazos;
   trazos.forEach((t) => {
     if (!t.puntos.length) return;
-    ctx.strokeStyle = t.color;
-    ctx.lineWidth = Math.max(2, t.grosorFrac * W);
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-    ctx.beginPath();
-    t.puntos.forEach((p, i) => {
-      const x = p.x * W, y = p.y * H;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
+    ctx.strokeStyle = t.color; ctx.lineWidth = Math.max(2, t.grosorFrac * W);
+    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath();
+    t.puntos.forEach((p, i) => { const x = p.x * W, y = p.y * H; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
     ctx.stroke();
   });
   e.textos.forEach((t) => dibujarTextoEnCanvas(ctx, t, W, H));
   if (e.modo === "texto" && e.textoPendiente) {
-    ctx.beginPath();
-    ctx.arc(e.textoPendiente.x * W, e.textoPendiente.y * H, 6, 0, Math.PI * 2);
-    ctx.fillStyle = e.color;
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(e.textoPendiente.x * W, e.textoPendiente.y * H, 6, 0, Math.PI * 2);
+    ctx.fillStyle = e.color; ctx.fill();
   }
   if (e.modo === "recortar") {
-    const r = e.rect;
-    const rx = r.left * W, ry = r.top * H, rw = (r.right - r.left) * W, rh = (r.bottom - r.top) * H;
-    ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(0, 0, W, H);
-    ctx.clearRect(rx, ry, rw, rh);
+    const r = e.rect, rx = r.left * W, ry = r.top * H, rw = (r.right - r.left) * W, rh = (r.bottom - r.top) * H;
+    ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(0, 0, W, H); ctx.clearRect(rx, ry, rw, rh);
     ctx.drawImage(e.img, r.left * e.img.naturalWidth, r.top * e.img.naturalHeight, (r.right - r.left) * e.img.naturalWidth, (r.bottom - r.top) * e.img.naturalHeight, rx, ry, rw, rh);
-    ctx.restore();
-    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.strokeRect(rx, ry, rw, rh);
-    const hs = 9;
-    ctx.fillStyle = "#ffffff";
-    [[rx, ry], [rx + rw, ry], [rx + rw, ry + rh], [rx, ry + rh]].forEach(([hx, hy]) => {
-      ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
-    });
+    ctx.restore(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.strokeRect(rx, ry, rw, rh);
+    const hs = 9; ctx.fillStyle = "#ffffff";
+    [[rx, ry], [rx + rw, ry], [rx + rw, ry + rh], [rx, ry + rh]].forEach(([hx, hy]) => ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs));
   }
 }
 function ligarPunterosEditor(canvas) {
   function coordsFrac(evt) {
     const rect = canvas.getBoundingClientRect();
-    const xf = (evt.clientX - rect.left) / rect.width;
-    const yf = (evt.clientY - rect.top) / rect.height;
-    return { x: Math.max(0, Math.min(1, xf)), y: Math.max(0, Math.min(1, yf)) };
+    return { x: Math.max(0, Math.min(1, (evt.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (evt.clientY - rect.top) / rect.height)) };
   }
   function handleCercano(p) {
     const e = ACR_FOTO_EDIT, r = e.rect, tol = 0.035;
     const esquinas = { tl: { x: r.left, y: r.top }, tr: { x: r.right, y: r.top }, br: { x: r.right, y: r.bottom }, bl: { x: r.left, y: r.bottom } };
-    for (const k in esquinas) {
-      if (Math.abs(p.x - esquinas[k].x) < tol && Math.abs(p.y - esquinas[k].y) < tol) return k;
-    }
+    for (const k in esquinas) if (Math.abs(p.x - esquinas[k].x) < tol && Math.abs(p.y - esquinas[k].y) < tol) return k;
     return null;
   }
   canvas.addEventListener("pointerdown", (evt) => {
     evt.preventDefault();
-    const e = ACR_FOTO_EDIT;
-    const p = coordsFrac(evt);
+    const e = ACR_FOTO_EDIT, p = coordsFrac(evt);
     canvas.setPointerCapture(evt.pointerId);
-    if (e.modo === "anotar") {
-      e.trazoActual = { color: e.color, grosorFrac: e.grosorFrac, puntos: [p] };
-    } else if (e.modo === "texto") {
-      e.textoPendiente = p;
-      dibujarEditor();
-      renderAcreditacion();
-    } else {
+    if (e.modo === "anotar") { e.trazoActual = { color: e.color, grosorFrac: e.grosorFrac, puntos: [p] }; }
+    else if (e.modo === "texto") { e.textoPendiente = p; dibujarEditor(); renderAcreditacion(); }
+    else {
       const h = handleCercano(p);
       if (h) { e.arrastre = { tipo: "handle", handle: h }; }
       else if (p.x > e.rect.left && p.x < e.rect.right && p.y > e.rect.top && p.y < e.rect.bottom) {
@@ -1398,18 +1328,13 @@ function ligarPunterosEditor(canvas) {
   }, { passive: false });
   canvas.addEventListener("pointermove", (evt) => {
     const e = ACR_FOTO_EDIT;
-    if (e.modo === "anotar" && e.trazoActual) {
+    if (e.modo === "anotar" && e.trazoActual) { evt.preventDefault(); e.trazoActual.puntos.push(coordsFrac(evt)); dibujarEditor(); }
+    else if (e.modo === "recortar" && e.arrastre) {
       evt.preventDefault();
-      e.trazoActual.puntos.push(coordsFrac(evt));
-      dibujarEditor();
-    } else if (e.modo === "recortar" && e.arrastre) {
-      evt.preventDefault();
-      const p = coordsFrac(evt);
-      const r = e.rect;
+      const p = coordsFrac(evt), r = e.rect;
       if (e.arrastre.tipo === "mover") {
         let nl = p.x - e.arrastre.offX, nt = p.y - e.arrastre.offY;
-        nl = Math.max(0, Math.min(1 - e.arrastre.w, nl));
-        nt = Math.max(0, Math.min(1 - e.arrastre.h, nt));
+        nl = Math.max(0, Math.min(1 - e.arrastre.w, nl)); nt = Math.max(0, Math.min(1 - e.arrastre.h, nt));
         r.left = nl; r.top = nt; r.right = nl + e.arrastre.w; r.bottom = nt + e.arrastre.h;
       } else {
         const h = e.arrastre.handle;
@@ -1422,76 +1347,46 @@ function ligarPunterosEditor(canvas) {
       dibujarEditor();
     }
   }, { passive: false });
-  function terminar(evt) {
-    const e = ACR_FOTO_EDIT;
-    if (e.modo === "anotar" && e.trazoActual) {
-      if (e.trazoActual.puntos.length > 1) e.trazos.push(e.trazoActual);
-      e.trazoActual = null;
-    }
-    e.arrastre = null;
-  }
+  function terminar() { const e = ACR_FOTO_EDIT; if (e.modo === "anotar" && e.trazoActual) { if (e.trazoActual.puntos.length > 1) e.trazos.push(e.trazoActual); e.trazoActual = null; } e.arrastre = null; }
   canvas.addEventListener("pointerup", terminar);
   canvas.addEventListener("pointercancel", terminar);
 }
 function colocarTextoPendiente() {
-  const e = ACR_FOTO_EDIT;
-  const input = document.getElementById("acr-editor-texto-input");
-  const texto = input ? input.value.trim() : "";
-  if (texto && e.textoPendiente) {
-    e.textos.push({ x: e.textoPendiente.x, y: e.textoPendiente.y, texto, color: e.color });
-  }
-  e.textoPendiente = null;
-  renderAcreditacion();
+  const e = ACR_FOTO_EDIT, input = document.getElementById("acr-editor-texto-input"), texto = input ? input.value.trim() : "";
+  if (texto && e.textoPendiente) e.textos.push({ x: e.textoPendiente.x, y: e.textoPendiente.y, texto, color: e.color });
+  e.textoPendiente = null; renderAcreditacion();
 }
 function finalizarEdicionFoto() {
-  const e = ACR_FOTO_EDIT;
-  const foto = ACR_DRAFT.fotos.find((f) => f.id === e.fotoId);
-  if (!foto || !e.img) {
-    ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null;
-    seguirFlujoTrasEditor(e.esAlta, e.fotoId);
-    return;
-  }
+  const e = ACR_FOTO_EDIT, foto = ACR_DRAFT.fotos.find((f) => f.id === e.fotoId);
+  if (!foto || !e.img) { ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; seguirFlujoTrasEditor(e.esAlta, e.fotoId); return; }
   const W = e.img.naturalWidth, H = e.img.naturalHeight;
-  const base = document.createElement("canvas");
-  base.width = W; base.height = H;
-  const bctx = base.getContext("2d");
-  bctx.drawImage(e.img, 0, 0, W, H);
+  const base = document.createElement("canvas"); base.width = W; base.height = H;
+  const bctx = base.getContext("2d"); bctx.drawImage(e.img, 0, 0, W, H);
   e.trazos.forEach((t) => {
     if (!t.puntos.length) return;
-    bctx.strokeStyle = t.color;
-    bctx.lineWidth = Math.max(2, t.grosorFrac * W);
-    bctx.lineCap = "round"; bctx.lineJoin = "round";
-    bctx.beginPath();
-    t.puntos.forEach((p, i) => {
-      const x = p.x * W, y = p.y * H;
-      if (i === 0) bctx.moveTo(x, y); else bctx.lineTo(x, y);
-    });
+    bctx.strokeStyle = t.color; bctx.lineWidth = Math.max(2, t.grosorFrac * W);
+    bctx.lineCap = "round"; bctx.lineJoin = "round"; bctx.beginPath();
+    t.puntos.forEach((p, i) => { const x = p.x * W, y = p.y * H; if (i === 0) bctx.moveTo(x, y); else bctx.lineTo(x, y); });
     bctx.stroke();
   });
   e.textos.forEach((t) => dibujarTextoEnCanvas(bctx, t, W, H));
-  const r = e.rect;
-  const sx = r.left * W, sy = r.top * H, sw = (r.right - r.left) * W, sh = (r.bottom - r.top) * H;
+  const r = e.rect, sx = r.left * W, sy = r.top * H, sw = (r.right - r.left) * W, sh = (r.bottom - r.top) * H;
   let finalDataUrl;
   if (sw < W - 1 || sh < H - 1) {
-    const crop = document.createElement("canvas");
-    crop.width = Math.max(1, Math.round(sw)); crop.height = Math.max(1, Math.round(sh));
+    const crop = document.createElement("canvas"); crop.width = Math.max(1, Math.round(sw)); crop.height = Math.max(1, Math.round(sh));
     crop.getContext("2d").drawImage(base, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
     finalDataUrl = crop.toDataURL("image/jpeg", 0.9);
-  } else {
-    finalDataUrl = base.toDataURL("image/jpeg", 0.9);
-  }
+  } else { finalDataUrl = base.toDataURL("image/jpeg", 0.9); }
   foto.dataUrl = finalDataUrl;
   const esAlta = e.esAlta, fotoId = e.fotoId;
-  ACR_VISTA = "galeria";
-  ACR_FOTO_EDIT = null;
+  ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null;
   seguirFlujoTrasEditor(esAlta, fotoId);
 }
 function seguirFlujoTrasEditor(esAlta, fotoId) {
   if (!esAlta) { renderAcreditacion(); return; }
   const idx = ACR_ALTA_FOTOS_PENDIENTES.indexOf(fotoId);
   if (idx !== -1) ACR_ALTA_FOTOS_PENDIENTES.splice(idx, 1);
-  ACR_CAPTION_QUEUE = [fotoId];
-  abrirPromptCaption();
+  ACR_CAPTION_QUEUE = [fotoId]; abrirPromptCaption();
 }
 
 function bindCamposTexto(cont) {
@@ -1499,45 +1394,26 @@ function bindCamposTexto(cont) {
     const campo = el.getAttribute("data-acr-field");
     const evento = (el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date") ? "change" : "input";
     el.addEventListener(evento, () => {
-      const idx = el.getAttribute("data-idx");
-      const elid = el.getAttribute("data-elid");
-      const zona = el.getAttribute("data-zona") || null;
-      if (campo === "foto-descripcion") {
-        if (ACR_DRAFT.fotos[idx]) ACR_DRAFT.fotos[idx].descripcion = el.value;
-      } else if (campo === "acompanante-nombre") {
-        if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].nombre = el.value;
-      } else if (campo === "acompanante-cargo") {
-        if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].cargo = el.value;
-      } else if (campo === "checklist-observacion") {
-        const estado = obtenerEstadoChecklist(elid, zona);
-        estado.observacion = el.value;
-      } else if (campo === "esSeguimiento") {
-        ACR_DRAFT.esSeguimiento = el.checked;
-        renderAcreditacion();
-      } else {
-        ACR_DRAFT[campo] = el.value;
-      }
+      const idx = el.getAttribute("data-idx"), elid = el.getAttribute("data-elid"), zona = el.getAttribute("data-zona") || null;
+      if (campo === "foto-descripcion") { if (ACR_DRAFT.fotos[idx]) ACR_DRAFT.fotos[idx].descripcion = el.value; }
+      else if (campo === "acompanante-nombre") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].nombre = el.value; }
+      else if (campo === "acompanante-cargo") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].cargo = el.value; }
+      else if (campo === "checklist-observacion") { obtenerEstadoChecklist(elid, zona).observacion = el.value; }
+      else if (campo === "esSeguimiento") { ACR_DRAFT.esSeguimiento = el.checked; renderAcreditacion(); }
+      else { ACR_DRAFT[campo] = el.value; }
     });
   });
   const inputZona = document.getElementById("acr-input-zona");
-  if (inputZona) {
-    inputZona.addEventListener("keydown", (evt) => {
-      if (evt.key === "Enter") { evt.preventDefault(); agregarZonaDesdeInput(); }
-    });
-  }
+  if (inputZona) inputZona.addEventListener("keydown", (evt) => { if (evt.key === "Enter") { evt.preventDefault(); agregarZonaDesdeInput(); } });
   const inputFotos = document.getElementById("acr-input-fotos");
   if (inputFotos) inputFotos.addEventListener("change", (evt) => { agregarFotosDesdeArchivos(evt.target.files); evt.target.value = ""; });
   const inputTexto = document.getElementById("acr-editor-texto-input");
-  if (inputTexto) {
-    inputTexto.focus();
-    inputTexto.addEventListener("keydown", (evt) => { if (evt.key === "Enter") { evt.preventDefault(); colocarTextoPendiente(); } });
-  }
+  if (inputTexto) { inputTexto.focus(); inputTexto.addEventListener("keydown", (evt) => { if (evt.key === "Enter") { evt.preventDefault(); colocarTextoPendiente(); } }); }
 }
 function agregarZonaDesdeInput() {
   const input = document.getElementById("acr-input-zona");
   if (!input || !input.value.trim()) return;
-  ACR_DRAFT.zonas.push(input.value.trim());
-  renderAcreditacion();
+  ACR_DRAFT.zonas.push(input.value.trim()); renderAcreditacion();
 }
 function attachEventos(overlay) {
   const btnVolver = document.getElementById("acr-btn-volver");
@@ -1572,49 +1448,21 @@ function attachEventos(overlay) {
     else if (accion === "siguiente-a-form") { ACR_VISTA = "form"; renderAcreditacion(); }
     else if (accion === "toggle-datos-generales") { ACR_DATOS_GENERALES_ABIERTO = !ACR_DATOS_GENERALES_ABIERTO; renderAcreditacion(); }
     else if (accion === "agregar-acompanante") { ACR_DRAFT.acompanantes.push({ nombre: "", cargo: "" }); renderAcreditacion(); }
-    else if (accion === "repetir-acompanantes") {
-      const anterior = ultimoInformeGuardado();
-      if (anterior && anterior.acompanantes.length) ACR_DRAFT.acompanantes = JSON.parse(JSON.stringify(anterior.acompanantes));
-      renderAcreditacion();
-    }
+    else if (accion === "repetir-acompanantes") { const anterior = ultimoInformeGuardado(); if (anterior && anterior.acompanantes.length) ACR_DRAFT.acompanantes = JSON.parse(JSON.stringify(anterior.acompanantes)); renderAcreditacion(); }
     else if (accion === "quitar-acompanante") { ACR_DRAFT.acompanantes.splice(idx, 1); renderAcreditacion(); }
     else if (accion === "agregar-zona") agregarZonaDesdeInput();
-    else if (accion === "quitar-zona") {
-      const zonaBorrada = ACR_DRAFT.zonas[idx];
-      ACR_DRAFT.zonas.splice(idx, 1);
-      if (zonaBorrada) delete ACR_DRAFT.checklist.porZona[zonaBorrada];
-      renderAcreditacion();
-    }
+    else if (accion === "quitar-zona") { const z = ACR_DRAFT.zonas[idx]; ACR_DRAFT.zonas.splice(idx, 1); if (z) delete ACR_DRAFT.checklist.porZona[z]; renderAcreditacion(); }
+    else if (accion === "abrir-plano-informe") abrirPlanoDelInforme(id);
     else if (accion === "abrir-elemento-penetrante") abrirModalElemento("penetrante", null);
     else if (accion === "abrir-elemento-junta") abrirModalElemento("junta", null);
     else if (accion === "precargar-levantamiento") precargarElementosDesdeLevantamiento();
     else if (accion === "editar-elemento") abrirModalElemento(null, id);
-    else if (accion === "quitar-elemento") {
-      ACR_DRAFT.elementos = ACR_DRAFT.elementos.filter((e) => e.id !== id);
-      delete ACR_DRAFT.checklist.general[id];
-      Object.values(ACR_DRAFT.checklist.porZona).forEach((z) => delete z[id]);
-      renderAcreditacion();
-    }
+    else if (accion === "quitar-elemento") { ACR_DRAFT.elementos = ACR_DRAFT.elementos.filter((e) => e.id !== id); delete ACR_DRAFT.checklist.general[id]; Object.values(ACR_DRAFT.checklist.porZona).forEach((z) => delete z[id]); renderAcreditacion(); }
     else if (accion === "checklist-modo") { ACR_DRAFT.checklistModo = btn.getAttribute("data-modo"); renderAcreditacion(); }
     else if (accion === "cambiar-zona-activa") { ACR_ZONA_ACTIVA = btn.getAttribute("data-zona"); renderAcreditacion(); }
-    else if (accion === "toggle-cumple") {
-      const estado = obtenerEstadoChecklist(elid, zona);
-      estado.cumple = !estado.cumple;
-      estado.marcados = [];
-      renderAcreditacion();
-    }
-    else if (accion === "toggle-check") {
-      const estado = obtenerEstadoChecklist(elid, zona);
-      const item = btn.getAttribute("data-item");
-      const i = estado.marcados.indexOf(item);
-      if (i === -1) estado.marcados.push(item); else estado.marcados.splice(i, 1);
-      renderAcreditacion();
-    }
-    else if (accion === "toggle-expandir-checklist") {
-      const clave = claveChecklist(elid, zona);
-      if (ACR_CHECKLIST_EXPANDIDO.has(clave)) ACR_CHECKLIST_EXPANDIDO.delete(clave); else ACR_CHECKLIST_EXPANDIDO.add(clave);
-      renderAcreditacion();
-    }
+    else if (accion === "toggle-cumple") { const estado = obtenerEstadoChecklist(elid, zona); estado.cumple = !estado.cumple; estado.marcados = []; renderAcreditacion(); }
+    else if (accion === "toggle-check") { const estado = obtenerEstadoChecklist(elid, zona); const item = btn.getAttribute("data-item"); const i = estado.marcados.indexOf(item); if (i === -1) estado.marcados.push(item); else estado.marcados.splice(i, 1); renderAcreditacion(); }
+    else if (accion === "toggle-expandir-checklist") { const clave = claveChecklist(elid, zona); if (ACR_CHECKLIST_EXPANDIDO.has(clave)) ACR_CHECKLIST_EXPANDIDO.delete(clave); else ACR_CHECKLIST_EXPANDIDO.add(clave); renderAcreditacion(); }
     else if (accion === "abrir-observacion") { ACR_OBSERVACION_ABIERTA.add(claveChecklist(elid, zona)); renderAcreditacion(); }
     else if (accion === "abrir-texto-informe") abrirModalTextoInforme();
     else if (accion === "editor-modo") { ACR_FOTO_EDIT.modo = btn.getAttribute("data-modo"); renderAcreditacion(); }
@@ -1631,77 +1479,38 @@ function attachEventos(overlay) {
 function confirmarNuevoElemento() {
   const f = ACR_ELEMENTO_FORM;
   const completo = f.categoria === "penetrante" ? !!f.producto : !!(f.tipo && f.barreras && f.posicion && f.producto);
-  if (!completo) {
-    if (window.mostrarToast) mostrarToast("Completá la selección antes de añadir.", "error");
-    return;
-  }
+  if (!completo) { if (window.mostrarToast) mostrarToast("Completá la selección antes de añadir.", "error"); return; }
   let nuevoElemento;
   if (f.categoria === "penetrante") {
     const opciones = opcionesProductoPenetrante(f.material, f.tipo, f.ubicacion, f.espacioAnular, f.diametro);
     const encontrado = opciones.find((o) => o.producto === f.producto);
-    if (!encontrado) {
-      if (window.mostrarToast) mostrarToast("No se pudo agregar — probá elegir el producto de nuevo.", "error");
-      console.error("confirmarNuevoElemento: no se encontró el producto en las opciones", f);
-      return;
-    }
-    nuevoElemento = {
-      id: ACR_ELEMENTO_EDITANDO_ID != null ? ACR_ELEMENTO_EDITANDO_ID : Date.now() + Math.random(),
-      categoria: "penetrante", subtipo: null,
-      material: f.material, tipoPenetrante: f.tipo, ubicacion: f.ubicacion, espacioAnular: f.espacioAnular, diametro: f.diametro || null,
-      producto: f.producto, sistemaUL: encontrado.sistemaUL, espesor: encontrado.espesor, traslape: null,
-    };
+    if (!encontrado) { if (window.mostrarToast) mostrarToast("No se pudo agregar — probá elegir el producto de nuevo.", "error"); return; }
+    nuevoElemento = { id: ACR_ELEMENTO_EDITANDO_ID != null ? ACR_ELEMENTO_EDITANDO_ID : Date.now() + Math.random(), categoria: "penetrante", subtipo: null, material: f.material, tipoPenetrante: f.tipo, ubicacion: f.ubicacion, espacioAnular: f.espacioAnular, diametro: f.diametro || null, producto: f.producto, sistemaUL: encontrado.sistemaUL, espesor: encontrado.espesor, traslape: null };
   } else {
     const junta = window.juntaParaTipo ? window.juntaParaTipo(f.tipo) : null;
     const fila = resolverFilaJunta(junta, f.tipo, f.barreras, f.posicion, f.producto);
-    if (!fila) {
-      if (window.mostrarToast) mostrarToast("No se pudo agregar — probá elegir el producto de nuevo.", "error");
-      console.error("confirmarNuevoElemento: no se encontró la fila de JUNTAS_TABLE", f);
-      return;
-    }
-    nuevoElemento = {
-      id: ACR_ELEMENTO_EDITANDO_ID != null ? ACR_ELEMENTO_EDITANDO_ID : Date.now() + Math.random(),
-      categoria: "junta", subtipo: f.tipo === "Muro Cortina" ? "muro_cortina" : "interior",
-      juntaTipo: f.tipo, juntaBarreras: f.barreras, juntaPosicion: f.posicion, producto: f.producto,
-      sistemaUL: fila.sis, espesor: fila.esp, traslape: fila.tras || null,
-    };
+    if (!fila) { if (window.mostrarToast) mostrarToast("No se pudo agregar — probá elegir el producto de nuevo.", "error"); return; }
+    nuevoElemento = { id: ACR_ELEMENTO_EDITANDO_ID != null ? ACR_ELEMENTO_EDITANDO_ID : Date.now() + Math.random(), categoria: "junta", subtipo: f.tipo === "Muro Cortina" ? "muro_cortina" : "interior", juntaTipo: f.tipo, juntaBarreras: f.barreras, juntaPosicion: f.posicion, producto: f.producto, sistemaUL: fila.sis, espesor: fila.esp, traslape: fila.tras || null };
   }
-  if (ACR_ELEMENTO_EDITANDO_ID != null) {
-    const idx = ACR_DRAFT.elementos.findIndex((e) => e.id === ACR_ELEMENTO_EDITANDO_ID);
-    if (idx !== -1) ACR_DRAFT.elementos[idx] = nuevoElemento;
-  } else {
-    ACR_DRAFT.elementos.push(nuevoElemento);
-  }
+  if (ACR_ELEMENTO_EDITANDO_ID != null) { const idx = ACR_DRAFT.elementos.findIndex((e) => e.id === ACR_ELEMENTO_EDITANDO_ID); if (idx !== -1) ACR_DRAFT.elementos[idx] = nuevoElemento; }
+  else ACR_DRAFT.elementos.push(nuevoElemento);
   if (window.mostrarToast) mostrarToast(ACR_ELEMENTO_EDITANDO_ID != null ? "Cambios guardados." : "Agregado.");
-  cerrarModalElemento();
-  renderAcreditacion();
+  cerrarModalElemento(); renderAcreditacion();
 }
 
-// --- Armado del cuerpo del informe (bloques) -------------------------------
-// Devuelve una lista de bloques {t, ...} que el generador de PDF dibuja en
-// orden. Tipos: "p" (párrafo justificado), "pIzq" (párrafo sin justificar),
-// "titulo" (negrita), "lista" (viñetas), "espacio".
-function normaOrganismo(el) {
-  return normaParaSubtipo(el.categoria, el.subtipo);
-}
+// --- Armado del cuerpo del informe (bloques) ---
+function normaOrganismo(el) { return normaParaSubtipo(el.categoria, el.subtipo); }
 function elementosPorNorma(informe, filtro) {
-  const vistos = new Set();
-  const out = [];
-  informe.elementos.filter(filtro).forEach((el) => {
-    if (vistos.has(el.sistemaUL)) return;
-    vistos.add(el.sistemaUL);
-    out.push(el);
-  });
+  const vistos = new Set(), out = [];
+  informe.elementos.filter(filtro).forEach((el) => { if (vistos.has(el.sistemaUL)) return; vistos.add(el.sistemaUL); out.push(el); });
   return out;
 }
-// "W-J-2072. Tuberías combustibles (PVC…) con diámetro menor a 2 pulgadas en
-// pared liviana" — descripción corta del sistema para la lista de arriba.
 function descripcionSistemaUL(el) {
   const suj = sujetoElemento(el).replace(/^(Las|Los) /, "");
   return `${el.sistemaUL}. ${suj.charAt(0).toUpperCase()}${suj.slice(1)}`;
 }
 function parrafoProductos(elementos) {
-  const productos = new Set();
-  let lana = false;
+  const productos = new Set(); let lana = false;
   elementos.forEach((el) => {
     productos.add(productoProsa(el.producto));
     if (el.categoria === "penetrante" && elementoUsaLanaMineral(el)) lana = true;
@@ -1722,22 +1531,16 @@ function frasePersonas(informe) {
 }
 function construirBloquesInforme(informe) {
   const b = [];
-  const push = (t, v, extra) => b.push(Object.assign({ t: t }, typeof v === "string" ? { texto: v } : { items: v }, extra || {}));
-
-  push("pIzq", "A quien concierna");
-  push("pIzq", "Estimados presentes,");
-
+  const push = (t, v, extra) => b.push(Object.assign({ t }, typeof v === "string" ? { texto: v } : { items: v }, extra || {}));
+  push("pIzq", "A quien concierna"); push("pIzq", "Estimados presentes,");
   let intro = `Este informe tiene el propósito de servir como reporte de acreditación del avance de la instalación de los sellos cortafuego para el proyecto "${informe.proyecto || "—"}"`;
   if (informe.ubicacion) intro += `, ubicado en "${informe.ubicacion}"`;
   if (informe.cliente) intro += `, a cargo del contratista "${informe.cliente}"`;
   if (informe.empresaInstaladora) intro += ` e instalado por "${informe.empresaInstaladora}"`;
   intro += ".";
   intro += frasePersonas(informe);
-  if (informe.zonas && informe.zonas.length) {
-    intro += ` El recorrido de revisión se realiza en ${informe.zonas.join(", ")}.`;
-  }
+  if (informe.zonas && informe.zonas.length) intro += ` El recorrido de revisión se realiza en ${informe.zonas.join(", ")}.`;
   push("p", intro);
-
   const penetrantes = elementosPorNorma(informe, (el) => el.categoria === "penetrante");
   if (penetrantes.length) {
     push("p", "Los sistemas de sellos cortafuegos de penetrantes listados por UL 1479 (ASTM E814) considerados en las revisiones realizadas durante la visita son los siguientes:");
@@ -1757,10 +1560,8 @@ function construirBloquesInforme(informe) {
     push("p", "Los sistemas de sellos cortafuegos de juntas listados por ASTM E2307 (Intertek o UL) considerados en las revisiones realizadas durante la visita son los siguientes:");
     push("lista", muroCortina.map(descripcionSistemaUL));
   }
-
   push("titulo", "Las revisiones");
   push("p", "Las revisiones evidenciadas en el presente informe se realizan durante el recorrido de forma aleatoria con pruebas destructivas o mediciones en sitio que verifiquen las condiciones del sello cortafuego instalado con respecto a los mínimos indicados por los sistemas UL anteriormente listados. Se incluyen en anexos fotos del recorrido como referencia visual del estado de los requerimientos mínimos solicitados por los ensambles.");
-
   push("titulo", "Resultado de la inspección:");
   if (informe.observaciones) push("p", informe.observaciones);
   textoFinalInforme(informe).split("\n\n").forEach((parrafo) => {
@@ -1769,36 +1570,26 @@ function construirBloquesInforme(informe) {
     if (limpio === "Cumplimientos verificados:" || limpio === "Hallazgos de no cumplimiento:") push("titulo", limpio, { pequeno: true });
     else push("p", limpio);
   });
-
   if (informe.esSeguimiento) {
     let seg = "Se verifica que las recomendaciones y hallazgos de no cumplimiento en visitas anteriores al proyecto han sido trabajados por el personal para cumplir con los requerimientos mínimos de los ensambles.";
     if (informe.seguimientoTexto) seg += ` ${informe.seguimientoTexto}`;
     push("p", seg);
   }
-
-  if (hayHallazgos(informe)) {
-    push("p", "Con base en lo anterior se comprueba que, a la fecha de la visita del presente informe, la instalación de los productos y sistemas debe mejorarse conforme a los hallazgos de incumplimiento comentados anteriormente. Se realizarán visitas posteriores para verificar la corrección en los puntos que se requieran para lograr el cumplimiento.");
-  } else {
-    push("p", "Con base en lo anterior se comprueba que, a la fecha de la visita del presente informe, el avance en la instalación de los productos y sistemas se mantiene de forma correcta conforme a los lineamientos y espesores indicados en los sistemas seleccionados respaldados por las normas ASTM y UL.");
-  }
-
+  if (hayHallazgos(informe)) push("p", "Con base en lo anterior se comprueba que, a la fecha de la visita del presente informe, la instalación de los productos y sistemas debe mejorarse conforme a los hallazgos de incumplimiento comentados anteriormente. Se realizarán visitas posteriores para verificar la corrección en los puntos que se requieran para lograr el cumplimiento.");
+  else push("p", "Con base en lo anterior se comprueba que, a la fecha de la visita del presente informe, el avance en la instalación de los productos y sistemas se mantiene de forma correcta conforme a los lineamientos y espesores indicados en los sistemas seleccionados respaldados por las normas ASTM y UL.");
   push("p", "A todo aquel que concierne, se recuerda que la compartimentación se debe realizar de forma integral y este informe se limita a la revisión de los sellos cortafuego en el alcance del contratista acá mencionado. La compartimentación se constituye de barreras cortafuego como paredes y losas, puertas y ventanas cortafuego, sellos cortafuego de pasantes que atraviesen las barreras y sellos cortafuego de juntas entre las barreras de distintos materiales; por lo que, para garantizar un adecuado comportamiento integral de la compartimentación, cualquier sello adicional de otro contratista debe estar presente con su respectiva normativa de respaldo.");
   push("p", "El presente informe refleja el estado de los sellos cortafuego observado a la fecha de la visita indicada y no cubre condiciones, modificaciones o daños ocasionados con posterioridad a esa fecha, ya sea por otros contratistas o por trabajos subsecuentes en el proyecto.");
   push("p", "Agradecemos la confianza depositada en Superba para velar por el cumplimiento de la compartimentación diseñada y quedamos atentos a cualquier duda o necesidad que pueda surgir en este respecto.");
   return b;
 }
 
-// Link del PDF del sistema UL de un elemento, resuelto contra las tablas
-// (no se guarda en el elemento, para no romper informes ya guardados).
 function linkSistemaDeElemento(el) {
   try {
     if (el.categoria === "penetrante") {
       const ap = el.espacioAnular ? "Otro" : 0;
       const row = window.MAIN_TABLE ? window.MAIN_TABLE[window.dbKey(el.material, el.tipoPenetrante, el.ubicacion, ap, el.producto)] : null;
       if (!row) return null;
-      for (let i = 1; i < row.length; i += 2) {
-        if (row[i] === el.sistemaUL) return row[i + 1] || null;
-      }
+      for (let i = 1; i < row.length; i += 2) { if (row[i] === el.sistemaUL) return row[i + 1] || null; }
       return row[2] || null;
     }
     const junta = window.juntaParaTipo ? window.juntaParaTipo(el.juntaTipo) : null;
@@ -1807,12 +1598,9 @@ function linkSistemaDeElemento(el) {
   } catch (e) { return null; }
 }
 
-// Descarga los bytes de un PDF remoto (sistema UL) para adjuntarlo al informe.
-// Se implementa acá y no se reusa el de pdf-submittal para que este módulo no
-// dependa de otro archivo: así el informe de acreditación vive en un solo lugar.
 async function bytesPDFRemoto(url) {
   const u = String(url || "");
-  if (!u || /drive\.google\.com/.test(u)) return null; // Drive bloquea por CORS
+  if (!u || /drive\.google\.com/.test(u)) return null;
   try {
     const resp = await fetch(u, { mode: "cors" });
     if (!resp.ok) return null;
@@ -1820,9 +1608,7 @@ async function bytesPDFRemoto(url) {
     if (bytes.length < 5) return null;
     const firma = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]);
     return firma === "%PDF-" ? bytes : null;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
 async function generarPDFInformeAcreditacion(informeId) {
@@ -1834,124 +1620,74 @@ async function generarPDFInformeAcreditacion(informeId) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "portrait" });
     const titulo = "Informe de Acreditación de Sellos Cortafuego";
-    const marginL = 72, anchoTexto = 468; // 1" de margen a cada lado
-    const FS = 10.5, LH = 14;
+    const marginL = 72, anchoTexto = 468, FS = 10.5, LH = 14;
     let safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 };
     let y = safe.top;
-
-    function nuevaPagina() {
-      doc.addPage();
-      safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 };
-      y = safe.top;
-    }
+    function nuevaPagina() { doc.addPage(); safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 }; y = safe.top; }
     function asegurar(alto) { if (y + alto > safe.bottom) nuevaPagina(); }
-    // Justificación manual palabra por palabra. NO se usa el `align:"justify"`
-    // de jsPDF: al pasarle `maxWidth` vuelve a partir la línea internamente y
-    // dibuja los pedazos encimados en la misma `y` (bug real, visto en el
-    // corte de página del informe de prueba).
     function dibujarLineaJustificada(linea, x, yy, ancho) {
       const palabras = String(linea).split(" ").filter((p) => p.length);
       if (palabras.length < 2) { doc.text(linea, x, yy); return; }
       const anchoPalabras = palabras.reduce((a, p) => a + doc.getTextWidth(p), 0);
       const espacio = (ancho - anchoPalabras) / (palabras.length - 1);
-      // Si el hueco entre palabras se dispara (línea muy corta), no justificar:
-      // queda con "ríos" blancos y se lee peor que alineada a la izquierda.
       if (espacio > doc.getTextWidth(" ") * 4) { doc.text(linea, x, yy); return; }
-      let cx = x;
-      palabras.forEach((p) => { doc.text(p, cx, yy); cx += doc.getTextWidth(p) + espacio; });
+      let cx = x; palabras.forEach((p) => { doc.text(p, cx, yy); cx += doc.getTextWidth(p) + espacio; });
     }
-    // Párrafo: todas las líneas menos la última se estiran al ancho de la caja.
     function escribirParrafo(texto, opts) {
       opts = opts || {};
-      const ancho = opts.ancho || anchoTexto;
-      const x = opts.x || marginL;
+      const ancho = opts.ancho || anchoTexto, x = opts.x || marginL;
       doc.setFont("helvetica", opts.negrita ? "bold" : (opts.italica ? "italic" : "normal"));
       doc.setFontSize(opts.size || FS);
       const lineas = doc.splitTextToSize(String(texto == null ? "" : texto), ancho);
       lineas.forEach((linea, i) => {
         asegurar(LH);
         const ultima = i === lineas.length - 1;
-        if (opts.justificar && !ultima) dibujarLineaJustificada(linea, x, y, ancho);
-        else doc.text(linea, x, y);
+        if (opts.justificar && !ultima) dibujarLineaJustificada(linea, x, y, ancho); else doc.text(linea, x, y);
         y += LH;
       });
       y += opts.espacioDespues != null ? opts.espacioDespues : 8;
     }
-
     doc.setTextColor(20, 20, 20);
     construirBloquesInforme(informe).forEach((bloque) => {
-      if (bloque.t === "titulo") {
-        asegurar(LH + 6);
-        y += 4;
-        escribirParrafo(bloque.texto, { negrita: true, size: bloque.pequeno ? FS : FS + 1, espacioDespues: 6 });
-      } else if (bloque.t === "lista") {
+      if (bloque.t === "titulo") { asegurar(LH + 6); y += 4; escribirParrafo(bloque.texto, { negrita: true, size: bloque.pequeno ? FS : FS + 1, espacioDespues: 6 }); }
+      else if (bloque.t === "lista") {
         (bloque.items || []).forEach((item) => {
           const lineas = doc.splitTextToSize(item, anchoTexto - 18);
-          asegurar(lineas.length * LH);
-          doc.setFont("helvetica", "normal"); doc.setFontSize(FS);
+          asegurar(lineas.length * LH); doc.setFont("helvetica", "normal"); doc.setFontSize(FS);
           doc.text("•", marginL + 4, y);
           lineas.forEach((l) => { asegurar(LH); doc.text(l, marginL + 18, y); y += LH; });
         });
         y += 8;
-      } else {
-        escribirParrafo(bloque.texto, { justificar: bloque.t === "p" });
-      }
+      } else { escribirParrafo(bloque.texto, { justificar: bloque.t === "p" }); }
     });
-
-    // --- Firma ---
-    asegurar(90);
-    y += 20;
+    asegurar(90); y += 20;
     escribirParrafo("Atentamente,", { espacioDespues: 34 });
-    doc.setDrawColor(120, 120, 120);
-    doc.line(marginL, y, marginL + 220, y);
-    y += 14;
+    doc.setDrawColor(120, 120, 120); doc.line(marginL, y, marginL + 220, y); y += 14;
     escribirParrafo(nombreInspectorFirma(informe.inspector), { negrita: true, espacioDespues: 2 });
     escribirParrafo("Departamento de Ingeniería Superba", { espacioDespues: 2 });
     escribirParrafo((window.fechaLegible ? fechaLegible(informe.fecha) : informe.fecha) || "", { espacioDespues: 0 });
-
-    // --- Anexo fotográfico ---
     const fotos = (informe.fotos || []).filter((f) => f.seleccionada);
     if (fotos.length) {
       nuevaPagina();
       escribirParrafo("ANEXO FOTOGRÁFICO", { negrita: true, size: FS + 1, espacioDespues: 14 });
       const imgMaxW = 380, imgMaxH = 300;
       fotos.forEach((foto, idx) => {
-        // Encajar dentro de la caja respetando el aspecto real: las fotos de
-        // celular suelen ser verticales y con tamaño fijo salían deformadas.
         let w = imgMaxW, h = imgMaxH;
-        try {
-          const props = doc.getImageProperties(foto.dataUrl);
-          if (props && props.width && props.height) {
-            const escala = Math.min(imgMaxW / props.width, imgMaxH / props.height);
-            w = props.width * escala;
-            h = props.height * escala;
-          }
-        } catch (e) { /* si no se pueden leer las dimensiones, se usa la caja */ }
+        try { const props = doc.getImageProperties(foto.dataUrl); if (props && props.width && props.height) { const escala = Math.min(imgMaxW / props.width, imgMaxH / props.height); w = props.width * escala; h = props.height * escala; } } catch (e) {}
         const imgX = marginL + (anchoTexto - w) / 2;
         asegurar(h + 30);
-        try { doc.addImage(foto.dataUrl, "JPEG", imgX, y, w, h, undefined, "FAST"); } catch (e) { /* si una imagen falla, seguimos con las demás */ }
+        try { doc.addImage(foto.dataUrl, "JPEG", imgX, y, w, h, undefined, "FAST"); } catch (e) {}
         y += h + 14;
         doc.setFont("helvetica", "italic"); doc.setFontSize(FS - 1);
         const caption = `Figura ${idx + 1}. ${foto.descripcion || "Sin descripción"}`;
-        doc.splitTextToSize(caption, anchoTexto).forEach((l) => {
-          asegurar(LH);
-          doc.text(l, marginL + anchoTexto / 2, y, { align: "center" });
-          y += LH;
-        });
-        doc.setFont("helvetica", "normal");
-        y += 20;
+        doc.splitTextToSize(caption, anchoTexto).forEach((l) => { asegurar(LH); doc.text(l, marginL + anchoTexto / 2, y, { align: "center" }); y += LH; });
+        doc.setFont("helvetica", "normal"); y += 20;
       });
     }
-
-    // --- Portada de anexos normativos ---
     const normas = Array.from(new Set(informe.elementos.map(normaOrganismo)));
     const sistemas = [];
     const vistos = new Set();
-    informe.elementos.forEach((el) => {
-      if (vistos.has(el.sistemaUL)) return;
-      vistos.add(el.sistemaUL);
-      sistemas.push({ sistema: el.sistemaUL, link: linkSistemaDeElemento(el) });
-    });
+    informe.elementos.forEach((el) => { if (vistos.has(el.sistemaUL)) return; vistos.add(el.sistemaUL); sistemas.push({ sistema: el.sistemaUL, link: linkSistemaDeElemento(el) }); });
     if (normas.length) {
       nuevaPagina();
       escribirParrafo("ANEXOS: NORMAS", { negrita: true, size: FS + 2, espacioDespues: 16 });
@@ -1960,14 +1696,10 @@ async function generarPDFInformeAcreditacion(informeId) {
       escribirParrafo("Sistemas incluidos a continuación:", { negrita: true, espacioDespues: 8 });
       sistemas.forEach((s) => escribirParrafo(`•  ${s.sistema}`, { espacioDespues: 2 }));
     }
-
     const total = doc.internal.getNumberOfPages();
     for (let p = 1; p <= total; p++) { doc.setPage(p); if (window.dibujarNumeroPaginaPDF) dibujarNumeroPaginaPDF(doc, p, total); }
-
     const nombreArchivo = `Informe-Acreditacion-${(informe.proyecto || "proyecto").replace(/[^a-z0-9]+/gi, "-")}-${informe.fecha || ""}.pdf`;
     let bytesFinales = new Uint8Array(doc.output("arraybuffer"));
-
-    // --- Adjuntar los PDF de los sistemas UL al final ---
     const conLink = sistemas.filter((s) => s.link);
     if (conLink.length && window.PDFLib) {
       let fallidos = 0;
@@ -1976,23 +1708,15 @@ async function generarPDFInformeAcreditacion(informeId) {
         for (const s of conLink) {
           const bytes = await bytesPDFRemoto(s.link);
           if (!bytes) { fallidos++; continue; }
-          try {
-            const src = await window.PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
-            const paginas = await master.copyPages(src, src.getPageIndices());
-            paginas.forEach((pg) => master.addPage(pg));
-          } catch (e) { fallidos++; }
+          try { const src = await window.PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true }); const paginas = await master.copyPages(src, src.getPageIndices()); paginas.forEach((pg) => master.addPage(pg)); } catch (e) { fallidos++; }
         }
         bytesFinales = await master.save();
-      } catch (e) { /* si falla el ensamblado, se entrega el informe sin anexos */ }
-      if (fallidos && window.mostrarToast) {
-        mostrarToast(`${fallidos} sistema(s) UL no se pudieron adjuntar automáticamente.`, "error");
-      }
+      } catch (e) {}
+      if (fallidos && window.mostrarToast) mostrarToast(`${fallidos} sistema(s) UL no se pudieron adjuntar automáticamente.`, "error");
     }
-
     const blob = new Blob([bytesFinales], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = nombreArchivo;
+    const a = document.createElement("a"); a.href = url; a.download = nombreArchivo;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     if (window.mostrarToast) mostrarToast("PDF del informe generado.");
