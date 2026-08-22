@@ -1,4 +1,0 @@
-.acr-texto-modal { max-width: 760px; }
-.acr-texto-content { display: flex; flex-direction: column; min-height: 0; }
-.acr-texto-modal .acr-texto-preview { flex: 1; overflow-y: auto; max-height: 62vh; }
-.acr-texto-textarea { width: 100%; flex: 1; min-height: 55vh; font-family: inherit; font-size: 16px; line-height: 1.55; color: var(--ink); background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; resize: vertical; }
