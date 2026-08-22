@@ -613,6 +613,12 @@ body.tf-open .lev-form-sticky, body.tf-open #levantamiento-fullscreen { padding-
 .acr-acompanante-row { display: flex; gap: 8px; align-items: center; }
 .acr-acompanante-row input { flex: 1; font-family: inherit; font-size: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; }
 .acr-acompanante-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+.acr-planos-lista { display: flex; flex-direction: column; gap: 10px; }
+.acr-plano-item { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+.acr-plano-thumb { width: 56px; height: 40px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); flex-shrink: 0; }
+.acr-plano-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.acr-plano-nombre { font-weight: 600; font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acr-plano-item .secondary { flex-shrink: 0; }
 .acr-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 480px) { .acr-field-row { grid-template-columns: 1fr; } }
 .acr-form-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 8px; max-width: 720px; margin: 0 auto; width: 100%; }
