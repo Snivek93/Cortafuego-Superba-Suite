@@ -206,6 +206,7 @@ function nuevoBorradorInforme() {
     id: null,
     fecha: new Date().toISOString().slice(0, 10),
     proyecto: (window.PROJECT_INFO && window.PROJECT_INFO.nombre) || "",
+    ubicacion: anterior ? (anterior.ubicacion || "") : "",
     cliente: (window.PROJECT_INFO && window.PROJECT_INFO.cliente) || (anterior ? anterior.cliente : "") || "",
     empresaInstaladora: anterior ? anterior.empresaInstaladora : "",
     acompanantes: [],
@@ -586,10 +587,13 @@ function renderDatosGeneralesHTML() {
           <label class="acr-field-label">Proyecto
             <input type="text" data-acr-field="proyecto" value="${escapeHtml(d.proyecto)}">
           </label>
-          <label class="acr-field-label">Cliente
+          <label class="acr-field-label">Contratista
             <input type="text" data-acr-field="cliente" value="${escapeHtml(d.cliente)}">
           </label>
         </div>
+        <label class="acr-field-label">Ubicación del proyecto
+          <input type="text" data-acr-field="ubicacion" value="${escapeHtml(d.ubicacion || "")}" placeholder="Ej. San Pedro de Montes de Oca">
+        </label>
         <div class="acr-field-row">
           <label class="acr-field-label">Fecha de la visita
             <input type="date" data-acr-field="fecha" value="${escapeHtml(d.fecha)}">
@@ -913,36 +917,198 @@ function bindModalTextoInformeEventos(overlay) {
   });
 }
 
-function generarTextoCumplimiento(d) {
-  const partes = [];
-  if (d.esSeguimiento && d.seguimientoTexto) {
-    partes.push(`Esta visita da seguimiento a lo detectado en una visita anterior: ${d.seguimientoTexto}. Se verifica la corrección de lo señalado.`);
+// --- Redacción del informe: gramática del informe modelo de Superba ---------
+// El sujeto de cada frase es el TIPO de elemento en plural (no el número de
+// sistema UL), igual que en el informe que se entrega en obra.
+const ACR_TIPO_PLURAL = {
+  "Tubería Metal": "Las tuberías de metal",
+  "Tubería Metal Aislado": "Las tuberías de metal aisladas",
+  "Tubería EMT": "Las tuberías de EMT",
+  "Tubería Cobre Aislado HVAC": "Las tuberías de cobre aisladas de HVAC",
+  "Tubería Combustible (PVC, CPVC, PEX, PP-R)": "Las tuberías combustibles (PVC, CPVC, PEX, PP-R)",
+  "Tubería Combustible Aislada (PVC, CPVC, PEX, PP-R)": "Las tuberías combustibles aisladas (PVC, CPVC, PEX, PP-R)",
+  "Bandeja de Cables": "Las bandejas de cables",
+  "Cables Sueltos": "Los cables sueltos",
+  "Cable Armado": "Los cables armados",
+  "Cables en Paso Repenetrable": "Los cables en paso repenetrable",
+  "Caja Electromecánica UL": "Las cajas electromecánicas UL",
+  "Ducto Rectangular": "Los ductos rectangulares",
+  "Ducto Rectangular Aislado": "Los ductos rectangulares aislados",
+  "Ducto Redondo": "Los ductos redondos",
+  "Ducto Redondo Aislado": "Los ductos redondos aislados",
+  "Pasante Múltiple": "Los pasantes múltiples",
+  "Vacío": "Los pasantes vacíos",
+  "Viga W": "Las vigas W",
+  "Viga Canal": "Las vigas canal",
+  "Viga Tubo Rectangular": "Las vigas de tubo rectangular",
+};
+// Nombre comercial en prosa, para el párrafo de "productos considerados".
+const ACR_PRODUCTO_PROSA = {
+  "Pasta FS ONE MAX": "pasta intumescente FS ONE MAX",
+  "FS ONE MAX": "pasta intumescente FS ONE MAX",
+  "Sellador CP 606": "sellador CP 606",
+  "CP 606": "sellador CP 606",
+  "Sellador CFS SIL GG": "sellador siliconado CFS SIL GG",
+  "CFS SIL GG": "sellador siliconado CFS SIL GG",
+  "CFS SP WB": "spray cortafuego CFS SP WB",
+  "Cinta con Collar Metálico CP 648-E/ER": "cinta intumescente CP 648-E y collar de retención CP 648-ER",
+  "Cinta sin Collar Metálico CP 648-E": "cinta intumescente CP 648-E",
+  "Collarín CP 643N/644": "collarín cortafuego CP 643N/644",
+  "Espuma CP 620": "espuma cortafuego CP 620",
+  "Almohadilla CFS-BL": "almohadilla cortafuego CFS-BL",
+  "Mortero CP 637": "mortero cortafuego CP 637",
+  "Putty Pad CP 617": "masilla en lámina CP 617",
+  'Manga CP 653 4"': 'manga cortafuego CP 653 4"',
+  'Manga CP 653 2"': 'manga cortafuego CP 653 2"',
+  'Paso de cables MSL M 3"x4"': 'paso de cables MSL M 3"x4"',
+  'Paso de cables MSL L 6"x4"': 'paso de cables MSL L 6"x4"',
+};
+function productoProsa(producto) {
+  return ACR_PRODUCTO_PROSA[producto] || producto;
+}
+// Nombre corto para citar dentro de una frase de espesor ("espesor mínimo de
+// Pasta FS ONE MAX de: 1/4""). Se deja el nombre comercial tal cual.
+function productoCorto(producto) {
+  return String(producto || "").replace(/^Sellador /, "").replace(/^Pasta /, "Pasta ");
+}
+// La coletilla "se encuentran instalados por ambos lados" solo aplica a
+// penetrantes en pared: en losa se sella por una cara, y en el informe modelo
+// ninguna frase de junta la lleva.
+function aplicaAmbosLados(el) {
+  return el.categoria === "penetrante" && el.ubicacion === "Pared";
+}
+function barreraFrase(el) {
+  if (el.material === "Panel de Yeso") return el.ubicacion === "Pared" ? "en pared liviana" : "en entrepiso liviano";
+  return el.ubicacion === "Pared" ? "en pared de concreto" : "en losa de concreto";
+}
+function diametroFrase(el) {
+  if (el.diametro === "menor2") return " con diámetro menor a 2 pulgadas";
+  if (el.diametro === "mayor2") return " con diámetro mayor a 2 pulgadas";
+  return "";
+}
+// Sujeto plural de la frase, con su género para que concuerden los participios.
+function sujetoElemento(el) {
+  if (el.categoria === "penetrante") {
+    const base = ACR_TIPO_PLURAL[el.tipoPenetrante] || `Los elementos de tipo ${el.tipoPenetrante}`;
+    const anular = el.espacioAnular ? " con espacio anular" : " sin espacio anular";
+    return `${base}${diametroFrase(el)}${anular} ${barreraFrase(el)}`;
   }
-  function frasesParaElemento(el, estado, prefijoZona) {
-    const desc = descripcionElemento(el);
-    if (estado.cumple) {
-      return `${prefijoZona}El sistema ${el.sistemaUL} (${desc}) cumple con los requerimientos del sistema UL, sin compromisos de integridad visibles.`;
-    }
-    const motivos = estado.marcados.map((m) => m).join("; ");
-    const recomendaciones = estado.marcados.map((m) => ACR_RECOMENDACION[m]).filter(Boolean);
-    const recTexto = recomendaciones.length ? ` Se recomienda ${Array.from(new Set(recomendaciones)).join("; ")}.` : "";
-    const obsTexto = estado.observacion ? ` ${estado.observacion}` : "";
-    return `${prefijoZona}El sistema ${el.sistemaUL} (${desc}) no cumple: ${motivos || "ver observación"}.${recTexto}${obsTexto}`;
+  if (el.subtipo === "muro_cortina") return "Las juntas cortafuego de muro cortina";
+  const pos = el.juntaPosicion && el.juntaPosicion !== "-" ? ` en posición ${el.juntaPosicion.toLowerCase()}` : "";
+  return `Las juntas cortafuego de tipo ${el.juntaTipo} entre ${el.juntaBarreras}${pos}`;
+}
+function sujetoEsFemenino(sujeto) {
+  return /^Las /.test(sujeto);
+}
+// Espesor mínimo del sistema en texto. CFS SP WB se reporta en húmedo, con el
+// equivalente en seco (la mitad) entre paréntesis — confirmado por Kevin.
+function espesorFrase(el) {
+  if (!el.espesor) return "";
+  const prod = productoCorto(el.producto);
+  if (el.producto === "CFS SP WB") {
+    return `espesor mínimo de ${prod} de: ${fraccion(el.espesor)} en húmedo (${fraccion(el.espesor / 2)} en seco)`;
   }
-  if (!d.elementos.length) {
-    partes.push("Aún no se agregaron tipos de penetrante ni juntas a este informe.");
-  } else if (d.checklistModo === "general") {
+  return `espesor mínimo de ${prod} de: ${fraccion(el.espesor)}`;
+}
+function traslapeFrase(el) {
+  return el.traslape ? ` y traslape mínimo de ${fraccion(el.traslape)}` : "";
+}
+// Criterio principal contra el que se verifica el elemento cuando SÍ cumple.
+function criterioCumple(el) {
+  if (elementoUsaCinta(el)) return "vueltas";
+  const esp = espesorFrase(el);
+  if (esp) return `${esp}${traslapeFrase(el)}`;
+  return "instalación indicada por el sistema";
+}
+// Traducción de cada ítem del checklist de incumplimiento al texto del informe.
+function criterioNoCumple(item, el) {
+  switch (item) {
+    case "Espesor insuficiente respecto al mínimo del sistema": return espesorFrase(el) || "espesor mínimo";
+    case "Sello desplazado o movido posterior a la instalación": return "continuidad del sello (se encuentra desplazado)";
+    case "Orificio o hueco detectado (sellado incompleto)": return "sellado completo (se detectan orificios o huecos)";
+    case "Material distinto al especificado en el sistema UL": return `producto correcto, se debe utilizar ${productoProsa(el.producto)}`;
+    case "Faltan vueltas de cinta intumescente": return "vueltas de cinta intumescente";
+    case "Falta collar metálico de retención": return "collar metálico de retención";
+    case "Falta lana mineral de respaldo donde el sistema la requiere": return "lana mineral de alta densidad como respaldo";
+    case "Falta instalación por una de las dos caras de la pared": return "instalarse por ambos lados";
+    case "Traslape insuficiente hacia losa/pared": return `traslape mínimo hacia la losa/pared${el.traslape ? " de: " + fraccion(el.traslape) : ""}`;
+    case "Traslape insuficiente hacia elemento de fachada (muro cortina)": return `traslape mínimo hacia el elemento de fachada${el.traslape ? " de: " + fraccion(el.traslape) : ""}`;
+    default: return null;
+  }
+}
+// Ítems que no se redactan como "no cumplen con el requerimiento de X", sino
+// con una frase propia (igual que en el informe modelo).
+const ACR_ESTADO_PROPIO = {
+  "Instalación pendiente (aún no ejecutada, con método/producto ya definido)": (suj) => `${suj} se encuentran con instalación pendiente.`,
+  "Daño por terceros / contratistas externos, requiere reparación": (suj) => `${suj} presentan daño ocasionado por terceros y requieren reparación.`,
+};
+function fraseCumple(el, prefijoZona) {
+  const suj = sujetoElemento(el);
+  const fem = sujetoEsFemenino(suj);
+  const ambos = aplicaAmbosLados(el) ? `, se encuentran ${fem ? "instaladas" : "instalados"} por ambos lados` : "";
+  return `${prefijoZona}${suj} cumplen con el requerimiento de ${criterioCumple(el)} según el sistema ${el.sistemaUL}${ambos} y no se muestran compromisos de integridad visibles.`;
+}
+function frasesNoCumple(el, estado, prefijoZona) {
+  const suj = sujetoElemento(el);
+  const out = [];
+  const propios = [];
+  const criterios = [];
+  (estado.marcados || []).forEach((m) => {
+    if (ACR_ESTADO_PROPIO[m]) { propios.push(ACR_ESTADO_PROPIO[m](prefijoZona + suj)); return; }
+    const c = criterioNoCumple(m, el);
+    if (c) criterios.push(c);
+  });
+  if (criterios.length) {
+    const recomendaciones = Array.from(new Set((estado.marcados || []).map((m) => ACR_RECOMENDACION[m]).filter(Boolean)));
+    const rec = recomendaciones.length ? ` Se recomienda ${recomendaciones.join("; ")}.` : "";
+    out.push(`${prefijoZona}${suj} no cumplen con el requerimiento de ${criterios.join(", ni con el requerimiento de ")} según el sistema ${el.sistemaUL}.${rec}`);
+  }
+  propios.forEach((p) => out.push(p));
+  if (!out.length) {
+    out.push(`${prefijoZona}${suj} presentan un incumplimiento respecto al sistema ${el.sistemaUL}.`);
+  }
+  if (estado.observacion) out[out.length - 1] += ` ${estado.observacion}`;
+  return out;
+}
+// Recorre los elementos (por zona si aplica) y devuelve cumplimientos y
+// hallazgos por separado, con los hallazgos numerados H-01, H-02, ...
+function recorrerEstados(d, visitar) {
+  if (d.checklistModo === "general" || !d.zonas.length) {
     d.elementos.forEach((el) => {
-      const estado = d.checklist.general[el.id] || estadoChecklistDefault();
-      partes.push(frasesParaElemento(el, estado, ""));
+      visitar(el, d.checklist.general[el.id] || estadoChecklistDefault(), "");
     });
-  } else {
-    (d.zonas.length ? d.zonas : [null]).forEach((zona) => {
-      d.elementos.forEach((el) => {
-        const estado = (zona && d.checklist.porZona[zona] && d.checklist.porZona[zona][el.id]) || estadoChecklistDefault();
-        partes.push(frasesParaElemento(el, estado, zona ? `En ${zona}: ` : ""));
-      });
+    return;
+  }
+  d.zonas.forEach((zona) => {
+    d.elementos.forEach((el) => {
+      const estado = (d.checklist.porZona[zona] && d.checklist.porZona[zona][el.id]) || estadoChecklistDefault();
+      visitar(el, estado, `En ${zona}: `);
     });
+  });
+}
+function hayHallazgos(d) {
+  let hay = false;
+  recorrerEstados(d, (el, estado) => { if (!estado.cumple) hay = true; });
+  return hay;
+}
+function generarTextoCumplimiento(d) {
+  if (!d.elementos.length) {
+    return "Aún no se agregaron tipos de penetrante ni juntas a este informe.";
+  }
+  const cumplen = [];
+  const hallazgos = [];
+  recorrerEstados(d, (el, estado, prefijo) => {
+    if (estado.cumple) cumplen.push(fraseCumple(el, prefijo));
+    else frasesNoCumple(el, estado, prefijo).forEach((f) => hallazgos.push(f));
+  });
+  const partes = [];
+  if (cumplen.length) {
+    partes.push("Cumplimientos verificados:");
+    cumplen.forEach((f) => partes.push(f));
+  }
+  if (hallazgos.length) {
+    partes.push("Hallazgos de no cumplimiento:");
+    hallazgos.forEach((f, i) => partes.push(`H-${String(i + 1).padStart(2, "0")}. ${f}`));
   }
   return partes.join("\n\n");
 }
@@ -1510,103 +1676,332 @@ function confirmarNuevoElemento() {
   renderAcreditacion();
 }
 
-function generarPDFInformeAcreditacion(informeId) {
+// --- Armado del cuerpo del informe (bloques) -------------------------------
+// Devuelve una lista de bloques {t, ...} que el generador de PDF dibuja en
+// orden. Tipos: "p" (párrafo justificado), "pIzq" (párrafo sin justificar),
+// "titulo" (negrita), "lista" (viñetas), "espacio".
+function normaOrganismo(el) {
+  return normaParaSubtipo(el.categoria, el.subtipo);
+}
+function elementosPorNorma(informe, filtro) {
+  const vistos = new Set();
+  const out = [];
+  informe.elementos.filter(filtro).forEach((el) => {
+    if (vistos.has(el.sistemaUL)) return;
+    vistos.add(el.sistemaUL);
+    out.push(el);
+  });
+  return out;
+}
+// "W-J-2072. Tuberías combustibles (PVC…) con diámetro menor a 2 pulgadas en
+// pared liviana" — descripción corta del sistema para la lista de arriba.
+function descripcionSistemaUL(el) {
+  const suj = sujetoElemento(el).replace(/^(Las|Los) /, "");
+  return `${el.sistemaUL}. ${suj.charAt(0).toUpperCase()}${suj.slice(1)}`;
+}
+function parrafoProductos(elementos) {
+  const productos = new Set();
+  let lana = false;
+  elementos.forEach((el) => {
+    productos.add(productoProsa(el.producto));
+    if (el.categoria === "penetrante" && elementoUsaLanaMineral(el)) lana = true;
+    if (el.categoria !== "penetrante") lana = true;
+  });
+  const lista = [];
+  if (lana) lista.push("lana mineral de alta densidad 4pcf");
+  productos.forEach((p) => lista.push(p));
+  if (!lista.length) return null;
+  const texto = lista.length === 1 ? lista[0] : `${lista.slice(0, -1).join(", ")} y ${lista[lista.length - 1]}`;
+  return `Los productos considerados para estos ensambles corresponden a ${texto} de la marca Hilti.`;
+}
+function frasePersonas(informe) {
+  const nombres = (informe.acompanantes || []).map((a) => `${a.nombre}${a.cargo ? " (" + a.cargo + ")" : ""}`).filter((x) => x && x.trim());
+  if (!nombres.length) return "";
+  const texto = nombres.length === 1 ? nombres[0] : `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
+  return ` La visita se realiza en conjunto con ${texto}.`;
+}
+function construirBloquesInforme(informe) {
+  const b = [];
+  const push = (t, v, extra) => b.push(Object.assign({ t: t }, typeof v === "string" ? { texto: v } : { items: v }, extra || {}));
+
+  push("pIzq", "A quien concierna");
+  push("pIzq", "Estimados presentes,");
+
+  let intro = `Este informe tiene el propósito de servir como reporte de acreditación del avance de la instalación de los sellos cortafuego para el proyecto "${informe.proyecto || "—"}"`;
+  if (informe.ubicacion) intro += `, ubicado en "${informe.ubicacion}"`;
+  if (informe.cliente) intro += `, a cargo del contratista "${informe.cliente}"`;
+  if (informe.empresaInstaladora) intro += ` e instalado por "${informe.empresaInstaladora}"`;
+  intro += ".";
+  intro += frasePersonas(informe);
+  if (informe.zonas && informe.zonas.length) {
+    intro += ` El recorrido de revisión se realiza en ${informe.zonas.join(", ")}.`;
+  }
+  push("p", intro);
+
+  const penetrantes = elementosPorNorma(informe, (el) => el.categoria === "penetrante");
+  if (penetrantes.length) {
+    push("p", "Los sistemas de sellos cortafuegos de penetrantes listados por UL 1479 (ASTM E814) considerados en las revisiones realizadas durante la visita son los siguientes:");
+    push("lista", penetrantes.map(descripcionSistemaUL));
+    const pp = parrafoProductos(informe.elementos.filter((el) => el.categoria === "penetrante"));
+    if (pp) push("p", pp);
+  }
+  const juntasInt = elementosPorNorma(informe, (el) => el.categoria === "junta" && el.subtipo !== "muro_cortina");
+  if (juntasInt.length) {
+    push("p", "Los sistemas de sellos cortafuegos de juntas listados por UL 2079 (ASTM E1966) considerados en las revisiones realizadas durante la visita son los siguientes:");
+    push("lista", juntasInt.map(descripcionSistemaUL));
+    const pj = parrafoProductos(informe.elementos.filter((el) => el.categoria === "junta" && el.subtipo !== "muro_cortina"));
+    if (pj) push("p", pj);
+  }
+  const muroCortina = elementosPorNorma(informe, (el) => el.subtipo === "muro_cortina");
+  if (muroCortina.length) {
+    push("p", "Los sistemas de sellos cortafuegos de juntas listados por ASTM E2307 (Intertek o UL) considerados en las revisiones realizadas durante la visita son los siguientes:");
+    push("lista", muroCortina.map(descripcionSistemaUL));
+  }
+
+  push("titulo", "Las revisiones");
+  push("p", "Las revisiones evidenciadas en el presente informe se realizan durante el recorrido de forma aleatoria con pruebas destructivas o mediciones en sitio que verifiquen las condiciones del sello cortafuego instalado con respecto a los mínimos indicados por los sistemas UL anteriormente listados. Se incluyen en anexos fotos del recorrido como referencia visual del estado de los requerimientos mínimos solicitados por los ensambles.");
+
+  push("titulo", "Resultado de la inspección:");
+  if (informe.observaciones) push("p", informe.observaciones);
+  textoFinalInforme(informe).split("\n\n").forEach((parrafo) => {
+    const limpio = parrafo.trim();
+    if (!limpio) return;
+    if (limpio === "Cumplimientos verificados:" || limpio === "Hallazgos de no cumplimiento:") push("titulo", limpio, { pequeno: true });
+    else push("p", limpio);
+  });
+
+  if (informe.esSeguimiento) {
+    let seg = "Se verifica que las recomendaciones y hallazgos de no cumplimiento en visitas anteriores al proyecto han sido trabajados por el personal para cumplir con los requerimientos mínimos de los ensambles.";
+    if (informe.seguimientoTexto) seg += ` ${informe.seguimientoTexto}`;
+    push("p", seg);
+  }
+
+  if (hayHallazgos(informe)) {
+    push("p", "Con base en lo anterior se comprueba que, a la fecha de la visita del presente informe, la instalación de los productos y sistemas debe mejorarse conforme a los hallazgos de incumplimiento comentados anteriormente. Se realizarán visitas posteriores para verificar la corrección en los puntos que se requieran para lograr el cumplimiento.");
+  } else {
+    push("p", "Con base en lo anterior se comprueba que, a la fecha de la visita del presente informe, el avance en la instalación de los productos y sistemas se mantiene de forma correcta conforme a los lineamientos y espesores indicados en los sistemas seleccionados respaldados por las normas ASTM y UL.");
+  }
+
+  push("p", "A todo aquel que concierne, se recuerda que la compartimentación se debe realizar de forma integral y este informe se limita a la revisión de los sellos cortafuego en el alcance del contratista acá mencionado. La compartimentación se constituye de barreras cortafuego como paredes y losas, puertas y ventanas cortafuego, sellos cortafuego de pasantes que atraviesen las barreras y sellos cortafuego de juntas entre las barreras de distintos materiales; por lo que, para garantizar un adecuado comportamiento integral de la compartimentación, cualquier sello adicional de otro contratista debe estar presente con su respectiva normativa de respaldo.");
+  push("p", "El presente informe refleja el estado de los sellos cortafuego observado a la fecha de la visita indicada y no cubre condiciones, modificaciones o daños ocasionados con posterioridad a esa fecha, ya sea por otros contratistas o por trabajos subsecuentes en el proyecto.");
+  push("p", "Agradecemos la confianza depositada en Superba para velar por el cumplimiento de la compartimentación diseñada y quedamos atentos a cualquier duda o necesidad que pueda surgir en este respecto.");
+  return b;
+}
+
+// Link del PDF del sistema UL de un elemento, resuelto contra las tablas
+// (no se guarda en el elemento, para no romper informes ya guardados).
+function linkSistemaDeElemento(el) {
+  try {
+    if (el.categoria === "penetrante") {
+      const ap = el.espacioAnular ? "Otro" : 0;
+      const row = window.MAIN_TABLE ? window.MAIN_TABLE[window.dbKey(el.material, el.tipoPenetrante, el.ubicacion, ap, el.producto)] : null;
+      if (!row) return null;
+      for (let i = 1; i < row.length; i += 2) {
+        if (row[i] === el.sistemaUL) return row[i + 1] || null;
+      }
+      return row[2] || null;
+    }
+    const junta = window.juntaParaTipo ? window.juntaParaTipo(el.juntaTipo) : null;
+    const fila = resolverFilaJunta(junta, el.juntaTipo, el.juntaBarreras, el.juntaPosicion, el.producto);
+    return fila ? fila.link || null : null;
+  } catch (e) { return null; }
+}
+
+// Descarga los bytes de un PDF remoto (sistema UL) para adjuntarlo al informe.
+// Se implementa acá y no se reusa el de pdf-submittal para que este módulo no
+// dependa de otro archivo: así el informe de acreditación vive en un solo lugar.
+async function bytesPDFRemoto(url) {
+  const u = String(url || "");
+  if (!u || /drive\.google\.com/.test(u)) return null; // Drive bloquea por CORS
+  try {
+    const resp = await fetch(u, { mode: "cors" });
+    if (!resp.ok) return null;
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    if (bytes.length < 5) return null;
+    const firma = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]);
+    return firma === "%PDF-" ? bytes : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function generarPDFInformeAcreditacion(informeId) {
   const informe = INFORMES_ACREDITACION.find((i) => i.id === informeId);
   if (!informe) return;
   if (!window.jspdf) { if (window.mostrarToast) mostrarToast("No se pudo cargar el motor de PDF.", "error"); return; }
-  if (window.mostrarToastProgreso) mostrarToastProgreso("Generando PDF del informe…");
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
-  const marginL = 40, contentRight = 572;
-  const titulo = "Informe de Acreditación de Sellos Cortafuego";
-  let safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 };
-  let y = safe.top;
-  function nuevaPagina() {
-    doc.addPage();
-    safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 };
-    y = safe.top;
-  }
-  function checkPageBreak(alturaNecesaria) { if (y + alturaNecesaria > safe.bottom) nuevaPagina(); }
+  const toast = window.mostrarToastProgreso ? mostrarToastProgreso("Generando PDF del informe…") : null;
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "portrait" });
+    const titulo = "Informe de Acreditación de Sellos Cortafuego";
+    const marginL = 72, anchoTexto = 468; // 1" de margen a cada lado
+    const FS = 10.5, LH = 14;
+    let safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 };
+    let y = safe.top;
 
-  doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(20, 20, 20);
-  const filasDatos = [
-    ["Proyecto", informe.proyecto || "—"],
-    ["Cliente", informe.cliente || "—"],
-    ["Fecha de visita", (window.fechaLegible ? fechaLegible(informe.fecha) : informe.fecha) || "—"],
-    ["Empresa instaladora", informe.empresaInstaladora || "—"],
-    ["Inspector", nombreInspectorFirma(informe.inspector)],
-    ["Norma / organismo", informe.elementos.length ? Array.from(new Set(informe.elementos.map((el) => normaParaSubtipo(el.categoria, el.subtipo)))).join(" · ") : "—"],
-  ];
-  doc.autoTable({
-    startY: y, margin: { left: marginL, right: 40 }, body: filasDatos, theme: "plain",
-    styles: { fontSize: 10, cellPadding: 3, textColor: [20, 20, 20] },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 130 } },
-  });
-  y = doc.lastAutoTable.finalY + 8;
+    function nuevaPagina() {
+      doc.addPage();
+      safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 };
+      y = safe.top;
+    }
+    function asegurar(alto) { if (y + alto > safe.bottom) nuevaPagina(); }
+    // Justificación manual palabra por palabra. NO se usa el `align:"justify"`
+    // de jsPDF: al pasarle `maxWidth` vuelve a partir la línea internamente y
+    // dibuja los pedazos encimados en la misma `y` (bug real, visto en el
+    // corte de página del informe de prueba).
+    function dibujarLineaJustificada(linea, x, yy, ancho) {
+      const palabras = String(linea).split(" ").filter((p) => p.length);
+      if (palabras.length < 2) { doc.text(linea, x, yy); return; }
+      const anchoPalabras = palabras.reduce((a, p) => a + doc.getTextWidth(p), 0);
+      const espacio = (ancho - anchoPalabras) / (palabras.length - 1);
+      // Si el hueco entre palabras se dispara (línea muy corta), no justificar:
+      // queda con "ríos" blancos y se lee peor que alineada a la izquierda.
+      if (espacio > doc.getTextWidth(" ") * 4) { doc.text(linea, x, yy); return; }
+      let cx = x;
+      palabras.forEach((p) => { doc.text(p, cx, yy); cx += doc.getTextWidth(p) + espacio; });
+    }
+    // Párrafo: todas las líneas menos la última se estiran al ancho de la caja.
+    function escribirParrafo(texto, opts) {
+      opts = opts || {};
+      const ancho = opts.ancho || anchoTexto;
+      const x = opts.x || marginL;
+      doc.setFont("helvetica", opts.negrita ? "bold" : (opts.italica ? "italic" : "normal"));
+      doc.setFontSize(opts.size || FS);
+      const lineas = doc.splitTextToSize(String(texto == null ? "" : texto), ancho);
+      lineas.forEach((linea, i) => {
+        asegurar(LH);
+        const ultima = i === lineas.length - 1;
+        if (opts.justificar && !ultima) dibujarLineaJustificada(linea, x, y, ancho);
+        else doc.text(linea, x, y);
+        y += LH;
+      });
+      y += opts.espacioDespues != null ? opts.espacioDespues : 8;
+    }
 
-  if (informe.acompanantes && informe.acompanantes.length) {
-    checkPageBreak(20 + informe.acompanantes.length * 13);
-    doc.setFont("helvetica", "bold"); doc.text("Acompañantes de la visita:", marginL, y); y += 14;
-    doc.setFont("helvetica", "normal");
-    informe.acompanantes.forEach((a) => {
-      if (!a.nombre) return;
-      checkPageBreak(14);
-      doc.text(`•  ${a.nombre}${a.cargo ? " — " + a.cargo : ""}`, marginL + 8, y);
-      y += 13;
+    doc.setTextColor(20, 20, 20);
+    construirBloquesInforme(informe).forEach((bloque) => {
+      if (bloque.t === "titulo") {
+        asegurar(LH + 6);
+        y += 4;
+        escribirParrafo(bloque.texto, { negrita: true, size: bloque.pequeno ? FS : FS + 1, espacioDespues: 6 });
+      } else if (bloque.t === "lista") {
+        (bloque.items || []).forEach((item) => {
+          const lineas = doc.splitTextToSize(item, anchoTexto - 18);
+          asegurar(lineas.length * LH);
+          doc.setFont("helvetica", "normal"); doc.setFontSize(FS);
+          doc.text("•", marginL + 4, y);
+          lineas.forEach((l) => { asegurar(LH); doc.text(l, marginL + 18, y); y += LH; });
+        });
+        y += 8;
+      } else {
+        escribirParrafo(bloque.texto, { justificar: bloque.t === "p" });
+      }
     });
-    y += 6;
-  }
-  if (informe.zonas && informe.zonas.length) {
-    checkPageBreak(30);
-    doc.setFont("helvetica", "bold"); doc.text("Alcance — niveles / zonas visitados:", marginL, y); y += 14;
-    doc.setFont("helvetica", "normal");
-    const lineasZonas = doc.splitTextToSize(informe.zonas.join(", "), contentRight - marginL);
-    doc.text(lineasZonas, marginL, y);
-    y += lineasZonas.length * 13 + 8;
-  }
 
-  checkPageBreak(30);
-  doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text("Resultado de la inspección", marginL, y); y += 18;
-  doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-  const texto = textoFinalInforme(informe);
-  texto.split("\n\n").forEach((parrafo) => {
-    const lineas = doc.splitTextToSize(parrafo, contentRight - marginL);
-    checkPageBreak(lineas.length * 13 + 10);
-    doc.text(lineas, marginL, y);
-    y += lineas.length * 13 + 8;
-  });
+    // --- Firma ---
+    asegurar(90);
+    y += 20;
+    escribirParrafo("Atentamente,", { espacioDespues: 34 });
+    doc.setDrawColor(120, 120, 120);
+    doc.line(marginL, y, marginL + 220, y);
+    y += 14;
+    escribirParrafo(nombreInspectorFirma(informe.inspector), { negrita: true, espacioDespues: 2 });
+    escribirParrafo("Departamento de Ingeniería Superba", { espacioDespues: 2 });
+    escribirParrafo((window.fechaLegible ? fechaLegible(informe.fecha) : informe.fecha) || "", { espacioDespues: 0 });
 
-  checkPageBreak(80);
-  y += 24;
-  doc.setDrawColor(120, 120, 120); doc.line(marginL, y, marginL + 220, y); y += 14;
-  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.text(nombreInspectorFirma(informe.inspector), marginL, y); y += 13;
-  doc.setFont("helvetica", "normal");
-  doc.text("Superba — Distribuidor Hilti", marginL, y); y += 13;
-  doc.text((window.fechaLegible ? fechaLegible(informe.fecha) : informe.fecha) || "", marginL, y);
+    // --- Anexo fotográfico ---
+    const fotos = (informe.fotos || []).filter((f) => f.seleccionada);
+    if (fotos.length) {
+      nuevaPagina();
+      escribirParrafo("ANEXO FOTOGRÁFICO", { negrita: true, size: FS + 1, espacioDespues: 14 });
+      const imgMaxW = 380, imgMaxH = 300;
+      fotos.forEach((foto, idx) => {
+        // Encajar dentro de la caja respetando el aspecto real: las fotos de
+        // celular suelen ser verticales y con tamaño fijo salían deformadas.
+        let w = imgMaxW, h = imgMaxH;
+        try {
+          const props = doc.getImageProperties(foto.dataUrl);
+          if (props && props.width && props.height) {
+            const escala = Math.min(imgMaxW / props.width, imgMaxH / props.height);
+            w = props.width * escala;
+            h = props.height * escala;
+          }
+        } catch (e) { /* si no se pueden leer las dimensiones, se usa la caja */ }
+        const imgX = marginL + (anchoTexto - w) / 2;
+        asegurar(h + 30);
+        try { doc.addImage(foto.dataUrl, "JPEG", imgX, y, w, h, undefined, "FAST"); } catch (e) { /* si una imagen falla, seguimos con las demás */ }
+        y += h + 14;
+        doc.setFont("helvetica", "italic"); doc.setFontSize(FS - 1);
+        const caption = `Figura ${idx + 1}. ${foto.descripcion || "Sin descripción"}`;
+        doc.splitTextToSize(caption, anchoTexto).forEach((l) => {
+          asegurar(LH);
+          doc.text(l, marginL + anchoTexto / 2, y, { align: "center" });
+          y += LH;
+        });
+        doc.setFont("helvetica", "normal");
+        y += 20;
+      });
+    }
 
-  const fotos = (informe.fotos || []).filter((f) => f.seleccionada);
-  if (fotos.length) {
-    nuevaPagina();
-    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text("Registro fotográfico", marginL, y); y += 20;
-    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-    const imgMaxW = 260, imgMaxH = 195;
-    fotos.forEach((foto, idx) => {
-      checkPageBreak(imgMaxH + 34);
-      try { doc.addImage(foto.dataUrl, "JPEG", marginL, y, imgMaxW, imgMaxH, undefined, "FAST"); } catch (e) { /* si una imagen falla, se sigue con las demás */ }
-      const captionY = y + imgMaxH + 14;
-      const caption = `Figura ${idx + 1}. ${foto.descripcion || "Sin descripción"}`;
-      const lineasCap = doc.splitTextToSize(caption, imgMaxW);
-      doc.text(lineasCap, marginL, captionY);
-      y = captionY + lineasCap.length * 11 + 18;
+    // --- Portada de anexos normativos ---
+    const normas = Array.from(new Set(informe.elementos.map(normaOrganismo)));
+    const sistemas = [];
+    const vistos = new Set();
+    informe.elementos.forEach((el) => {
+      if (vistos.has(el.sistemaUL)) return;
+      vistos.add(el.sistemaUL);
+      sistemas.push({ sistema: el.sistemaUL, link: linkSistemaDeElemento(el) });
     });
+    if (normas.length) {
+      nuevaPagina();
+      escribirParrafo("ANEXOS: NORMAS", { negrita: true, size: FS + 2, espacioDespues: 16 });
+      normas.forEach((n) => escribirParrafo(n, { espacioDespues: 4 }));
+      y += 10;
+      escribirParrafo("Sistemas incluidos a continuación:", { negrita: true, espacioDespues: 8 });
+      sistemas.forEach((s) => escribirParrafo(`•  ${s.sistema}`, { espacioDespues: 2 }));
+    }
+
+    const total = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= total; p++) { doc.setPage(p); if (window.dibujarNumeroPaginaPDF) dibujarNumeroPaginaPDF(doc, p, total); }
+
+    const nombreArchivo = `Informe-Acreditacion-${(informe.proyecto || "proyecto").replace(/[^a-z0-9]+/gi, "-")}-${informe.fecha || ""}.pdf`;
+    let bytesFinales = new Uint8Array(doc.output("arraybuffer"));
+
+    // --- Adjuntar los PDF de los sistemas UL al final ---
+    const conLink = sistemas.filter((s) => s.link);
+    if (conLink.length && window.PDFLib) {
+      let fallidos = 0;
+      try {
+        const master = await window.PDFLib.PDFDocument.load(bytesFinales, { ignoreEncryption: true });
+        for (const s of conLink) {
+          const bytes = await bytesPDFRemoto(s.link);
+          if (!bytes) { fallidos++; continue; }
+          try {
+            const src = await window.PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+            const paginas = await master.copyPages(src, src.getPageIndices());
+            paginas.forEach((pg) => master.addPage(pg));
+          } catch (e) { fallidos++; }
+        }
+        bytesFinales = await master.save();
+      } catch (e) { /* si falla el ensamblado, se entrega el informe sin anexos */ }
+      if (fallidos && window.mostrarToast) {
+        mostrarToast(`${fallidos} sistema(s) UL no se pudieron adjuntar automáticamente.`, "error");
+      }
+    }
+
+    const blob = new Blob([bytesFinales], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nombreArchivo;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    if (window.mostrarToast) mostrarToast("PDF del informe generado.");
+  } catch (err) {
+    console.error("generarPDFInformeAcreditacion:", err);
+    if (window.mostrarToast) mostrarToast("No se pudo generar el PDF: " + err.message, "error");
+  } finally {
+    if (toast && window.ocultarToastProgreso) ocultarToastProgreso(toast);
   }
-
-  const totalPaginas = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= totalPaginas; p++) { doc.setPage(p); if (window.dibujarNumeroPaginaPDF) dibujarNumeroPaginaPDF(doc, p, totalPaginas); }
-
-  const nombreArchivo = `Informe-Acreditacion-${(informe.proyecto || "proyecto").replace(/[^a-z0-9]+/gi, "-")}-${informe.fecha || ""}.pdf`;
-  doc.save(nombreArchivo);
-  if (window.mostrarToast) mostrarToast("PDF del informe generado.");
 }
 
 document.addEventListener("DOMContentLoaded", () => {
