@@ -509,8 +509,8 @@ body.modo-levantamiento #levantamiento-fullscreen { display: block; position: fi
    sí tenía estos estilos completos (el JS actual renombró las clases del
    riel — planos-tool-btn/planos-rail-toggle en vez de planos-modo-btn/
    planos-tools-toggle — pero el CSS correspondiente nunca se actualizó). --- */
-.planos-layout { position: relative; flex: 1; min-height: 0; display: flex; }
-.planos-visor-right { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+.planos-layout { position: relative; flex: 1 1 0; min-height: 0; height: 0; display: flex; }
+.planos-visor-right { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; height: 100%; }
 .planos-canvas-posicionador { will-change: transform; }
 .planos-svg-capa { pointer-events: none; }
 .planos-rail {
@@ -789,7 +789,7 @@ body.tf-open .lev-form-sticky, body.tf-open #levantamiento-fullscreen { padding-
 .acr-visor-overlay button, .acr-visor-overlay .lev-chip, #acr-elemento-overlay button, #acr-elemento-overlay .lev-chip { touch-action: manipulation; }
 .acr-editor { display: flex; flex-direction: column; gap: 10px; align-items: center; max-width: 900px; margin: 0 auto; width: 100%; flex: 1; min-height: 0; }
 .acr-editor-modos { display: flex; gap: 8px; flex-shrink: 0; }
-.acr-editor-canvas-wrap { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: var(--radius); overflow: hidden; padding: 8px; touch-action: none; overscroll-behavior: none; }
+.acr-editor-canvas-wrap { width: 100%; flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: var(--radius); overflow: hidden; padding: 8px; touch-action: none; overscroll-behavior: none; }
 .acr-editor-canvas-wrap canvas { max-width: 100%; max-height: 100%; touch-action: none; border-radius: var(--radius-sm); }
 .acr-editor-texto-input-row { display: flex; gap: 8px; flex-shrink: 0; padding: 4px 0; }
 .acr-editor-texto-input-row input { flex: 1; font-family: inherit; font-size: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px; }
@@ -797,4 +797,48 @@ body.tf-open .lev-form-sticky, body.tf-open #levantamiento-fullscreen { padding-
 .acr-editor-colores { display: flex; gap: 6px; }
 .acr-color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; }
 .acr-color-swatch.active { border-color: var(--ink); box-shadow: 0 0 0 2px var(--surface-raised) inset; }
+/* --- Nuevo visor unificado de foto: canvas pantalla completa + riel estilo Planos --- */
+.acr-visor-foto { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; width: 100%; position: relative; }
+.acr-foto-rail {
+  position: fixed; right: 10px; bottom: 44px;
+  background: rgba(28, 28, 30, 0.92); border-radius: 18px; padding: 6px 4px;
+  z-index: 30; display: flex; flex-direction: column; align-items: center;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35); gap: 2px;
+}
+.acr-foto-rail.rail-collapsed { padding: 4px; }
+.acr-foto-rail-toggle {
+  border: none; background: transparent; color: white; opacity: 0.85; cursor: pointer;
+  padding: 8px; display: flex; align-items: center; justify-content: center;
+}
+.acr-foto-rail-toggle .icon { width: 20px; height: 20px; }
+.acr-foto-rail-herramientas { display: flex; flex-direction: column; gap: 2px; }
+.acr-foto-tool-btn {
+  border: none; border-radius: 11px; padding: 11px; cursor: pointer; line-height: 1;
+  color: white; opacity: 0.72; background: transparent;
+  transition: opacity 0.15s, background 0.15s, transform 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.acr-foto-tool-btn .icon { width: 21px; height: 21px; stroke-width: 2.1; }
+.acr-foto-tool-btn.active { opacity: 1; background: rgba(255,255,255,0.18); transform: scale(1.05); }
+@media (hover: hover) and (pointer: fine) {
+  .acr-foto-tool-btn:hover { opacity: 1; background: rgba(255,255,255,0.10); }
+  .acr-foto-tool-btn.active:hover { background: rgba(255,255,255,0.22); }
+}
+.acr-foto-rail-separator { width: 60%; height: 1px; background: rgba(255,255,255,0.18); margin: 4px auto; }
+.acr-foto-rail-color-preview { width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 1px rgba(0,0,0,0.25); cursor: pointer; margin: 8px; padding: 0; }
+.acr-foto-rail-grosor-btn { border: none; background: transparent; cursor: pointer; padding: 9px; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; }
+.acr-foto-grosor-preview { width: 20px; border-radius: 2px; background: white; display: block; }
+.acr-foto-rail-flyout {
+  position: fixed; right: 58px; bottom: 44px;
+  background: rgba(28, 28, 30, 0.95); border-radius: 14px; padding: 9px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  display: flex; gap: 8px; align-items: center; z-index: 40; flex-wrap: wrap; width: max-content;
+}
+.acr-foto-rail-flyout-grosor { flex-direction: column; align-items: stretch; min-width: 60px; }
+.acr-foto-grosor-opcion { border: none; background: transparent; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+.acr-foto-grosor-opcion span { width: 100%; border-radius: 2px; background: white; display: block; }
+.acr-foto-grosor-opcion.active { background: rgba(255,255,255,0.18); }
+.acr-foto-visor-controles { display: flex; flex-direction: column; gap: 10px; padding: 12px; flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border); }
+.acr-foto-visor-botones { display: flex; gap: 10px; flex-wrap: wrap; }
+.acr-foto-visor-botones button { flex: 1; min-width: 140px; }
 .acr-visor-overlay button, .acr-visor-overlay .lev-chip, #acr-elemento-overlay button, #acr-elemento-overlay .lev-chip { touch-action: manipulation; }
