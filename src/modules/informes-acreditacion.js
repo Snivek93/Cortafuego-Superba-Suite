@@ -188,6 +188,10 @@ let ACR_ELEMENTO_FORM = null;
 let ACR_ELEMENTO_EDITANDO_ID = null;
 let ACR_FOTO_EDIT = null;
 let ACR_DESC_FOTO_MODAL_ID = null; // id de la foto cuyo popup de descripción está abierto
+let ACR_DESC_FOTO_ES_NUEVA = false; // true = se abrió justo tras tomar la foto (fondo pantalla completa)
+let ACR_FOTO_MODO_BORRAR = false; // true = tocar una foto la marca para borrar (no para el informe)
+let ACR_FOTOS_A_BORRAR = new Set();
+let ACR_FOTO_CONFIRMAR_BORRAR = null; // { ids: [...] } cuando se pidió confirmación
 let ACR_CHECKLIST_EXPANDIDO = new Set();
 let ACR_OBSERVACION_ABIERTA = new Set();
 let ACR_DATOS_GENERALES_ABIERTO = true;
@@ -388,6 +392,23 @@ function todasSeleccionadas() {
 function renderModalDescripcionFotoHTML() {
   const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_DESC_FOTO_MODAL_ID);
   if (!foto) return "";
+  if (ACR_DESC_FOTO_ES_NUEVA) {
+    // Foto recién tomada: la foto queda de fondo a pantalla completa (mismo
+    // tratamiento visual que el editor) con el popup de descripción encima.
+    return `
+      <div class="acr-visor-foto acr-visor-foto-fullscreen acr-desc-foto-fondo">
+        <div class="acr-editor-canvas-wrap"><img src="${foto.dataUrl}" alt="Foto" class="acr-desc-foto-fondo-img"></div>
+        <div class="acr-desc-foto-overlay acr-desc-foto-overlay-sobre-fondo">
+          <div class="acr-desc-foto-modal">
+            <div class="acr-desc-foto-header">
+              <span>Descripción de la foto</span>
+              <button type="button" class="primary" data-acr-action="desc-foto-aplicar">Aplicar</button>
+            </div>
+            <textarea id="acr-desc-foto-input" placeholder="Ej. Vista general del muro cortafuego (opcional)" rows="4">${escapeHtml(foto.descripcion)}</textarea>
+          </div>
+        </div>
+      </div>`;
+  }
   return `
     <div class="acr-desc-foto-overlay">
       <div class="acr-desc-foto-modal">
@@ -404,35 +425,68 @@ function renderModalDescripcionFotoHTML() {
 function renderGaleriaHTML() {
   const fotos = ACR_DRAFT.fotos;
   const seleccionadas = fotos.filter((f) => f.seleccionada).length;
+  const modoBorrar = ACR_FOTO_MODO_BORRAR;
   const items = fotos.map((f, idx) => {
+    const marcadaParaBorrar = ACR_FOTOS_A_BORRAR.has(f.id);
     return `
-    <div class="acr-foto-item ${f.seleccionada ? "acr-foto-seleccionada" : ""}">
-      <div class="acr-foto-thumb-wrap">
-        <img src="${f.dataUrl}" alt="Foto ${idx + 1}" data-acr-action="abrir-foto" data-id="${f.id}">
-        <button type="button" class="acr-foto-check-btn ${f.seleccionada ? "active" : ""}" data-acr-action="toggle-foto" data-idx="${idx}" title="${f.seleccionada ? "Quitar del informe" : "Incluir en el informe"}" aria-label="Seleccionar foto">
-          <svg class="icon"><use href="#i-check"/></svg>
-        </button>
-        <button type="button" class="acr-foto-icon-btn acr-foto-icon-editar" data-acr-action="editar-foto" data-id="${f.id}" title="Editar" aria-label="Editar foto"><svg class="icon"><use href="#i-edit"/></svg></button>
-        <button type="button" class="acr-foto-icon-btn acr-foto-icon-borrar" data-acr-action="borrar-foto" data-idx="${idx}" title="Borrar" aria-label="Borrar foto"><svg class="icon"><use href="#i-trash"/></svg></button>
+    <div class="acr-foto-item ${f.seleccionada ? "acr-foto-seleccionada" : ""} ${marcadaParaBorrar ? "acr-foto-marcada-borrar" : ""}">
+      <div class="acr-foto-thumb-wrap" ${modoBorrar ? `data-acr-action="toggle-foto-borrar" data-id="${f.id}"` : ""}>
+        <img src="${f.dataUrl}" alt="Foto ${idx + 1}" ${modoBorrar ? "" : `data-acr-action="abrir-foto" data-id="${f.id}"`}>
+        ${modoBorrar ? `
+          <span class="acr-foto-check-borrar ${marcadaParaBorrar ? "active" : ""}"><svg class="icon"><use href="#i-check"/></svg></span>
+        ` : `
+          <button type="button" class="acr-foto-check-btn ${f.seleccionada ? "active" : ""}" data-acr-action="toggle-foto" data-idx="${idx}" title="${f.seleccionada ? "Quitar del informe" : "Incluir en el informe"}" aria-label="Seleccionar foto">
+            <svg class="icon"><use href="#i-check"/></svg>
+          </button>
+          <button type="button" class="acr-foto-icon-btn acr-foto-icon-editar" data-acr-action="editar-foto" data-id="${f.id}" title="Editar" aria-label="Editar foto"><svg class="icon"><use href="#i-edit"/></svg></button>
+          <button type="button" class="acr-foto-icon-btn acr-foto-icon-borrar" data-acr-action="pedir-borrar-foto" data-id="${f.id}" title="Borrar" aria-label="Borrar foto"><svg class="icon"><use href="#i-trash"/></svg></button>
+        `}
       </div>
-      <p class="acr-foto-desc-preview" data-acr-action="editar-descripcion-foto" data-id="${f.id}">${f.descripcion ? escapeHtml(f.descripcion) : '<span class="hint">Sin descripción — tocá para agregarla</span>'}</p>
+      <p class="acr-foto-desc-preview" ${modoBorrar ? "" : `data-acr-action="editar-descripcion-foto" data-id="${f.id}"`}>${f.descripcion ? escapeHtml(f.descripcion) : '<span class="hint">Sin descripción — tocá para agregarla</span>'}</p>
     </div>`;
   }).join("");
   return `
     <div class="acr-galeria">
+      ${modoBorrar ? "" : `
       <label class="primary acr-btn-add-foto">
         <svg class="icon"><use href="#i-camera"/></svg>Añadir foto
         <input type="file" accept="image/*" multiple id="acr-input-fotos" hidden>
-      </label>
+      </label>`}
       ${fotos.length ? `
         <div class="acr-galeria-selectbar">
-          <span class="hint">${seleccionadas} de ${fotos.length} seleccionadas — solo las seleccionadas van al informe</span>
-          <button type="button" class="secondary" data-acr-action="toggle-seleccion-todas">${todasSeleccionadas() ? "Deseleccionar todas" : "Seleccionar todas"}</button>
+          ${modoBorrar ? `
+            <span class="hint">${ACR_FOTOS_A_BORRAR.size} de ${fotos.length} marcadas para borrar</span>
+            <div class="acr-galeria-selectbar-botones">
+              <button type="button" class="secondary" data-acr-action="cancelar-modo-borrar">Cancelar</button>
+              <button type="button" class="danger" data-acr-action="pedir-borrar-varias" ${ACR_FOTOS_A_BORRAR.size ? "" : "disabled"}>Borrar (${ACR_FOTOS_A_BORRAR.size})</button>
+            </div>
+          ` : `
+            <span class="hint">${seleccionadas} de ${fotos.length} seleccionadas — solo las seleccionadas van al informe</span>
+            <div class="acr-galeria-selectbar-botones">
+              <button type="button" class="secondary" data-acr-action="toggle-seleccion-todas">${todasSeleccionadas() ? "Deseleccionar todas" : "Seleccionar todas"}</button>
+              <button type="button" class="secondary" data-acr-action="activar-modo-borrar">Seleccionar para borrar</button>
+            </div>
+          `}
         </div>
         <div class="acr-fotos-grid">${items}</div>
       ` : `<p class="hint" style="margin-top:16px">Todavía no agregaste fotos. Tocá "Añadir foto" arriba.</p>`}
     </div>
-    ${ACR_DESC_FOTO_MODAL_ID != null ? renderModalDescripcionFotoHTML() : ""}`;
+    ${ACR_DESC_FOTO_MODAL_ID != null ? renderModalDescripcionFotoHTML() : ""}
+    ${ACR_FOTO_CONFIRMAR_BORRAR ? renderModalConfirmarBorrarFotoHTML() : ""}`;
+}
+
+function renderModalConfirmarBorrarFotoHTML() {
+  const n = ACR_FOTO_CONFIRMAR_BORRAR.ids.length;
+  return `
+    <div class="acr-desc-foto-overlay">
+      <div class="acr-desc-foto-modal acr-confirmar-modal">
+        <p class="acr-confirmar-texto">${n === 1 ? "¿Borrar esta foto? No se puede deshacer." : `¿Borrar ${n} fotos? No se puede deshacer.`}</p>
+        <div class="acr-confirmar-botones">
+          <button type="button" class="secondary" data-acr-action="cancelar-borrar-foto">Cancelar</button>
+          <button type="button" class="danger" data-acr-action="confirmar-borrar-foto">Borrar</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 
@@ -1172,17 +1226,31 @@ async function agregarFotosDesdeArchivos(fileList) {
   // Si se agregó una sola foto (caso típico: cámara), se abre directo el popup
   // de descripción para ponerle texto al toque (o guardarla sin descripción).
   // Si son varias, se quedan en la galería — forzar en cadena es peor experiencia.
-  if (idsNuevos.length === 1) { ACR_DESC_FOTO_MODAL_ID = idsNuevos[0]; renderAcreditacion(); }
+  if (idsNuevos.length === 1) { ACR_DESC_FOTO_MODAL_ID = idsNuevos[0]; ACR_DESC_FOTO_ES_NUEVA = true; renderAcreditacion(); }
   else renderAcreditacion();
 }
 function toggleSeleccionFoto(idx) { const f = ACR_DRAFT.fotos[idx]; if (f) f.seleccionada = !f.seleccionada; renderAcreditacion(); }
 function toggleSeleccionTodas() { const marcar = !todasSeleccionadas(); ACR_DRAFT.fotos.forEach((f) => { f.seleccionada = marcar; }); renderAcreditacion(); }
-function borrarFoto(idx) { ACR_DRAFT.fotos.splice(idx, 1); renderAcreditacion(); }
+function activarModoBorrarFotos() { ACR_FOTO_MODO_BORRAR = true; ACR_FOTOS_A_BORRAR = new Set(); renderAcreditacion(); }
+function cancelarModoBorrarFotos() { ACR_FOTO_MODO_BORRAR = false; ACR_FOTOS_A_BORRAR = new Set(); renderAcreditacion(); }
+function toggleFotoParaBorrar(id) {
+  if (ACR_FOTOS_A_BORRAR.has(id)) ACR_FOTOS_A_BORRAR.delete(id); else ACR_FOTOS_A_BORRAR.add(id);
+  renderAcreditacion();
+}
+function ejecutarBorradoFotos() {
+  if (!ACR_FOTO_CONFIRMAR_BORRAR) return;
+  const ids = new Set(ACR_FOTO_CONFIRMAR_BORRAR.ids);
+  ACR_DRAFT.fotos = ACR_DRAFT.fotos.filter((f) => !ids.has(f.id));
+  ACR_FOTO_CONFIRMAR_BORRAR = null;
+  ACR_FOTO_MODO_BORRAR = false;
+  ACR_FOTOS_A_BORRAR = new Set();
+  renderAcreditacion();
+}
 
 function abrirEditorFoto(fotoId) {
   const foto = ACR_DRAFT.fotos.find((f) => f.id === fotoId);
   if (!foto) return;
-  ACR_FOTO_EDIT = { fotoId, modo: "anotar", img: null, rect: { left: 0, top: 0, right: 1, bottom: 1 }, trazos: [], trazoActual: null, rectangulos: [], rectanguloActual: null, textos: [], textoPendiente: null, color: ACR_PALETA[0], grosorFrac: 0.006, arrastre: null, herramientasAbiertas: false };
+  ACR_FOTO_EDIT = { fotoId, modo: "anotar", img: null, rect: { left: 0, top: 0, right: 1, bottom: 1 }, trazos: [], trazoActual: null, rectangulos: [], rectanguloActual: null, textos: [], textoPendiente: null, textoSeleccionado: null, color: ACR_PALETA[0], grosorFrac: 0.006, tamanoTexto: 0.035, arrastre: null, herramientasAbiertas: false };
   ACR_VISTA = "editorFoto";
   renderAcreditacion();
 }
@@ -1195,8 +1263,11 @@ function renderEditorFotoHTML() {
     { id: "recortar", icono: "i-crop", label: "Recortar" },
   ];
   const grosores = [0.003, 0.006, 0.01, 0.016];
+  const tamanosTexto = [0.02, 0.035, 0.05, 0.07];
   const mostrarColor = e.modo === "anotar" || e.modo === "texto" || e.modo === "recuadro";
   const mostrarGrosor = e.modo === "anotar" || e.modo === "recuadro";
+  const mostrarTamanoTexto = e.modo === "texto";
+  const tamanoActivo = e.textoSeleccionado != null && e.textos[e.textoSeleccionado] ? (e.textos[e.textoSeleccionado].tamano || e.tamanoTexto) : e.tamanoTexto;
   return `
     <div class="acr-visor-foto acr-visor-foto-fullscreen">
       <div class="acr-editor-canvas-wrap" id="acr-editor-canvas-wrap"><canvas id="acr-editor-canvas"></canvas></div>
@@ -1206,12 +1277,13 @@ function renderEditorFotoHTML() {
       <button type="button" class="acr-foto-bubble acr-foto-bubble-aplicar" data-acr-action="editor-aplicar" aria-label="Aplicar">
         Aplicar
       </button>
+      ${e.modo === "recortar" ? `
+        <button type="button" class="acr-foto-bubble acr-foto-bubble-reset-recorte" data-acr-action="editor-reset-recorte" aria-label="Reiniciar selección">
+          Reiniciar selección
+        </button>` : ""}
       ${e.modo === "texto" && e.textoPendiente ? `
-        <div class="acr-editor-texto-input-row">
-          <input type="text" id="acr-editor-texto-input" placeholder="Escribí el texto..." autofocus>
-          <button type="button" class="secondary" data-acr-action="editor-texto-cancelar">Cancelar</button>
-          <button type="button" class="primary" data-acr-action="editor-texto-colocar">Colocar</button>
-        </div>` : ""}
+        <input type="text" id="acr-editor-texto-input" class="acr-editor-texto-flotante" placeholder="Escribí..." value="${escapeHtml(e.textoPendiente.texto || "")}" style="color:${e.color}">
+      ` : ""}
       <div class="acr-foto-rail ${e.herramientasAbiertas ? "" : "rail-collapsed"}">
         <button type="button" class="acr-foto-rail-toggle" data-acr-action="toggle-herramientas" title="${e.herramientasAbiertas ? "Ocultar herramientas" : "Herramientas"}">
           <svg class="icon"><use href="#${e.herramientasAbiertas ? "i-chevron-down" : "i-edit"}"/></svg>
@@ -1240,7 +1312,15 @@ function renderEditorFotoHTML() {
               ${grosores.map((g) => `<button type="button" class="acr-foto-grosor-opcion ${e.grosorFrac === g ? "active" : ""}" data-acr-action="editor-grosor" data-grosor="${g}"><span style="height:${Math.max(1, g * 300)}px"></span></button>`).join("")}
             </div>` : ""}
         ` : ""}
-        ${e.modo === "recortar" ? `<button type="button" class="secondary" data-acr-action="editor-reset-recorte">Reiniciar selección</button>` : ""}
+        ${mostrarTamanoTexto ? `
+          <button type="button" id="acr-foto-rail-tamano-btn" class="acr-foto-rail-grosor-btn" title="Tamaño de texto">
+            <span class="acr-foto-tamano-preview">A</span>
+          </button>
+          ${e.flyout === "tamano" ? `
+            <div class="acr-foto-rail-flyout acr-foto-rail-flyout-grosor">
+              ${tamanosTexto.map((t) => `<button type="button" class="acr-foto-tamano-opcion ${tamanoActivo === t ? "active" : ""}" data-acr-action="editor-tamano-texto" data-tamano="${t}" style="font-size:${10 + t * 200}px">A</button>`).join("")}
+            </div>` : ""}
+        ` : ""}
         <div class="acr-foto-rail-separator"></div>
         <button type="button" class="acr-foto-tool-btn" data-acr-action="editor-deshacer" title="Deshacer" aria-label="Deshacer"><svg class="icon"><use href="#i-undo"/></svg></button>
         ` : ""}
@@ -1260,7 +1340,7 @@ function inicializarCanvasEditor() {
     const availH = wrap.clientHeight > 100 ? wrap.clientHeight : Math.max(200, window.innerHeight - 180);
     const escala = Math.min(availW / e.img.naturalWidth, availH / e.img.naturalHeight, 1);
     canvas.width = Math.round(e.img.naturalWidth * escala); canvas.height = Math.round(e.img.naturalHeight * escala);
-    dibujarEditor(); ligarPunterosEditor(canvas); return;
+    dibujarEditor(); ligarPunterosEditor(canvas); posicionarInputTextoFlotante(); return;
   }
   const img = new Image();
   img.onload = () => {
@@ -1270,9 +1350,29 @@ function inicializarCanvasEditor() {
     const availH = wrap.clientHeight > 100 ? wrap.clientHeight : Math.max(200, window.innerHeight - 180);
     const escala = Math.min(availW / img.naturalWidth, availH / img.naturalHeight, 1);
     canvas.width = Math.round(img.naturalWidth * escala); canvas.height = Math.round(img.naturalHeight * escala);
-    dibujarEditor(); ligarPunterosEditor(canvas);
+    dibujarEditor(); ligarPunterosEditor(canvas); posicionarInputTextoFlotante();
   };
   img.src = foto.dataUrl;
+}
+// Posiciona el <input> de texto en tiempo real exactamente sobre el punto del
+// canvas que se tocó (o sobre el texto que se está editando), para que el
+// usuario vea el texto aparecer en el lugar correcto mientras escribe.
+function posicionarInputTextoFlotante() {
+  const e = ACR_FOTO_EDIT;
+  const input = document.getElementById("acr-editor-texto-input");
+  const canvas = document.getElementById("acr-editor-canvas");
+  if (!input || !canvas || !e.textoPendiente) return;
+  const wrap = document.getElementById("acr-editor-canvas-wrap");
+  const rectCanvas = canvas.getBoundingClientRect();
+  const rectWrap = wrap.getBoundingClientRect();
+  const tamanoPx = Math.max(14, Math.round(canvas.width * (e.textoPendiente.tamano || e.tamanoTexto || 0.035)));
+  const left = (rectCanvas.left - rectWrap.left) + e.textoPendiente.x * rectCanvas.width;
+  const top = (rectCanvas.top - rectWrap.top) + e.textoPendiente.y * rectCanvas.height;
+  input.style.left = `${left}px`;
+  input.style.top = `${top}px`;
+  input.style.fontSize = `${Math.max(14, tamanoPx * (rectCanvas.width / canvas.width))}px`;
+  input.focus();
+  const val = input.value; input.value = ""; input.value = val; // cursor al final
 }
 function ligarFlyoutsRailFoto() {
   const btnColor = document.getElementById("acr-foto-rail-color-btn");
@@ -1285,14 +1385,23 @@ function ligarFlyoutsRailFoto() {
     ACR_FOTO_EDIT.flyout = ACR_FOTO_EDIT.flyout === "grosor" ? null : "grosor";
     renderAcreditacion();
   });
+  const btnTamano = document.getElementById("acr-foto-rail-tamano-btn");
+  if (btnTamano) btnTamano.addEventListener("click", () => {
+    ACR_FOTO_EDIT.flyout = ACR_FOTO_EDIT.flyout === "tamano" ? null : "tamano";
+    renderAcreditacion();
+  });
 }
-function dibujarTextoEnCanvas(ctx, t, W, H) {
-  const tamano = Math.max(14, Math.round(W * 0.035));
+function dibujarTextoEnCanvas(ctx, t, W, H, seleccionado) {
+  const tamano = Math.max(14, Math.round(W * (t.tamano || 0.035)));
   ctx.font = `700 ${tamano}px Arial, sans-serif`; ctx.textBaseline = "middle";
   const x = t.x * W, y = t.y * H, metrics = ctx.measureText(t.texto);
   const padX = tamano * 0.4, padY = tamano * 0.3;
   ctx.fillStyle = "rgba(0,0,0,0.55)";
   ctx.fillRect(x - padX, y - tamano / 2 - padY, metrics.width + padX * 2, tamano + padY * 2);
+  if (seleccionado) {
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+    ctx.strokeRect(x - padX, y - tamano / 2 - padY, metrics.width + padX * 2, tamano + padY * 2);
+  }
   ctx.fillStyle = t.color; ctx.fillText(t.texto, x, y);
 }
 function dibujarEditor() {
@@ -1309,16 +1418,12 @@ function dibujarEditor() {
     t.puntos.forEach((p, i) => { const x = p.x * W, y = p.y * H; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
     ctx.stroke();
   });
-  e.textos.forEach((t) => dibujarTextoEnCanvas(ctx, t, W, H));
+  e.textos.forEach((t, i) => dibujarTextoEnCanvas(ctx, t, W, H, e.textoSeleccionado === i));
   const rects = e.rectanguloActual ? e.rectangulos.concat([e.rectanguloActual]) : e.rectangulos;
   rects.forEach((r) => {
     ctx.strokeStyle = r.color; ctx.lineWidth = Math.max(2, r.grosorFrac * W);
     ctx.strokeRect(Math.min(r.x1, r.x2) * W, Math.min(r.y1, r.y2) * H, Math.abs(r.x2 - r.x1) * W, Math.abs(r.y2 - r.y1) * H);
   });
-  if (e.modo === "texto" && e.textoPendiente) {
-    ctx.beginPath(); ctx.arc(e.textoPendiente.x * W, e.textoPendiente.y * H, 6, 0, Math.PI * 2);
-    ctx.fillStyle = e.color; ctx.fill();
-  }
   if (e.modo === "recortar") {
     const r = e.rect, rx = r.left * W, ry = r.top * H, rw = (r.right - r.left) * W, rh = (r.bottom - r.top) * H;
     ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(0, 0, W, H); ctx.clearRect(rx, ry, rw, rh);
@@ -1327,6 +1432,20 @@ function dibujarEditor() {
     const hs = 9; ctx.fillStyle = "#ffffff";
     [[rx, ry], [rx + rw, ry], [rx + rw, ry + rh], [rx, ry + rh]].forEach(([hx, hy]) => ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs));
   }
+}
+function indiceTextoEnPunto(e, p, canvas) {
+  const ctx = canvas.getContext("2d"), W = canvas.width, H = canvas.height;
+  for (let i = e.textos.length - 1; i >= 0; i--) {
+    const t = e.textos[i];
+    const tamano = Math.max(14, Math.round(W * (t.tamano || 0.035)));
+    ctx.font = `700 ${tamano}px Arial, sans-serif`;
+    const metrics = ctx.measureText(t.texto);
+    const padX = tamano * 0.4, padY = tamano * 0.3;
+    const x = t.x * W, y = t.y * H;
+    const left = x - padX, right = x + metrics.width + padX, top = y - tamano / 2 - padY, bottom = y + tamano / 2 + padY;
+    if (p.x * W >= left && p.x * W <= right && p.y * H >= top && p.y * H <= bottom) return i;
+  }
+  return null;
 }
 function ligarPunterosEditor(canvas) {
   function coordsFrac(evt) {
@@ -1345,7 +1464,19 @@ function ligarPunterosEditor(canvas) {
     canvas.setPointerCapture(evt.pointerId);
     if (e.modo === "anotar") { e.trazoActual = { color: e.color, grosorFrac: e.grosorFrac, puntos: [p] }; }
     else if (e.modo === "recuadro") { e.rectanguloActual = { color: e.color, grosorFrac: e.grosorFrac, x1: p.x, y1: p.y, x2: p.x, y2: p.y }; }
-    else if (e.modo === "texto") { e.textoPendiente = p; dibujarEditor(); renderAcreditacion(); }
+    else if (e.modo === "texto") {
+      if (e.textoPendiente) return; // ya está escribiendo uno, no interrumpir
+      const idxTocado = indiceTextoEnPunto(e, p, canvas);
+      if (idxTocado != null) {
+        e.textoSeleccionado = idxTocado;
+        e.arrastre = { tipo: "mover-texto", offX: p.x - e.textos[idxTocado].x, offY: p.y - e.textos[idxTocado].y };
+        dibujarEditor(); renderAcreditacion();
+      } else {
+        e.textoSeleccionado = null;
+        e.textoPendiente = { x: p.x, y: p.y, texto: "", tamano: e.tamanoTexto };
+        dibujarEditor(); renderAcreditacion();
+      }
+    }
     else {
       const h = handleCercano(p);
       if (h) { e.arrastre = { tipo: "handle", handle: h }; }
@@ -1358,6 +1489,13 @@ function ligarPunterosEditor(canvas) {
     const e = ACR_FOTO_EDIT;
     if (e.modo === "anotar" && e.trazoActual) { evt.preventDefault(); e.trazoActual.puntos.push(coordsFrac(evt)); dibujarEditor(); }
     else if (e.modo === "recuadro" && e.rectanguloActual) { evt.preventDefault(); const p = coordsFrac(evt); e.rectanguloActual.x2 = p.x; e.rectanguloActual.y2 = p.y; dibujarEditor(); }
+    else if (e.modo === "texto" && e.arrastre && e.arrastre.tipo === "mover-texto" && e.textoSeleccionado != null) {
+      evt.preventDefault();
+      const p = coordsFrac(evt);
+      e.textos[e.textoSeleccionado].x = Math.max(0, Math.min(1, p.x - e.arrastre.offX));
+      e.textos[e.textoSeleccionado].y = Math.max(0, Math.min(1, p.y - e.arrastre.offY));
+      dibujarEditor();
+    }
     else if (e.modo === "recortar" && e.arrastre) {
       evt.preventDefault();
       const p = coordsFrac(evt), r = e.rect;
@@ -1382,7 +1520,10 @@ function ligarPunterosEditor(canvas) {
 }
 function colocarTextoPendiente() {
   const e = ACR_FOTO_EDIT, input = document.getElementById("acr-editor-texto-input"), texto = input ? input.value.trim() : "";
-  if (texto && e.textoPendiente) e.textos.push({ x: e.textoPendiente.x, y: e.textoPendiente.y, texto, color: e.color });
+  if (texto && e.textoPendiente) {
+    e.textos.push({ x: e.textoPendiente.x, y: e.textoPendiente.y, texto, color: e.color, tamano: e.textoPendiente.tamano || e.tamanoTexto });
+    e.textoSeleccionado = e.textos.length - 1;
+  }
   e.textoPendiente = null; renderAcreditacion();
 }
 function finalizarEdicionFoto() {
@@ -1433,7 +1574,11 @@ function bindCamposTexto(cont) {
   const inputFotos = document.getElementById("acr-input-fotos");
   if (inputFotos) inputFotos.addEventListener("change", (evt) => { agregarFotosDesdeArchivos(evt.target.files); evt.target.value = ""; });
   const inputTexto = document.getElementById("acr-editor-texto-input");
-  if (inputTexto) { inputTexto.focus(); inputTexto.addEventListener("keydown", (evt) => { if (evt.key === "Enter") { evt.preventDefault(); colocarTextoPendiente(); } }); }
+  if (inputTexto) {
+    inputTexto.addEventListener("keydown", (evt) => { if (evt.key === "Enter") { evt.preventDefault(); colocarTextoPendiente(); } });
+    inputTexto.addEventListener("input", () => { if (ACR_FOTO_EDIT.textoPendiente) ACR_FOTO_EDIT.textoPendiente.texto = inputTexto.value; });
+    inputTexto.addEventListener("blur", () => { if (ACR_FOTO_EDIT.textoPendiente) colocarTextoPendiente(); });
+  }
   const inputDescFoto = document.getElementById("acr-desc-foto-input");
   if (inputDescFoto) inputDescFoto.focus();
 }
@@ -1470,16 +1615,23 @@ function attachEventos(overlay) {
     else if (accion === "guardar") guardarInformeDesdeFormulario();
     else if (accion === "toggle-foto") { toggleSeleccionFoto(idx); return; }
     else if (accion === "toggle-seleccion-todas") toggleSeleccionTodas();
-    else if (accion === "borrar-foto") borrarFoto(idx);
+    else if (accion === "activar-modo-borrar") activarModoBorrarFotos();
+    else if (accion === "cancelar-modo-borrar") cancelarModoBorrarFotos();
+    else if (accion === "toggle-foto-borrar") toggleFotoParaBorrar(Number(btn.getAttribute("data-id")));
+    else if (accion === "pedir-borrar-foto") { ACR_FOTO_CONFIRMAR_BORRAR = { ids: [Number(btn.getAttribute("data-id"))] }; renderAcreditacion(); }
+    else if (accion === "pedir-borrar-varias") { ACR_FOTO_CONFIRMAR_BORRAR = { ids: Array.from(ACR_FOTOS_A_BORRAR) }; renderAcreditacion(); }
+    else if (accion === "cancelar-borrar-foto") { ACR_FOTO_CONFIRMAR_BORRAR = null; renderAcreditacion(); }
+    else if (accion === "confirmar-borrar-foto") ejecutarBorradoFotos();
     else if (accion === "editar-foto") abrirEditorFoto(Number(btn.getAttribute("data-id")));
     else if (accion === "abrir-foto") abrirEditorFoto(Number(btn.getAttribute("data-id")));
-    else if (accion === "editar-descripcion-foto") { ACR_DESC_FOTO_MODAL_ID = Number(btn.getAttribute("data-id")); renderAcreditacion(); }
-    else if (accion === "desc-foto-cancelar") { ACR_DESC_FOTO_MODAL_ID = null; renderAcreditacion(); }
+    else if (accion === "editar-descripcion-foto") { ACR_DESC_FOTO_MODAL_ID = Number(btn.getAttribute("data-id")); ACR_DESC_FOTO_ES_NUEVA = false; renderAcreditacion(); }
+    else if (accion === "desc-foto-cancelar") { ACR_DESC_FOTO_MODAL_ID = null; ACR_DESC_FOTO_ES_NUEVA = false; renderAcreditacion(); }
     else if (accion === "desc-foto-aplicar") {
       const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_DESC_FOTO_MODAL_ID);
       const input = document.getElementById("acr-desc-foto-input");
       if (foto && input) foto.descripcion = input.value;
       ACR_DESC_FOTO_MODAL_ID = null;
+      ACR_DESC_FOTO_ES_NUEVA = false;
       renderAcreditacion();
     }
     else if (accion === "toggle-foto-visor") { const foto = ACR_DRAFT.fotos.find((f) => f.id === Number(btn.getAttribute("data-id"))); if (foto) foto.seleccionada = !foto.seleccionada; renderAcreditacion(); }
@@ -1503,19 +1655,29 @@ function attachEventos(overlay) {
     else if (accion === "toggle-expandir-checklist") { const clave = claveChecklist(elid, zona); if (ACR_CHECKLIST_EXPANDIDO.has(clave)) ACR_CHECKLIST_EXPANDIDO.delete(clave); else ACR_CHECKLIST_EXPANDIDO.add(clave); renderAcreditacion(); }
     else if (accion === "abrir-observacion") { ACR_OBSERVACION_ABIERTA.add(claveChecklist(elid, zona)); renderAcreditacion(); }
     else if (accion === "abrir-texto-informe") abrirModalTextoInforme();
-    else if (accion === "editor-modo") { ACR_FOTO_EDIT.modo = btn.getAttribute("data-modo"); ACR_FOTO_EDIT.flyout = null; renderAcreditacion(); }
+    else if (accion === "editor-modo") { ACR_FOTO_EDIT.modo = btn.getAttribute("data-modo"); ACR_FOTO_EDIT.flyout = null; ACR_FOTO_EDIT.textoSeleccionado = null; renderAcreditacion(); }
     else if (accion === "toggle-herramientas") { ACR_FOTO_EDIT.herramientasAbiertas = !ACR_FOTO_EDIT.herramientasAbiertas; renderAcreditacion(); }
     else if (accion === "editor-color") { ACR_FOTO_EDIT.color = btn.getAttribute("data-color"); ACR_FOTO_EDIT.flyout = null; renderAcreditacion(); }
     else if (accion === "editor-grosor") { ACR_FOTO_EDIT.grosorFrac = Number(btn.getAttribute("data-grosor")); ACR_FOTO_EDIT.flyout = null; renderAcreditacion(); }
+    else if (accion === "editor-tamano-texto") {
+      const t = Number(btn.getAttribute("data-tamano"));
+      const e = ACR_FOTO_EDIT;
+      e.tamanoTexto = t;
+      if (e.textoSeleccionado != null && e.textos[e.textoSeleccionado]) e.textos[e.textoSeleccionado].tamano = t;
+      e.flyout = null;
+      renderAcreditacion();
+    }
     else if (accion === "editor-deshacer") {
       const e = ACR_FOTO_EDIT;
-      if (e.modo === "texto") e.textos.pop();
+      if (e.modo === "texto") {
+        if (e.textoSeleccionado != null && e.textos[e.textoSeleccionado]) { e.textos.splice(e.textoSeleccionado, 1); e.textoSeleccionado = null; }
+        else e.textos.pop();
+      }
       else if (e.modo === "recuadro") e.rectangulos.pop();
       else e.trazos.pop();
       dibujarEditor();
     }
-    else if (accion === "editor-texto-cancelar") { ACR_FOTO_EDIT.textoPendiente = null; renderAcreditacion(); }
-    else if (accion === "editor-texto-colocar") colocarTextoPendiente();
+
     else if (accion === "editor-reset-recorte") { ACR_FOTO_EDIT.rect = { left: 0, top: 0, right: 1, bottom: 1 }; dibujarEditor(); }
     else if (accion === "editor-cancelar") { ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; renderAcreditacion(); }
     else if (accion === "editor-aplicar") finalizarEdicionFoto();
