@@ -187,7 +187,6 @@ let ACR_ZONA_ACTIVA = null;
 let ACR_ELEMENTO_FORM = null;
 let ACR_ELEMENTO_EDITANDO_ID = null;
 let ACR_FOTO_EDIT = null;
-let ACR_FOTO_VISOR_ID = null;
 let ACR_FOTO_MENU_ID = null;
 let ACR_CHECKLIST_EXPANDIDO = new Set();
 let ACR_OBSERVACION_ABIERTA = new Set();
@@ -320,8 +319,8 @@ function renderAcreditacion() {
   if (!overlay) return;
   const contPrevio = overlay.querySelector(".acr-content");
   const scrollPrevio = contPrevio ? contPrevio.scrollTop : 0;
-  const titulos = { historial: "Informes de Acreditación", galeria: "Fotos del recorrido", form: "Informe de Acreditación", editorFoto: "Editar foto", fotoVisor: "Foto" };
-  const volverA = { historial: null, galeria: "historial", form: "galeria", editorFoto: "galeria", fotoVisor: "galeria" };
+  const titulos = { historial: "Informes de Acreditación", galeria: "Fotos del recorrido", form: "Informe de Acreditación", editorFoto: "Foto" };
+  const volverA = { historial: null, galeria: "historial", form: "galeria", editorFoto: "galeria" };
   const accionesDerecha = {
     galeria: `<button type="button" class="acr-topbar-right-btn" data-acr-action="siguiente-a-form">Siguiente</button>`,
     editorFoto: `<button type="button" class="acr-topbar-right-btn" data-acr-action="editor-aplicar">Aplicar</button>`,
@@ -337,7 +336,6 @@ function renderAcreditacion() {
       ${ACR_VISTA === "galeria" ? renderGaleriaHTML() : ""}
       ${ACR_VISTA === "form" ? renderFormularioHTML() : ""}
       ${ACR_VISTA === "editorFoto" ? renderEditorFotoHTML() : ""}
-      ${ACR_VISTA === "fotoVisor" ? renderFotoVisorHTML() : ""}
     </div>
   `;
   attachEventos(overlay);
@@ -426,25 +424,7 @@ function renderGaleriaHTML() {
     </div>`;
 }
 
-// Visor de foto en pantalla completa: imagen grande + descripción editable +
-// acceso al editor de anotación. Mismo patrón que la galería de Planos.
-function renderFotoVisorHTML() {
-  const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_FOTO_VISOR_ID);
-  if (!foto) return "";
-  return `
-    <div class="acr-foto-visor">
-      <div class="acr-foto-visor-img-wrap">
-        <img src="${foto.dataUrl}" alt="Foto">
-      </div>
-      <div class="acr-foto-visor-controles">
-        <textarea class="acr-foto-desc" data-acr-field="foto-descripcion-visor" placeholder="Descripción de la foto (ej. Vista general del muro cortafuego)" rows="2">${escapeHtml(foto.descripcion)}</textarea>
-        <div class="acr-foto-visor-botones">
-          <button type="button" class="secondary" data-acr-action="editar-foto" data-id="${foto.id}"><svg class="icon"><use href="#i-edit"/></svg>Editar / anotar</button>
-          <button type="button" class="secondary" data-acr-action="toggle-foto-visor" data-id="${foto.id}">${foto.seleccionada ? "Quitar del informe" : "Incluir en el informe"}</button>
-        </div>
-      </div>
-    </div>`;
-}
+
 
 function renderAcompanantesHTML() {
   return ACR_DRAFT.acompanantes.map((a, idx) => `
@@ -1168,15 +1148,21 @@ function redimensionarImagenDataUrl(dataUrl, maxDim) {
 }
 async function agregarFotosDesdeArchivos(fileList) {
   const archivos = Array.from(fileList || []);
+  const idsNuevos = [];
   for (const file of archivos) {
     try {
       const dataUrl = await leerArchivoComoDataUrl(file);
       const chica = await redimensionarImagenDataUrl(dataUrl, 1600);
       const id = Date.now() + Math.random();
       ACR_DRAFT.fotos.push({ id, dataUrl: chica, descripcion: "", seleccionada: true });
+      idsNuevos.push(id);
     } catch (e) { /* si una foto falla, se sigue con las demás */ }
   }
-  renderAcreditacion();
+  // Si se agregó una sola foto (caso típico: cámara), se abre directo en pantalla
+  // completa para ponerle descripción al toque. Si son varias, se quedan en la
+  // galería — forzar edición en cadena de varias fotos es peor experiencia.
+  if (idsNuevos.length === 1) abrirEditorFoto(idsNuevos[0]);
+  else renderAcreditacion();
 }
 function toggleSeleccionFoto(idx) { const f = ACR_DRAFT.fotos[idx]; if (f) f.seleccionada = !f.seleccionada; renderAcreditacion(); }
 function toggleSeleccionTodas() { const marcar = !todasSeleccionadas(); ACR_DRAFT.fotos.forEach((f) => { f.seleccionada = marcar; }); renderAcreditacion(); }
@@ -1185,19 +1171,24 @@ function borrarFoto(idx) { ACR_DRAFT.fotos.splice(idx, 1); renderAcreditacion();
 function abrirEditorFoto(fotoId) {
   const foto = ACR_DRAFT.fotos.find((f) => f.id === fotoId);
   if (!foto) return;
-  ACR_FOTO_EDIT = { fotoId, modo: "anotar", img: null, rect: { left: 0, top: 0, right: 1, bottom: 1 }, trazos: [], trazoActual: null, textos: [], textoPendiente: null, color: ACR_PALETA[0], grosorFrac: 0.006, arrastre: null };
+  ACR_FOTO_EDIT = { fotoId, modo: "anotar", img: null, rect: { left: 0, top: 0, right: 1, bottom: 1 }, trazos: [], trazoActual: null, rectangulos: [], rectanguloActual: null, textos: [], textoPendiente: null, color: ACR_PALETA[0], grosorFrac: 0.006, arrastre: null, herramientasAbiertas: false };
   ACR_VISTA = "editorFoto";
   renderAcreditacion();
 }
 function renderEditorFotoHTML() {
   const e = ACR_FOTO_EDIT;
+  const foto = ACR_DRAFT.fotos.find((f) => f.id === e.fotoId);
+  const herramientas = [
+    { id: "anotar", icono: "i-edit", label: "Marcar" },
+    { id: "texto", icono: "i-list", label: "Texto" },
+    { id: "recuadro", icono: "i-square", label: "Recuadro" },
+    { id: "recortar", icono: "i-crop", label: "Recortar" },
+  ];
+  const grosores = [0.003, 0.006, 0.01, 0.016];
+  const mostrarColor = e.modo === "anotar" || e.modo === "texto" || e.modo === "recuadro";
+  const mostrarGrosor = e.modo === "anotar" || e.modo === "recuadro";
   return `
-    <div class="acr-editor">
-      <div class="acr-editor-modos">
-        <button type="button" class="secondary ${e.modo === "anotar" ? "active" : ""}" data-acr-action="editor-modo" data-modo="anotar"><svg class="icon"><use href="#i-edit"/></svg>Anotar</button>
-        <button type="button" class="secondary ${e.modo === "texto" ? "active" : ""}" data-acr-action="editor-modo" data-modo="texto"><svg class="icon"><use href="#i-list"/></svg>Texto</button>
-        <button type="button" class="secondary ${e.modo === "recortar" ? "active" : ""}" data-acr-action="editor-modo" data-modo="recortar"><svg class="icon"><use href="#i-crop"/></svg>Recortar</button>
-      </div>
+    <div class="acr-visor-foto">
       <div class="acr-editor-canvas-wrap" id="acr-editor-canvas-wrap"><canvas id="acr-editor-canvas"></canvas></div>
       ${e.modo === "texto" && e.textoPendiente ? `
         <div class="acr-editor-texto-input-row">
@@ -1205,15 +1196,45 @@ function renderEditorFotoHTML() {
           <button type="button" class="secondary" data-acr-action="editor-texto-cancelar">Cancelar</button>
           <button type="button" class="primary" data-acr-action="editor-texto-colocar">Colocar</button>
         </div>` : ""}
-      <div class="acr-editor-controles">
-        ${e.modo === "anotar" ? `
-          <div class="acr-editor-colores">${ACR_PALETA.map((c) => `<button type="button" class="acr-color-swatch ${e.color === c ? "active" : ""}" data-acr-action="editor-color" data-color="${c}" style="background:${c}"></button>`).join("")}</div>
-          <button type="button" class="secondary" data-acr-action="editor-deshacer">Deshacer trazo</button>
-        ` : e.modo === "texto" ? `
-          <div class="acr-editor-colores">${ACR_PALETA.map((c) => `<button type="button" class="acr-color-swatch ${e.color === c ? "active" : ""}" data-acr-action="editor-color" data-color="${c}" style="background:${c}"></button>`).join("")}</div>
-          <p class="hint" style="margin:0">Tocá la foto donde querés poner el texto</p>
-          <button type="button" class="secondary" data-acr-action="editor-deshacer-texto">Deshacer texto</button>
-        ` : `<button type="button" class="secondary" data-acr-action="editor-reset-recorte">Reiniciar selección</button>`}
+      <div class="acr-foto-rail ${e.herramientasAbiertas ? "" : "rail-collapsed"}">
+        <button type="button" class="acr-foto-rail-toggle" data-acr-action="toggle-herramientas" title="${e.herramientasAbiertas ? "Ocultar herramientas" : "Herramientas"}">
+          <svg class="icon"><use href="#${e.herramientasAbiertas ? "i-chevron-down" : "i-edit"}"/></svg>
+        </button>
+        ${e.herramientasAbiertas ? `
+        <div class="acr-foto-rail-herramientas">
+          ${herramientas.map((h) => `
+            <button type="button" class="acr-foto-tool-btn ${e.modo === h.id ? "active" : ""}" data-acr-action="editor-modo" data-modo="${h.id}" title="${h.label}" aria-label="${h.label}">
+              <svg class="icon"><use href="#${h.icono}"/></svg>
+            </button>`).join("")}
+        </div>
+        <div class="acr-foto-rail-separator"></div>
+        ${mostrarColor ? `
+          <button type="button" id="acr-foto-rail-color-btn" class="acr-foto-rail-color-preview" style="background:${e.color}" title="Color"></button>
+          ${e.flyout === "color" ? `
+            <div class="acr-foto-rail-flyout">
+              ${ACR_PALETA.map((c) => `<button type="button" class="acr-color-swatch ${e.color === c ? "active" : ""}" data-acr-action="editor-color" data-color="${c}" style="background:${c}"></button>`).join("")}
+            </div>` : ""}
+        ` : ""}
+        ${mostrarGrosor ? `
+          <button type="button" id="acr-foto-rail-grosor-btn" class="acr-foto-rail-grosor-btn" title="Grosor">
+            <span class="acr-foto-grosor-preview" style="height:${Math.max(1, e.grosorFrac * 300)}px"></span>
+          </button>
+          ${e.flyout === "grosor" ? `
+            <div class="acr-foto-rail-flyout acr-foto-rail-flyout-grosor">
+              ${grosores.map((g) => `<button type="button" class="acr-foto-grosor-opcion ${e.grosorFrac === g ? "active" : ""}" data-acr-action="editor-grosor" data-grosor="${g}"><span style="height:${Math.max(1, g * 300)}px"></span></button>`).join("")}
+            </div>` : ""}
+        ` : ""}
+        ${e.modo === "recortar" ? `<button type="button" class="secondary" data-acr-action="editor-reset-recorte">Reiniciar selección</button>` : ""}
+        <div class="acr-foto-rail-separator"></div>
+        <button type="button" class="acr-foto-tool-btn" data-acr-action="editor-deshacer" title="Deshacer" aria-label="Deshacer"><svg class="icon"><use href="#i-undo"/></svg></button>
+        ` : ""}
+      </div>
+      <div class="acr-foto-visor-controles">
+        <textarea class="acr-foto-desc" data-acr-field="foto-descripcion-visor" placeholder="Descripción de la foto (ej. Vista general del muro cortafuego)" rows="2">${foto ? escapeHtml(foto.descripcion) : ""}</textarea>
+        <div class="acr-foto-visor-botones">
+          <button type="button" class="primary" data-acr-action="editor-aplicar"><svg class="icon"><use href="#i-check"/></svg>Guardar</button>
+          <button type="button" class="secondary" data-acr-action="toggle-foto-visor" data-id="${e.fotoId}">${foto && foto.seleccionada ? "Quitar del informe" : "Incluir en el informe"}</button>
+        </div>
       </div>
     </div>`;
 }
@@ -1224,6 +1245,7 @@ function inicializarCanvasEditor() {
   const canvas = document.getElementById("acr-editor-canvas");
   const wrap = document.getElementById("acr-editor-canvas-wrap");
   if (!canvas || !wrap) return;
+  ligarFlyoutsRailFoto();
   if (e.img) {
     const availW = Math.max(200, wrap.clientWidth || window.innerWidth - 20);
     const availH = Math.max(200, wrap.clientHeight || window.innerHeight - 170);
@@ -1242,6 +1264,18 @@ function inicializarCanvasEditor() {
     dibujarEditor(); ligarPunterosEditor(canvas);
   };
   img.src = foto.dataUrl;
+}
+function ligarFlyoutsRailFoto() {
+  const btnColor = document.getElementById("acr-foto-rail-color-btn");
+  if (btnColor) btnColor.addEventListener("click", () => {
+    ACR_FOTO_EDIT.flyout = ACR_FOTO_EDIT.flyout === "color" ? null : "color";
+    renderAcreditacion();
+  });
+  const btnGrosor = document.getElementById("acr-foto-rail-grosor-btn");
+  if (btnGrosor) btnGrosor.addEventListener("click", () => {
+    ACR_FOTO_EDIT.flyout = ACR_FOTO_EDIT.flyout === "grosor" ? null : "grosor";
+    renderAcreditacion();
+  });
 }
 function dibujarTextoEnCanvas(ctx, t, W, H) {
   const tamano = Math.max(14, Math.round(W * 0.035));
@@ -1267,6 +1301,11 @@ function dibujarEditor() {
     ctx.stroke();
   });
   e.textos.forEach((t) => dibujarTextoEnCanvas(ctx, t, W, H));
+  const rects = e.rectanguloActual ? e.rectangulos.concat([e.rectanguloActual]) : e.rectangulos;
+  rects.forEach((r) => {
+    ctx.strokeStyle = r.color; ctx.lineWidth = Math.max(2, r.grosorFrac * W);
+    ctx.strokeRect(Math.min(r.x1, r.x2) * W, Math.min(r.y1, r.y2) * H, Math.abs(r.x2 - r.x1) * W, Math.abs(r.y2 - r.y1) * H);
+  });
   if (e.modo === "texto" && e.textoPendiente) {
     ctx.beginPath(); ctx.arc(e.textoPendiente.x * W, e.textoPendiente.y * H, 6, 0, Math.PI * 2);
     ctx.fillStyle = e.color; ctx.fill();
@@ -1296,6 +1335,7 @@ function ligarPunterosEditor(canvas) {
     const e = ACR_FOTO_EDIT, p = coordsFrac(evt);
     canvas.setPointerCapture(evt.pointerId);
     if (e.modo === "anotar") { e.trazoActual = { color: e.color, grosorFrac: e.grosorFrac, puntos: [p] }; }
+    else if (e.modo === "recuadro") { e.rectanguloActual = { color: e.color, grosorFrac: e.grosorFrac, x1: p.x, y1: p.y, x2: p.x, y2: p.y }; }
     else if (e.modo === "texto") { e.textoPendiente = p; dibujarEditor(); renderAcreditacion(); }
     else {
       const h = handleCercano(p);
@@ -1308,6 +1348,7 @@ function ligarPunterosEditor(canvas) {
   canvas.addEventListener("pointermove", (evt) => {
     const e = ACR_FOTO_EDIT;
     if (e.modo === "anotar" && e.trazoActual) { evt.preventDefault(); e.trazoActual.puntos.push(coordsFrac(evt)); dibujarEditor(); }
+    else if (e.modo === "recuadro" && e.rectanguloActual) { evt.preventDefault(); const p = coordsFrac(evt); e.rectanguloActual.x2 = p.x; e.rectanguloActual.y2 = p.y; dibujarEditor(); }
     else if (e.modo === "recortar" && e.arrastre) {
       evt.preventDefault();
       const p = coordsFrac(evt), r = e.rect;
@@ -1326,7 +1367,7 @@ function ligarPunterosEditor(canvas) {
       dibujarEditor();
     }
   }, { passive: false });
-  function terminar() { const e = ACR_FOTO_EDIT; if (e.modo === "anotar" && e.trazoActual) { if (e.trazoActual.puntos.length > 1) e.trazos.push(e.trazoActual); e.trazoActual = null; } e.arrastre = null; }
+  function terminar() { const e = ACR_FOTO_EDIT; if (e.modo === "anotar" && e.trazoActual) { if (e.trazoActual.puntos.length > 1) e.trazos.push(e.trazoActual); e.trazoActual = null; } if (e.modo === "recuadro" && e.rectanguloActual) { if (Math.abs(e.rectanguloActual.x2 - e.rectanguloActual.x1) > 0.01) e.rectangulos.push(e.rectanguloActual); e.rectanguloActual = null; } e.arrastre = null; }
   canvas.addEventListener("pointerup", terminar);
   canvas.addEventListener("pointercancel", terminar);
 }
@@ -1337,7 +1378,7 @@ function colocarTextoPendiente() {
 }
 function finalizarEdicionFoto() {
   const e = ACR_FOTO_EDIT, foto = ACR_DRAFT.fotos.find((f) => f.id === e.fotoId);
-  if (!foto || !e.img) { ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; ACR_FOTO_VISOR_ID = e.fotoId; renderAcreditacion(); return; }
+  if (!foto || !e.img) { renderAcreditacion(); return; }
   const W = e.img.naturalWidth, H = e.img.naturalHeight;
   const base = document.createElement("canvas"); base.width = W; base.height = H;
   const bctx = base.getContext("2d"); bctx.drawImage(e.img, 0, 0, W, H);
@@ -1348,6 +1389,10 @@ function finalizarEdicionFoto() {
     t.puntos.forEach((p, i) => { const x = p.x * W, y = p.y * H; if (i === 0) bctx.moveTo(x, y); else bctx.lineTo(x, y); });
     bctx.stroke();
   });
+  e.rectangulos.forEach((r) => {
+    bctx.strokeStyle = r.color; bctx.lineWidth = Math.max(2, r.grosorFrac * W);
+    bctx.strokeRect(Math.min(r.x1, r.x2) * W, Math.min(r.y1, r.y2) * H, Math.abs(r.x2 - r.x1) * W, Math.abs(r.y2 - r.y1) * H);
+  });
   e.textos.forEach((t) => dibujarTextoEnCanvas(bctx, t, W, H));
   const r = e.rect, sx = r.left * W, sy = r.top * H, sw = (r.right - r.left) * W, sh = (r.bottom - r.top) * H;
   let finalDataUrl;
@@ -1357,8 +1402,9 @@ function finalizarEdicionFoto() {
     finalDataUrl = crop.toDataURL("image/jpeg", 0.9);
   } else { finalDataUrl = base.toDataURL("image/jpeg", 0.9); }
   foto.dataUrl = finalDataUrl;
-  const fotoId = e.fotoId;
-  ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; ACR_FOTO_VISOR_ID = fotoId;
+  // Reinicia el estado de edición sobre la nueva imagen base (ya "quemados" los trazos)
+  e.img = null; e.trazos = []; e.rectangulos = []; e.textos = []; e.rect = { left: 0, top: 0, right: 1, bottom: 1 };
+  mostrarToast("Cambios guardados.");
   renderAcreditacion();
 }
 
@@ -1369,7 +1415,7 @@ function bindCamposTexto(cont) {
     el.addEventListener(evento, () => {
       const idx = el.getAttribute("data-idx"), elid = el.getAttribute("data-elid"), zona = el.getAttribute("data-zona") || null;
       if (campo === "foto-descripcion") { if (ACR_DRAFT.fotos[idx]) ACR_DRAFT.fotos[idx].descripcion = el.value; }
-      else if (campo === "foto-descripcion-visor") { const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_FOTO_VISOR_ID); if (foto) foto.descripcion = el.value; }
+      else if (campo === "foto-descripcion-visor") { const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_FOTO_EDIT.fotoId); if (foto) foto.descripcion = el.value; }
       else if (campo === "acompanante-nombre") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].nombre = el.value; }
       else if (campo === "acompanante-cargo") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].cargo = el.value; }
       else if (campo === "checklist-observacion") { obtenerEstadoChecklist(elid, zona).observacion = el.value; }
@@ -1395,8 +1441,7 @@ function attachEventos(overlay) {
     if (ACR_VISTA === "historial") cerrarVisorAcreditacion();
     else if (ACR_VISTA === "galeria") { ACR_VISTA = "historial"; ACR_DRAFT = null; renderAcreditacion(); }
     else if (ACR_VISTA === "form") { ACR_VISTA = "galeria"; renderAcreditacion(); }
-    else if (ACR_VISTA === "editorFoto") { const e = ACR_FOTO_EDIT; ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; ACR_FOTO_VISOR_ID = e && e.fotoId; renderAcreditacion(); }
-    else if (ACR_VISTA === "fotoVisor") { ACR_VISTA = "galeria"; ACR_FOTO_VISOR_ID = null; renderAcreditacion(); }
+    else if (ACR_VISTA === "editorFoto") { ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; renderAcreditacion(); }
   });
   bindCamposTexto(overlay);
   if (overlay.dataset.acrClickBind) return;
@@ -1421,7 +1466,7 @@ function attachEventos(overlay) {
     else if (accion === "toggle-seleccion-todas") toggleSeleccionTodas();
     else if (accion === "borrar-foto") { ACR_FOTO_MENU_ID = null; borrarFoto(idx); }
     else if (accion === "editar-foto") { ACR_FOTO_MENU_ID = null; abrirEditorFoto(Number(btn.getAttribute("data-id"))); }
-    else if (accion === "abrir-foto") { ACR_FOTO_VISOR_ID = Number(btn.getAttribute("data-id")); ACR_VISTA = "fotoVisor"; renderAcreditacion(); }
+    else if (accion === "abrir-foto") { ACR_FOTO_MENU_ID = null; abrirEditorFoto(Number(btn.getAttribute("data-id"))); }
     else if (accion === "menu-foto") { const mid = Number(btn.getAttribute("data-id")); ACR_FOTO_MENU_ID = ACR_FOTO_MENU_ID === mid ? null : mid; renderAcreditacion(); }
     else if (accion === "toggle-foto-visor") { const foto = ACR_DRAFT.fotos.find((f) => f.id === Number(btn.getAttribute("data-id"))); if (foto) foto.seleccionada = !foto.seleccionada; renderAcreditacion(); }
     else if (accion === "siguiente-a-form") { ACR_VISTA = "form"; renderAcreditacion(); }
@@ -1444,14 +1489,21 @@ function attachEventos(overlay) {
     else if (accion === "toggle-expandir-checklist") { const clave = claveChecklist(elid, zona); if (ACR_CHECKLIST_EXPANDIDO.has(clave)) ACR_CHECKLIST_EXPANDIDO.delete(clave); else ACR_CHECKLIST_EXPANDIDO.add(clave); renderAcreditacion(); }
     else if (accion === "abrir-observacion") { ACR_OBSERVACION_ABIERTA.add(claveChecklist(elid, zona)); renderAcreditacion(); }
     else if (accion === "abrir-texto-informe") abrirModalTextoInforme();
-    else if (accion === "editor-modo") { ACR_FOTO_EDIT.modo = btn.getAttribute("data-modo"); renderAcreditacion(); }
-    else if (accion === "editor-color") { ACR_FOTO_EDIT.color = btn.getAttribute("data-color"); btn.parentElement.querySelectorAll(".acr-color-swatch").forEach((s) => s.classList.remove("active")); btn.classList.add("active"); }
-    else if (accion === "editor-deshacer") { ACR_FOTO_EDIT.trazos.pop(); dibujarEditor(); }
-    else if (accion === "editor-deshacer-texto") { ACR_FOTO_EDIT.textos.pop(); dibujarEditor(); }
+    else if (accion === "editor-modo") { ACR_FOTO_EDIT.modo = btn.getAttribute("data-modo"); ACR_FOTO_EDIT.flyout = null; renderAcreditacion(); }
+    else if (accion === "toggle-herramientas") { ACR_FOTO_EDIT.herramientasAbiertas = !ACR_FOTO_EDIT.herramientasAbiertas; renderAcreditacion(); }
+    else if (accion === "editor-color") { ACR_FOTO_EDIT.color = btn.getAttribute("data-color"); ACR_FOTO_EDIT.flyout = null; renderAcreditacion(); }
+    else if (accion === "editor-grosor") { ACR_FOTO_EDIT.grosorFrac = Number(btn.getAttribute("data-grosor")); ACR_FOTO_EDIT.flyout = null; renderAcreditacion(); }
+    else if (accion === "editor-deshacer") {
+      const e = ACR_FOTO_EDIT;
+      if (e.modo === "texto") e.textos.pop();
+      else if (e.modo === "recuadro") e.rectangulos.pop();
+      else e.trazos.pop();
+      dibujarEditor();
+    }
     else if (accion === "editor-texto-cancelar") { ACR_FOTO_EDIT.textoPendiente = null; renderAcreditacion(); }
     else if (accion === "editor-texto-colocar") colocarTextoPendiente();
     else if (accion === "editor-reset-recorte") { ACR_FOTO_EDIT.rect = { left: 0, top: 0, right: 1, bottom: 1 }; dibujarEditor(); }
-    else if (accion === "editor-cancelar") { const e = ACR_FOTO_EDIT; ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; ACR_FOTO_VISOR_ID = e && e.fotoId; renderAcreditacion(); }
+    else if (accion === "editor-cancelar") { ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; renderAcreditacion(); }
     else if (accion === "editor-aplicar") finalizarEdicionFoto();
   });
 }
@@ -1503,7 +1555,7 @@ function parrafoProductos(elementos) {
   return `Los productos considerados para estos ensambles corresponden a ${texto} de la marca Hilti.`;
 }
 function frasePersonas(informe) {
-  const nombres = (informe.acompanantes || []).map((a) => `${a.nombre}${a.cargo ? " (" + a.cargo + ")" : ""}`).filter((x) => x && x.trim());
+  const nombres = (informe.acompanantes || []).map((a) => `${a.cargo ? a.cargo + " " : ""}${a.nombre}`).filter((x) => x && x.trim());
   if (!nombres.length) return "";
   const texto = nombres.length === 1 ? nombres[0] : `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
   return ` La visita se realiza en conjunto con ${texto}.`;
