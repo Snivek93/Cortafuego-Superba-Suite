@@ -473,7 +473,14 @@ body.modo-levantamiento #levantamiento-fullscreen { display: block; position: fi
 .planos-img, .planos-svg-overlay, .planos-pines-layer, .planos-canvas-wrap, .planos-tools-rail { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .planos-img { display: block; max-width: none; user-select: none; -webkit-user-drag: none; }
 .planos-svg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+.planos-svg-overlay text[data-planos-texto-id] { pointer-events: auto; }
 .planos-pines-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+.planos-texto-input-flotante {
+  position: absolute; transform: translateY(-50%); background: transparent;
+  border: 1px dashed rgba(255,255,255,0.7); font-family: Arial, sans-serif; font-weight: 700;
+  padding: 2px 4px; min-width: 40px; outline: none; z-index: 20;
+}
+.planos-rail-tamano-texto-preview { color: white; font-weight: 700; font-size: 16px; display: block; }
 .planos-pin { position: absolute; transform: translate(-50%, -100%); width: 28px; height: 28px; border-radius: 50% 50% 50% 0; transform: translate(-50%, -100%) rotate(-45deg); background: var(--hilti-red); border: 2px solid white; color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.4); pointer-events: auto; cursor: pointer; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .planos-pin > * { transform: rotate(45deg); }
 .planos-cargando { position: absolute; inset: 0; z-index: 10; background: rgba(0,0,0,0.55); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: white; text-align: center; padding: 24px; }
@@ -625,6 +632,8 @@ body.tf-open .lev-form-sticky, body.tf-open #levantamiento-fullscreen { padding-
 .acr-plano-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .acr-plano-nombre { font-weight: 600; font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acr-plano-item .secondary { flex-shrink: 0; }
+.acr-plano-pdf-opciones { display: flex; flex-direction: column; gap: 8px; padding: 4px 12px 10px; margin-top: -6px; }
+.acr-plano-pdf-opciones select, .acr-plano-pdf-opciones textarea { width: 100%; font-family: inherit; font-size: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; }
 .acr-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 480px) { .acr-field-row { grid-template-columns: 1fr; } }
 .acr-form-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 8px; max-width: 720px; margin: 0 auto; width: 100%; }
