@@ -187,7 +187,7 @@ let ACR_ZONA_ACTIVA = null;
 let ACR_ELEMENTO_FORM = null;
 let ACR_ELEMENTO_EDITANDO_ID = null;
 let ACR_FOTO_EDIT = null;
-let ACR_FOTO_MENU_ID = null;
+let ACR_DESC_FOTO_MODAL_ID = null; // id de la foto cuyo popup de descripción está abierto
 let ACR_CHECKLIST_EXPANDIDO = new Set();
 let ACR_OBSERVACION_ABIERTA = new Set();
 let ACR_DATOS_GENERALES_ABIERTO = true;
@@ -319,23 +319,24 @@ function renderAcreditacion() {
   if (!overlay) return;
   const contPrevio = overlay.querySelector(".acr-content");
   const scrollPrevio = contPrevio ? contPrevio.scrollTop : 0;
-  const titulos = { historial: "Informes de Acreditación", galeria: "Fotos del recorrido", form: "Informe de Acreditación", editorFoto: "Foto" };
-  const volverA = { historial: null, galeria: "historial", form: "galeria", editorFoto: "galeria" };
+  const titulos = { historial: "Informes de Acreditación", galeria: "Fotos del recorrido", form: "Informe de Acreditación" };
+  const volverA = { historial: null, galeria: "historial", form: "galeria" };
   const accionesDerecha = {
     galeria: `<button type="button" class="acr-topbar-right-btn" data-acr-action="siguiente-a-form">Siguiente</button>`,
-    editorFoto: `<button type="button" class="acr-topbar-right-btn" data-acr-action="editor-aplicar">Aplicar</button>`,
   };
+  const enEditorFoto = ACR_VISTA === "editorFoto";
   overlay.innerHTML = `
+    ${enEditorFoto ? "" : `
     <div class="acr-topbar">
       <button type="button" id="acr-btn-volver" class="lev-exit-btn"><svg class="icon"><use href="#i-arrow-left"/></svg>${volverA[ACR_VISTA] ? "Atrás" : "Cerrar"}</button>
       <span class="acr-topbar-title">${titulos[ACR_VISTA]}</span>
       <span class="acr-topbar-right">${accionesDerecha[ACR_VISTA] || ""}</span>
-    </div>
-    <div class="acr-content ${ACR_VISTA === "editorFoto" ? "acr-content-editor" : ""}">
+    </div>`}
+    <div class="acr-content ${enEditorFoto ? "acr-content-editor" : ""}">
       ${ACR_VISTA === "historial" ? renderHistorialHTML() : ""}
       ${ACR_VISTA === "galeria" ? renderGaleriaHTML() : ""}
       ${ACR_VISTA === "form" ? renderFormularioHTML() : ""}
-      ${ACR_VISTA === "editorFoto" ? renderEditorFotoHTML() : ""}
+      ${enEditorFoto ? renderEditorFotoHTML() : ""}
     </div>
   `;
   attachEventos(overlay);
@@ -384,28 +385,37 @@ function renderHistorialHTML() {
 function todasSeleccionadas() {
   return ACR_DRAFT.fotos.length > 0 && ACR_DRAFT.fotos.every((f) => f.seleccionada);
 }
+function renderModalDescripcionFotoHTML() {
+  const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_DESC_FOTO_MODAL_ID);
+  if (!foto) return "";
+  return `
+    <div class="acr-desc-foto-overlay">
+      <div class="acr-desc-foto-modal">
+        <div class="acr-desc-foto-header">
+          <button type="button" class="secondary" data-acr-action="desc-foto-cancelar">Atrás</button>
+          <span>Descripción de la foto</span>
+          <button type="button" class="primary" data-acr-action="desc-foto-aplicar">Aplicar</button>
+        </div>
+        <textarea id="acr-desc-foto-input" placeholder="Ej. Vista general del muro cortafuego" rows="4">${escapeHtml(foto.descripcion)}</textarea>
+      </div>
+    </div>`;
+}
+
 function renderGaleriaHTML() {
   const fotos = ACR_DRAFT.fotos;
   const seleccionadas = fotos.filter((f) => f.seleccionada).length;
   const items = fotos.map((f, idx) => {
-    const menuAbierto = ACR_FOTO_MENU_ID === f.id;
     return `
     <div class="acr-foto-item ${f.seleccionada ? "acr-foto-seleccionada" : ""}">
-      <div class="acr-foto-thumb-wrap" data-acr-action="abrir-foto" data-id="${f.id}">
-        <img src="${f.dataUrl}" alt="Foto ${idx + 1}">
+      <div class="acr-foto-thumb-wrap">
+        <img src="${f.dataUrl}" alt="Foto ${idx + 1}" data-acr-action="abrir-foto" data-id="${f.id}">
         <button type="button" class="acr-foto-check-btn ${f.seleccionada ? "active" : ""}" data-acr-action="toggle-foto" data-idx="${idx}" title="${f.seleccionada ? "Quitar del informe" : "Incluir en el informe"}" aria-label="Seleccionar foto">
           <svg class="icon"><use href="#i-check"/></svg>
         </button>
-        <div class="acr-foto-menu-wrap">
-          <button type="button" class="acr-foto-icon-btn" data-acr-action="menu-foto" data-id="${f.id}" title="Opciones" aria-label="Opciones"><svg class="icon"><use href="#i-more-vertical"/></svg></button>
-          ${menuAbierto ? `
-            <div class="acr-foto-menu">
-              <button type="button" data-acr-action="editar-foto" data-id="${f.id}">Editar / anotar</button>
-              <button type="button" data-acr-action="borrar-foto" data-idx="${idx}">Borrar foto</button>
-            </div>` : ""}
-        </div>
+        <button type="button" class="acr-foto-icon-btn acr-foto-icon-editar" data-acr-action="editar-foto" data-id="${f.id}" title="Editar" aria-label="Editar foto"><svg class="icon"><use href="#i-edit"/></svg></button>
+        <button type="button" class="acr-foto-icon-btn acr-foto-icon-borrar" data-acr-action="borrar-foto" data-idx="${idx}" title="Borrar" aria-label="Borrar foto"><svg class="icon"><use href="#i-trash"/></svg></button>
       </div>
-      <p class="acr-foto-desc-preview" data-acr-action="abrir-foto" data-id="${f.id}">${f.descripcion ? escapeHtml(f.descripcion) : '<span class="hint">Sin descripción — tocá la foto para agregarla</span>'}</p>
+      <p class="acr-foto-desc-preview" data-acr-action="editar-descripcion-foto" data-id="${f.id}">${f.descripcion ? escapeHtml(f.descripcion) : '<span class="hint">Sin descripción — tocá para agregarla</span>'}</p>
     </div>`;
   }).join("");
   return `
@@ -421,7 +431,8 @@ function renderGaleriaHTML() {
         </div>
         <div class="acr-fotos-grid">${items}</div>
       ` : `<p class="hint" style="margin-top:16px">Todavía no agregaste fotos. Tocá "Añadir foto" arriba.</p>`}
-    </div>`;
+    </div>
+    ${ACR_DESC_FOTO_MODAL_ID != null ? renderModalDescripcionFotoHTML() : ""}`;
 }
 
 
@@ -1158,10 +1169,10 @@ async function agregarFotosDesdeArchivos(fileList) {
       idsNuevos.push(id);
     } catch (e) { /* si una foto falla, se sigue con las demás */ }
   }
-  // Si se agregó una sola foto (caso típico: cámara), se abre directo en pantalla
-  // completa para ponerle descripción al toque. Si son varias, se quedan en la
-  // galería — forzar edición en cadena de varias fotos es peor experiencia.
-  if (idsNuevos.length === 1) abrirEditorFoto(idsNuevos[0]);
+  // Si se agregó una sola foto (caso típico: cámara), se abre directo el popup
+  // de descripción para ponerle texto al toque (o guardarla sin descripción).
+  // Si son varias, se quedan en la galería — forzar en cadena es peor experiencia.
+  if (idsNuevos.length === 1) { ACR_DESC_FOTO_MODAL_ID = idsNuevos[0]; renderAcreditacion(); }
   else renderAcreditacion();
 }
 function toggleSeleccionFoto(idx) { const f = ACR_DRAFT.fotos[idx]; if (f) f.seleccionada = !f.seleccionada; renderAcreditacion(); }
@@ -1177,19 +1188,24 @@ function abrirEditorFoto(fotoId) {
 }
 function renderEditorFotoHTML() {
   const e = ACR_FOTO_EDIT;
-  const foto = ACR_DRAFT.fotos.find((f) => f.id === e.fotoId);
   const herramientas = [
     { id: "anotar", icono: "i-edit", label: "Marcar" },
     { id: "texto", icono: "i-list", label: "Texto" },
-    { id: "recuadro", icono: "i-square", label: "Recuadro" },
+    { id: "recuadro", icono: "i-rectangle", label: "Recuadro" },
     { id: "recortar", icono: "i-crop", label: "Recortar" },
   ];
   const grosores = [0.003, 0.006, 0.01, 0.016];
   const mostrarColor = e.modo === "anotar" || e.modo === "texto" || e.modo === "recuadro";
   const mostrarGrosor = e.modo === "anotar" || e.modo === "recuadro";
   return `
-    <div class="acr-visor-foto">
+    <div class="acr-visor-foto acr-visor-foto-fullscreen">
       <div class="acr-editor-canvas-wrap" id="acr-editor-canvas-wrap"><canvas id="acr-editor-canvas"></canvas></div>
+      <button type="button" class="acr-foto-bubble acr-foto-bubble-atras" data-acr-action="editor-cancelar" aria-label="Atrás">
+        <svg class="icon"><use href="#i-arrow-left"/></svg>Atrás
+      </button>
+      <button type="button" class="acr-foto-bubble acr-foto-bubble-aplicar" data-acr-action="editor-aplicar" aria-label="Aplicar">
+        Aplicar
+      </button>
       ${e.modo === "texto" && e.textoPendiente ? `
         <div class="acr-editor-texto-input-row">
           <input type="text" id="acr-editor-texto-input" placeholder="Escribí el texto..." autofocus>
@@ -1228,13 +1244,6 @@ function renderEditorFotoHTML() {
         <div class="acr-foto-rail-separator"></div>
         <button type="button" class="acr-foto-tool-btn" data-acr-action="editor-deshacer" title="Deshacer" aria-label="Deshacer"><svg class="icon"><use href="#i-undo"/></svg></button>
         ` : ""}
-      </div>
-      <div class="acr-foto-visor-controles">
-        <textarea class="acr-foto-desc" data-acr-field="foto-descripcion-visor" placeholder="Descripción de la foto (ej. Vista general del muro cortafuego)" rows="2">${foto ? escapeHtml(foto.descripcion) : ""}</textarea>
-        <div class="acr-foto-visor-botones">
-          <button type="button" class="primary" data-acr-action="editor-aplicar"><svg class="icon"><use href="#i-check"/></svg>Guardar</button>
-          <button type="button" class="secondary" data-acr-action="toggle-foto-visor" data-id="${e.fotoId}">${foto && foto.seleccionada ? "Quitar del informe" : "Incluir en el informe"}</button>
-        </div>
       </div>
     </div>`;
 }
@@ -1402,9 +1411,7 @@ function finalizarEdicionFoto() {
     finalDataUrl = crop.toDataURL("image/jpeg", 0.9);
   } else { finalDataUrl = base.toDataURL("image/jpeg", 0.9); }
   foto.dataUrl = finalDataUrl;
-  // Reinicia el estado de edición sobre la nueva imagen base (ya "quemados" los trazos)
-  e.img = null; e.trazos = []; e.rectangulos = []; e.textos = []; e.rect = { left: 0, top: 0, right: 1, bottom: 1 };
-  mostrarToast("Cambios guardados.");
+  ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null;
   renderAcreditacion();
 }
 
@@ -1414,9 +1421,7 @@ function bindCamposTexto(cont) {
     const evento = (el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date") ? "change" : "input";
     el.addEventListener(evento, () => {
       const idx = el.getAttribute("data-idx"), elid = el.getAttribute("data-elid"), zona = el.getAttribute("data-zona") || null;
-      if (campo === "foto-descripcion") { if (ACR_DRAFT.fotos[idx]) ACR_DRAFT.fotos[idx].descripcion = el.value; }
-      else if (campo === "foto-descripcion-visor") { const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_FOTO_EDIT.fotoId); if (foto) foto.descripcion = el.value; }
-      else if (campo === "acompanante-nombre") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].nombre = el.value; }
+      if (campo === "acompanante-nombre") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].nombre = el.value; }
       else if (campo === "acompanante-cargo") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].cargo = el.value; }
       else if (campo === "checklist-observacion") { obtenerEstadoChecklist(elid, zona).observacion = el.value; }
       else if (campo === "esSeguimiento") { ACR_DRAFT.esSeguimiento = el.checked; renderAcreditacion(); }
@@ -1429,6 +1434,8 @@ function bindCamposTexto(cont) {
   if (inputFotos) inputFotos.addEventListener("change", (evt) => { agregarFotosDesdeArchivos(evt.target.files); evt.target.value = ""; });
   const inputTexto = document.getElementById("acr-editor-texto-input");
   if (inputTexto) { inputTexto.focus(); inputTexto.addEventListener("keydown", (evt) => { if (evt.key === "Enter") { evt.preventDefault(); colocarTextoPendiente(); } }); }
+  const inputDescFoto = document.getElementById("acr-desc-foto-input");
+  if (inputDescFoto) inputDescFoto.focus();
 }
 function agregarZonaDesdeInput() {
   const input = document.getElementById("acr-input-zona");
@@ -1450,7 +1457,6 @@ function attachEventos(overlay) {
     const btn = evt.target.closest("[data-acr-action]");
     if (!btn) return;
     const accion = btn.getAttribute("data-acr-action");
-    if (ACR_FOTO_MENU_ID != null && accion !== "menu-foto" && accion !== "editar-foto" && accion !== "borrar-foto") { ACR_FOTO_MENU_ID = null; }
     const id = btn.getAttribute("data-id") ? Number(btn.getAttribute("data-id")) : null;
     const idx = btn.getAttribute("data-idx") != null ? Number(btn.getAttribute("data-idx")) : null;
     const elid = btn.getAttribute("data-elid");
@@ -1464,10 +1470,18 @@ function attachEventos(overlay) {
     else if (accion === "guardar") guardarInformeDesdeFormulario();
     else if (accion === "toggle-foto") { toggleSeleccionFoto(idx); return; }
     else if (accion === "toggle-seleccion-todas") toggleSeleccionTodas();
-    else if (accion === "borrar-foto") { ACR_FOTO_MENU_ID = null; borrarFoto(idx); }
-    else if (accion === "editar-foto") { ACR_FOTO_MENU_ID = null; abrirEditorFoto(Number(btn.getAttribute("data-id"))); }
-    else if (accion === "abrir-foto") { ACR_FOTO_MENU_ID = null; abrirEditorFoto(Number(btn.getAttribute("data-id"))); }
-    else if (accion === "menu-foto") { const mid = Number(btn.getAttribute("data-id")); ACR_FOTO_MENU_ID = ACR_FOTO_MENU_ID === mid ? null : mid; renderAcreditacion(); }
+    else if (accion === "borrar-foto") borrarFoto(idx);
+    else if (accion === "editar-foto") abrirEditorFoto(Number(btn.getAttribute("data-id")));
+    else if (accion === "abrir-foto") abrirEditorFoto(Number(btn.getAttribute("data-id")));
+    else if (accion === "editar-descripcion-foto") { ACR_DESC_FOTO_MODAL_ID = Number(btn.getAttribute("data-id")); renderAcreditacion(); }
+    else if (accion === "desc-foto-cancelar") { ACR_DESC_FOTO_MODAL_ID = null; renderAcreditacion(); }
+    else if (accion === "desc-foto-aplicar") {
+      const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_DESC_FOTO_MODAL_ID);
+      const input = document.getElementById("acr-desc-foto-input");
+      if (foto && input) foto.descripcion = input.value;
+      ACR_DESC_FOTO_MODAL_ID = null;
+      renderAcreditacion();
+    }
     else if (accion === "toggle-foto-visor") { const foto = ACR_DRAFT.fotos.find((f) => f.id === Number(btn.getAttribute("data-id"))); if (foto) foto.seleccionada = !foto.seleccionada; renderAcreditacion(); }
     else if (accion === "siguiente-a-form") { ACR_VISTA = "form"; renderAcreditacion(); }
     else if (accion === "toggle-datos-generales") { ACR_DATOS_GENERALES_ABIERTO = !ACR_DATOS_GENERALES_ABIERTO; renderAcreditacion(); }
