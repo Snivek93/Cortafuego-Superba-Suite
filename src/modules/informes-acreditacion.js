@@ -223,9 +223,6 @@ function nuevoBorradorInforme() {
     planoRefs: [],
   };
 }
-function textoFinalInforme(d) {
-  return d.textoInformeManual != null ? d.textoInformeManual : generarTextoCumplimiento(d);
-}
 function estadoChecklistDefault(categoria, subtipo) {
   return { cumple: true, marcados: [], observacion: "" };
 }
@@ -920,18 +917,19 @@ function renderModalTextoInforme() {
   const overlay = document.getElementById("acr-texto-overlay");
   if (!overlay) return;
   const d = ACR_DRAFT;
-  const texto = textoFinalInforme(d);
+  const texto = textoCompletoInforme(d);
   overlay.innerHTML = `
-    <div class="instr-modal acr-elemento-modal">
+    <div class="instr-modal" style="max-width:760px">
       <div class="instr-modal-header">
         <span>Texto del informe</span>
         <button type="button" data-acr-texto-cerrar aria-label="Cerrar"><svg class="icon"><use href="#i-close"/></svg></button>
       </div>
-      <div class="instr-modal-content">
-        <p class="hint">Este es el texto completo que va a incluir el PDF, en el mismo orden.</p>
+      <div class="instr-modal-content" style="display:flex;flex-direction:column;min-height:0">
+        <p class="hint" style="margin:0 0 10px">Cuerpo completo de la carta, en el mismo orden que sale en el PDF. No incluye la firma, el anexo fotográfico ni los sistemas UL adjuntos — esos se arman aparte.</p>
         ${ACR_TEXTO_INFORME_EDITANDO
-          ? `<textarea id="acr-texto-informe-textarea" rows="16" style="width:100%;font-family:inherit;font-size:15px;">${escapeHtml(texto)}</textarea>`
-          : `<div class="acr-texto-preview">${escapeHtml(texto).replace(/\n/g, "<br>")}</div>`}
+          ? `<textarea id="acr-texto-informe-textarea" style="width:100%;flex:1;min-height:55vh;font-family:inherit;font-size:16px;line-height:1.55;color:var(--ink);background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;resize:vertical">${escapeHtml(texto)}</textarea>
+             <p class="hint" style="margin:8px 0 0">Separá los párrafos con una línea en blanco. Las líneas que arrancan con “•” salen como viñetas.</p>`
+          : `<div class="acr-texto-preview" style="flex:1;overflow-y:auto;max-height:62vh">${escapeHtml(texto).replace(/\n/g, "<br>")}</div>`}
         <div class="acr-form-footer" style="padding-top:12px">
           ${ACR_TEXTO_INFORME_EDITANDO ? `
             <button type="button" class="secondary" data-acr-texto-cancelar-edicion>Cancelar</button>
@@ -1529,7 +1527,7 @@ function frasePersonas(informe) {
   const texto = nombres.length === 1 ? nombres[0] : `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
   return ` La visita se realiza en conjunto con ${texto}.`;
 }
-function construirBloquesInforme(informe) {
+function construirBloquesAuto(informe) {
   const b = [];
   const push = (t, v, extra) => b.push(Object.assign({ t }, typeof v === "string" ? { texto: v } : { items: v }, extra || {}));
   push("pIzq", "A quien concierna"); push("pIzq", "Estimados presentes,");
@@ -1564,7 +1562,7 @@ function construirBloquesInforme(informe) {
   push("p", "Las revisiones evidenciadas en el presente informe se realizan durante el recorrido de forma aleatoria con pruebas destructivas o mediciones en sitio que verifiquen las condiciones del sello cortafuego instalado con respecto a los mínimos indicados por los sistemas UL anteriormente listados. Se incluyen en anexos fotos del recorrido como referencia visual del estado de los requerimientos mínimos solicitados por los ensambles.");
   push("titulo", "Resultado de la inspección:");
   if (informe.observaciones) push("p", informe.observaciones);
-  textoFinalInforme(informe).split("\n\n").forEach((parrafo) => {
+  generarTextoCumplimiento(informe).split("\n\n").forEach((parrafo) => {
     const limpio = parrafo.trim();
     if (!limpio) return;
     if (limpio === "Cumplimientos verificados:" || limpio === "Hallazgos de no cumplimiento:") push("titulo", limpio, { pequeno: true });
@@ -1581,6 +1579,87 @@ function construirBloquesInforme(informe) {
   push("p", "El presente informe refleja el estado de los sellos cortafuego observado a la fecha de la visita indicada y no cubre condiciones, modificaciones o daños ocasionados con posterioridad a esa fecha, ya sea por otros contratistas o por trabajos subsecuentes en el proyecto.");
   push("p", "Agradecemos la confianza depositada en Superba para velar por el cumplimiento de la compartimentación diseñada y quedamos atentos a cualquier duda o necesidad que pueda surgir en este respecto.");
   return b;
+}
+
+// --- Texto completo del informe (editable a mano) --------------------------
+// El modal "Ver texto del informe" muestra el CUERPO completo de la carta en
+// texto plano: encabezado, intro, listas de sistemas UL, metodología,
+// resultado de la inspección, seguimiento, conclusión y cierre. NO incluye la
+// firma, el anexo fotográfico ni los PDF de sistemas UL — esos los arma el
+// generador de PDF aparte y no tiene sentido editarlos como texto.
+//
+// Si Kevin edita el texto, se guarda en textoInformeManual y el PDF usa esa
+// versión: se vuelve a parsear a bloques con parsearTextoABloques().
+
+// Títulos que se dibujan en negrita en el PDF. Se detectan al parsear de vuelta.
+const ACR_TITULOS = [
+  "Las revisiones",
+  "Resultado de la inspección:",
+  "Cumplimientos verificados:",
+  "Hallazgos de no cumplimiento:",
+];
+// Títulos que van en tamaño chico (sub-encabezados dentro del resultado).
+const ACR_TITULOS_PEQUENOS = ["Cumplimientos verificados:", "Hallazgos de no cumplimiento:"];
+// Líneas de encabezado que van alineadas a la izquierda, sin justificar.
+const ACR_LINEAS_IZQ = ["A quien concierna", "Estimados presentes,"];
+
+function serializarBloques(bloques) {
+  const partes = [];
+  bloques.forEach((b) => {
+    // Las viñetas de una misma lista van pegadas (un salto simple entre ellas)
+    // para que en el textarea se lean como un bloque y no sueltas.
+    if (b.t === "lista") partes.push((b.items || []).map((item) => `• ${item}`).join("\n"));
+    else partes.push(b.texto || "");
+  });
+  return partes.join("\n\n");
+}
+
+function parsearTextoABloques(texto) {
+  const bloques = [];
+  const parrafos = String(texto == null ? "" : texto).split(/\n\s*\n/);
+  parrafos.forEach((crudo) => {
+    const limpio = crudo.trim();
+    if (!limpio) return;
+    // Bloque de viñetas: una o varias líneas que arrancan con • - o *.
+    // Una línea sin viñeta dentro del bloque se toma como continuación del
+    // ítem anterior (por si Kevin parte un ítem largo en dos renglones).
+    if (/^[•\-*]\s/.test(limpio)) {
+      const items = [];
+      limpio.split("\n").forEach((linea) => {
+        const l = linea.trim();
+        if (!l) return;
+        if (/^[•\-*]\s/.test(l)) items.push(l.replace(/^[•\-*]\s*/, "").trim());
+        else if (items.length) items[items.length - 1] += " " + l;
+        else items.push(l);
+      });
+      const ultimo = bloques[bloques.length - 1];
+      if (ultimo && ultimo.t === "lista") ultimo.items = ultimo.items.concat(items);
+      else bloques.push({ t: "lista", items });
+      return;
+    }
+    if (ACR_TITULOS.includes(limpio)) {
+      bloques.push({ t: "titulo", texto: limpio, pequeno: ACR_TITULOS_PEQUENOS.includes(limpio) });
+      return;
+    }
+    if (ACR_LINEAS_IZQ.includes(limpio)) { bloques.push({ t: "pIzq", texto: limpio }); return; }
+    // Un párrafo normal partido en varios renglones se une en uno solo:
+    // el PDF ya lo vuelve a envolver según el ancho de la caja.
+    bloques.push({ t: "p", texto: limpio.split("\n").map((l) => l.trim()).filter(Boolean).join(" ") });
+  });
+  return bloques;
+}
+
+// Texto plano del cuerpo completo: la versión editada a mano si existe,
+// si no la generada automáticamente desde los datos del informe.
+function textoCompletoInforme(informe) {
+  if (informe.textoInformeManual != null) return informe.textoInformeManual;
+  return serializarBloques(construirBloquesAuto(informe));
+}
+
+// Bloques que consume el generador de PDF.
+function construirBloquesInforme(informe) {
+  if (informe.textoInformeManual != null) return parsearTextoABloques(informe.textoInformeManual);
+  return construirBloquesAuto(informe);
 }
 
 function linkSistemaDeElemento(el) {
