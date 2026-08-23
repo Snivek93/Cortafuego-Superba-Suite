@@ -187,9 +187,8 @@ let ACR_ZONA_ACTIVA = null;
 let ACR_ELEMENTO_FORM = null;
 let ACR_ELEMENTO_EDITANDO_ID = null;
 let ACR_FOTO_EDIT = null;
-let ACR_CAPTION_QUEUE = [];
-let ACR_ALTA_FOTOS_PENDIENTES = [];
-let ACR_ALTA_TOTAL = 0;
+let ACR_FOTO_VISOR_ID = null;
+let ACR_FOTO_MENU_ID = null;
 let ACR_CHECKLIST_EXPANDIDO = new Set();
 let ACR_OBSERVACION_ABIERTA = new Set();
 let ACR_DATOS_GENERALES_ABIERTO = true;
@@ -321,17 +320,15 @@ function renderAcreditacion() {
   if (!overlay) return;
   const contPrevio = overlay.querySelector(".acr-content");
   const scrollPrevio = contPrevio ? contPrevio.scrollTop : 0;
-  const enAltaFoto = ACR_VISTA === "editorFoto" && ACR_FOTO_EDIT && ACR_FOTO_EDIT.esAlta;
-  const indiceAlta = enAltaFoto ? (ACR_ALTA_TOTAL - ACR_ALTA_FOTOS_PENDIENTES.length + 1) : 0;
-  const titulos = { historial: "Informes de Acreditación", galeria: "Fotos del recorrido", form: "Informe de Acreditación", editorFoto: enAltaFoto && ACR_ALTA_TOTAL > 1 ? `Editar foto (${indiceAlta} de ${ACR_ALTA_TOTAL})` : "Editar foto" };
-  const volverA = { historial: null, galeria: "historial", form: "galeria", editorFoto: "galeria" };
+  const titulos = { historial: "Informes de Acreditación", galeria: "Fotos del recorrido", form: "Informe de Acreditación", editorFoto: "Editar foto", fotoVisor: "Foto" };
+  const volverA = { historial: null, galeria: "historial", form: "galeria", editorFoto: "galeria", fotoVisor: "galeria" };
   const accionesDerecha = {
     galeria: `<button type="button" class="acr-topbar-right-btn" data-acr-action="siguiente-a-form">Siguiente</button>`,
     editorFoto: `<button type="button" class="acr-topbar-right-btn" data-acr-action="editor-aplicar">Aplicar</button>`,
   };
   overlay.innerHTML = `
     <div class="acr-topbar">
-      <button type="button" id="acr-btn-volver" class="lev-exit-btn"><svg class="icon"><use href="#i-arrow-left"/></svg>${enAltaFoto ? "Saltar edición" : (volverA[ACR_VISTA] ? "Atrás" : "Cerrar")}</button>
+      <button type="button" id="acr-btn-volver" class="lev-exit-btn"><svg class="icon"><use href="#i-arrow-left"/></svg>${volverA[ACR_VISTA] ? "Atrás" : "Cerrar"}</button>
       <span class="acr-topbar-title">${titulos[ACR_VISTA]}</span>
       <span class="acr-topbar-right">${accionesDerecha[ACR_VISTA] || ""}</span>
     </div>
@@ -340,6 +337,7 @@ function renderAcreditacion() {
       ${ACR_VISTA === "galeria" ? renderGaleriaHTML() : ""}
       ${ACR_VISTA === "form" ? renderFormularioHTML() : ""}
       ${ACR_VISTA === "editorFoto" ? renderEditorFotoHTML() : ""}
+      ${ACR_VISTA === "fotoVisor" ? renderFotoVisorHTML() : ""}
     </div>
   `;
   attachEventos(overlay);
@@ -391,16 +389,27 @@ function todasSeleccionadas() {
 function renderGaleriaHTML() {
   const fotos = ACR_DRAFT.fotos;
   const seleccionadas = fotos.filter((f) => f.seleccionada).length;
-  const items = fotos.map((f, idx) => `
+  const items = fotos.map((f, idx) => {
+    const menuAbierto = ACR_FOTO_MENU_ID === f.id;
+    return `
     <div class="acr-foto-item ${f.seleccionada ? "acr-foto-seleccionada" : ""}">
-      <div class="acr-foto-thumb-wrap" data-acr-action="toggle-foto" data-idx="${idx}">
+      <div class="acr-foto-thumb-wrap" data-acr-action="abrir-foto" data-id="${f.id}">
         <img src="${f.dataUrl}" alt="Foto ${idx + 1}">
-        <span class="acr-foto-check">${f.seleccionada ? '<svg class="icon"><use href="#i-check"/></svg>' : ""}</span>
-        <button type="button" class="acr-foto-icon-btn acr-foto-icon-editar" data-acr-action="editar-foto" data-id="${f.id}" title="Editar" aria-label="Editar foto"><svg class="icon"><use href="#i-edit"/></svg></button>
-        <button type="button" class="acr-foto-icon-btn acr-foto-icon-borrar" data-acr-action="borrar-foto" data-idx="${idx}" title="Borrar" aria-label="Borrar foto"><svg class="icon"><use href="#i-trash"/></svg></button>
+        <button type="button" class="acr-foto-check-btn ${f.seleccionada ? "active" : ""}" data-acr-action="toggle-foto" data-idx="${idx}" title="${f.seleccionada ? "Quitar del informe" : "Incluir en el informe"}" aria-label="Seleccionar foto">
+          <svg class="icon"><use href="#i-check"/></svg>
+        </button>
+        <div class="acr-foto-menu-wrap">
+          <button type="button" class="acr-foto-icon-btn" data-acr-action="menu-foto" data-id="${f.id}" title="Opciones" aria-label="Opciones"><svg class="icon"><use href="#i-more-vertical"/></svg></button>
+          ${menuAbierto ? `
+            <div class="acr-foto-menu">
+              <button type="button" data-acr-action="editar-foto" data-id="${f.id}">Editar / anotar</button>
+              <button type="button" data-acr-action="borrar-foto" data-idx="${idx}">Borrar foto</button>
+            </div>` : ""}
+        </div>
       </div>
-      <input type="text" class="acr-foto-desc" data-acr-field="foto-descripcion" data-idx="${idx}" value="${escapeHtml(f.descripcion)}" placeholder="Descripción de la foto (ej. Vista general del muro cortafuego)">
-    </div>`).join("");
+      <p class="acr-foto-desc-preview" data-acr-action="abrir-foto" data-id="${f.id}">${f.descripcion ? escapeHtml(f.descripcion) : '<span class="hint">Sin descripción — tocá la foto para agregarla</span>'}</p>
+    </div>`;
+  }).join("");
   return `
     <div class="acr-galeria">
       <label class="primary acr-btn-add-foto">
@@ -414,6 +423,26 @@ function renderGaleriaHTML() {
         </div>
         <div class="acr-fotos-grid">${items}</div>
       ` : `<p class="hint" style="margin-top:16px">Todavía no agregaste fotos. Tocá "Añadir foto" arriba.</p>`}
+    </div>`;
+}
+
+// Visor de foto en pantalla completa: imagen grande + descripción editable +
+// acceso al editor de anotación. Mismo patrón que la galería de Planos.
+function renderFotoVisorHTML() {
+  const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_FOTO_VISOR_ID);
+  if (!foto) return "";
+  return `
+    <div class="acr-foto-visor">
+      <div class="acr-foto-visor-img-wrap">
+        <img src="${foto.dataUrl}" alt="Foto">
+      </div>
+      <div class="acr-foto-visor-controles">
+        <textarea class="acr-foto-desc" data-acr-field="foto-descripcion-visor" placeholder="Descripción de la foto (ej. Vista general del muro cortafuego)" rows="2">${escapeHtml(foto.descripcion)}</textarea>
+        <div class="acr-foto-visor-botones">
+          <button type="button" class="secondary" data-acr-action="editar-foto" data-id="${foto.id}"><svg class="icon"><use href="#i-edit"/></svg>Editar / anotar</button>
+          <button type="button" class="secondary" data-acr-action="toggle-foto-visor" data-id="${foto.id}">${foto.seleccionada ? "Quitar del informe" : "Incluir en el informe"}</button>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -998,7 +1027,7 @@ const ACR_PRODUCTO_PROSA = {
   "Sellador CFS SIL GG": "sellador siliconado CFS SIL GG",
   "CFS SIL GG": "sellador siliconado CFS SIL GG",
   "CFS SP WB": "spray cortafuego CFS SP WB",
-  "Cinta con Collar Metálico CP 648-E/ER": "cinta intumescente CP 648-E y collar de retención CP 648-ER",
+  "Cinta con Collar Metálico CP 648-E/ER": "cinta intumescente CP 648-E, collar de retención CP 648-ER",
   "Cinta sin Collar Metálico CP 648-E": "cinta intumescente CP 648-E",
   "Collarín CP 643N/644": "collarín cortafuego CP 643N/644",
   "Espuma CP 620": "espuma cortafuego CP 620",
@@ -1025,8 +1054,7 @@ function diametroFrase(el) {
 function sujetoElemento(el) {
   if (el.categoria === "penetrante") {
     const base = ACR_TIPO_PLURAL[el.tipoPenetrante] || `Los elementos de tipo ${el.tipoPenetrante}`;
-    const anular = el.espacioAnular ? " con espacio anular" : " sin espacio anular";
-    return `${base}${diametroFrase(el)}${anular} ${barreraFrase(el)}`;
+    return `${base}${diametroFrase(el)} ${barreraFrase(el)}`;
   }
   if (el.subtipo === "muro_cortina") return "Las juntas cortafuego de muro cortina";
   const pos = el.juntaPosicion && el.juntaPosicion !== "-" ? ` en posición ${el.juntaPosicion.toLowerCase()}` : "";
@@ -1140,71 +1168,24 @@ function redimensionarImagenDataUrl(dataUrl, maxDim) {
 }
 async function agregarFotosDesdeArchivos(fileList) {
   const archivos = Array.from(fileList || []);
-  const nuevosIds = [];
   for (const file of archivos) {
     try {
       const dataUrl = await leerArchivoComoDataUrl(file);
       const chica = await redimensionarImagenDataUrl(dataUrl, 1600);
       const id = Date.now() + Math.random();
       ACR_DRAFT.fotos.push({ id, dataUrl: chica, descripcion: "", seleccionada: true });
-      nuevosIds.push(id);
     } catch (e) { /* si una foto falla, se sigue con las demás */ }
   }
-  if (nuevosIds.length) { ACR_ALTA_FOTOS_PENDIENTES = nuevosIds; ACR_ALTA_TOTAL = nuevosIds.length; continuarAltaFotos(); }
-  else renderAcreditacion();
+  renderAcreditacion();
 }
-function continuarAltaFotos() {
-  if (!ACR_ALTA_FOTOS_PENDIENTES.length) { renderAcreditacion(); return; }
-  abrirEditorFoto(ACR_ALTA_FOTOS_PENDIENTES[0], true);
-}
-function abrirPromptCaption() {
-  if (!ACR_CAPTION_QUEUE.length) { cerrarPromptCaption(); return; }
-  let overlay = document.getElementById("acr-caption-overlay");
-  if (!overlay) {
-    overlay = document.createElement("div"); overlay.id = "acr-caption-overlay";
-    overlay.className = "instr-modal-overlay open"; document.body.appendChild(overlay);
-  }
-  const fotoId = ACR_CAPTION_QUEUE[0];
-  const foto = ACR_DRAFT.fotos.find((f) => f.id === fotoId);
-  if (!foto) { ACR_CAPTION_QUEUE.shift(); abrirPromptCaption(); return; }
-  overlay.innerHTML = `
-    <div class="instr-modal acr-caption-modal">
-      <div class="instr-modal-header">
-        <span>Descripción de la foto${ACR_ALTA_TOTAL > 1 ? ` (${ACR_ALTA_TOTAL - ACR_ALTA_FOTOS_PENDIENTES.length} de ${ACR_ALTA_TOTAL})` : ""}</span>
-        <button type="button" id="acr-caption-cerrar" aria-label="Cerrar"><svg class="icon"><use href="#i-close"/></svg></button>
-      </div>
-      <div class="instr-modal-content">
-        <img src="${foto.dataUrl}" class="acr-caption-preview" alt="Foto">
-        <input type="text" id="acr-caption-input" placeholder="Ej. Vista general del muro cortafuego (opcional)" value="${escapeHtml(foto.descripcion)}">
-        <p class="hint" style="margin:2px 0 0">Solo el texto — el PDF le pone "Figura N." adelante automáticamente, según el orden de las fotos.</p>
-        <div class="acr-form-footer" style="padding-top:12px">
-          <button type="button" class="secondary" id="acr-caption-omitir">Omitir</button>
-          <button type="button" class="primary" id="acr-caption-guardar">Guardar y continuar</button>
-        </div>
-      </div>
-    </div>`;
-  const input = document.getElementById("acr-caption-input"); input.focus();
-  const avanzar = (guardarTexto) => {
-    if (guardarTexto) foto.descripcion = input.value.trim();
-    ACR_CAPTION_QUEUE.shift();
-    if (ACR_CAPTION_QUEUE.length) { abrirPromptCaption(); return; }
-    cerrarPromptCaption();
-    if (ACR_ALTA_FOTOS_PENDIENTES.length) continuarAltaFotos(); else renderAcreditacion();
-  };
-  document.getElementById("acr-caption-omitir").addEventListener("click", () => avanzar(false));
-  document.getElementById("acr-caption-guardar").addEventListener("click", () => avanzar(true));
-  document.getElementById("acr-caption-cerrar").addEventListener("click", () => { ACR_CAPTION_QUEUE = []; ACR_ALTA_FOTOS_PENDIENTES = []; ACR_ALTA_TOTAL = 0; cerrarPromptCaption(); renderAcreditacion(); });
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); avanzar(true); } });
-}
-function cerrarPromptCaption() { const o = document.getElementById("acr-caption-overlay"); if (o) o.remove(); }
 function toggleSeleccionFoto(idx) { const f = ACR_DRAFT.fotos[idx]; if (f) f.seleccionada = !f.seleccionada; renderAcreditacion(); }
 function toggleSeleccionTodas() { const marcar = !todasSeleccionadas(); ACR_DRAFT.fotos.forEach((f) => { f.seleccionada = marcar; }); renderAcreditacion(); }
 function borrarFoto(idx) { ACR_DRAFT.fotos.splice(idx, 1); renderAcreditacion(); }
 
-function abrirEditorFoto(fotoId, esAlta = false) {
+function abrirEditorFoto(fotoId) {
   const foto = ACR_DRAFT.fotos.find((f) => f.id === fotoId);
   if (!foto) return;
-  ACR_FOTO_EDIT = { fotoId, esAlta, modo: "anotar", img: null, rect: { left: 0, top: 0, right: 1, bottom: 1 }, trazos: [], trazoActual: null, textos: [], textoPendiente: null, color: ACR_PALETA[0], grosorFrac: 0.006, arrastre: null };
+  ACR_FOTO_EDIT = { fotoId, modo: "anotar", img: null, rect: { left: 0, top: 0, right: 1, bottom: 1 }, trazos: [], trazoActual: null, textos: [], textoPendiente: null, color: ACR_PALETA[0], grosorFrac: 0.006, arrastre: null };
   ACR_VISTA = "editorFoto";
   renderAcreditacion();
 }
@@ -1356,7 +1337,7 @@ function colocarTextoPendiente() {
 }
 function finalizarEdicionFoto() {
   const e = ACR_FOTO_EDIT, foto = ACR_DRAFT.fotos.find((f) => f.id === e.fotoId);
-  if (!foto || !e.img) { ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; seguirFlujoTrasEditor(e.esAlta, e.fotoId); return; }
+  if (!foto || !e.img) { ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; ACR_FOTO_VISOR_ID = e.fotoId; renderAcreditacion(); return; }
   const W = e.img.naturalWidth, H = e.img.naturalHeight;
   const base = document.createElement("canvas"); base.width = W; base.height = H;
   const bctx = base.getContext("2d"); bctx.drawImage(e.img, 0, 0, W, H);
@@ -1376,15 +1357,9 @@ function finalizarEdicionFoto() {
     finalDataUrl = crop.toDataURL("image/jpeg", 0.9);
   } else { finalDataUrl = base.toDataURL("image/jpeg", 0.9); }
   foto.dataUrl = finalDataUrl;
-  const esAlta = e.esAlta, fotoId = e.fotoId;
-  ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null;
-  seguirFlujoTrasEditor(esAlta, fotoId);
-}
-function seguirFlujoTrasEditor(esAlta, fotoId) {
-  if (!esAlta) { renderAcreditacion(); return; }
-  const idx = ACR_ALTA_FOTOS_PENDIENTES.indexOf(fotoId);
-  if (idx !== -1) ACR_ALTA_FOTOS_PENDIENTES.splice(idx, 1);
-  ACR_CAPTION_QUEUE = [fotoId]; abrirPromptCaption();
+  const fotoId = e.fotoId;
+  ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; ACR_FOTO_VISOR_ID = fotoId;
+  renderAcreditacion();
 }
 
 function bindCamposTexto(cont) {
@@ -1394,6 +1369,7 @@ function bindCamposTexto(cont) {
     el.addEventListener(evento, () => {
       const idx = el.getAttribute("data-idx"), elid = el.getAttribute("data-elid"), zona = el.getAttribute("data-zona") || null;
       if (campo === "foto-descripcion") { if (ACR_DRAFT.fotos[idx]) ACR_DRAFT.fotos[idx].descripcion = el.value; }
+      else if (campo === "foto-descripcion-visor") { const foto = ACR_DRAFT.fotos.find((f) => f.id === ACR_FOTO_VISOR_ID); if (foto) foto.descripcion = el.value; }
       else if (campo === "acompanante-nombre") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].nombre = el.value; }
       else if (campo === "acompanante-cargo") { if (ACR_DRAFT.acompanantes[idx]) ACR_DRAFT.acompanantes[idx].cargo = el.value; }
       else if (campo === "checklist-observacion") { obtenerEstadoChecklist(elid, zona).observacion = el.value; }
@@ -1419,7 +1395,8 @@ function attachEventos(overlay) {
     if (ACR_VISTA === "historial") cerrarVisorAcreditacion();
     else if (ACR_VISTA === "galeria") { ACR_VISTA = "historial"; ACR_DRAFT = null; renderAcreditacion(); }
     else if (ACR_VISTA === "form") { ACR_VISTA = "galeria"; renderAcreditacion(); }
-    else if (ACR_VISTA === "editorFoto") { const e = ACR_FOTO_EDIT; ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; seguirFlujoTrasEditor(e && e.esAlta, e && e.fotoId); }
+    else if (ACR_VISTA === "editorFoto") { const e = ACR_FOTO_EDIT; ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; ACR_FOTO_VISOR_ID = e && e.fotoId; renderAcreditacion(); }
+    else if (ACR_VISTA === "fotoVisor") { ACR_VISTA = "galeria"; ACR_FOTO_VISOR_ID = null; renderAcreditacion(); }
   });
   bindCamposTexto(overlay);
   if (overlay.dataset.acrClickBind) return;
@@ -1428,6 +1405,7 @@ function attachEventos(overlay) {
     const btn = evt.target.closest("[data-acr-action]");
     if (!btn) return;
     const accion = btn.getAttribute("data-acr-action");
+    if (ACR_FOTO_MENU_ID != null && accion !== "menu-foto" && accion !== "editar-foto" && accion !== "borrar-foto") { ACR_FOTO_MENU_ID = null; }
     const id = btn.getAttribute("data-id") ? Number(btn.getAttribute("data-id")) : null;
     const idx = btn.getAttribute("data-idx") != null ? Number(btn.getAttribute("data-idx")) : null;
     const elid = btn.getAttribute("data-elid");
@@ -1439,10 +1417,13 @@ function attachEventos(overlay) {
     else if (accion === "generar-pdf") generarPDFInformeAcreditacion(id);
     else if (accion === "cancelar") cancelarFormularioInforme();
     else if (accion === "guardar") guardarInformeDesdeFormulario();
-    else if (accion === "toggle-foto") toggleSeleccionFoto(idx);
+    else if (accion === "toggle-foto") { toggleSeleccionFoto(idx); return; }
     else if (accion === "toggle-seleccion-todas") toggleSeleccionTodas();
-    else if (accion === "borrar-foto") borrarFoto(idx);
-    else if (accion === "editar-foto") abrirEditorFoto(Number(btn.getAttribute("data-id")));
+    else if (accion === "borrar-foto") { ACR_FOTO_MENU_ID = null; borrarFoto(idx); }
+    else if (accion === "editar-foto") { ACR_FOTO_MENU_ID = null; abrirEditorFoto(Number(btn.getAttribute("data-id"))); }
+    else if (accion === "abrir-foto") { ACR_FOTO_VISOR_ID = Number(btn.getAttribute("data-id")); ACR_VISTA = "fotoVisor"; renderAcreditacion(); }
+    else if (accion === "menu-foto") { const mid = Number(btn.getAttribute("data-id")); ACR_FOTO_MENU_ID = ACR_FOTO_MENU_ID === mid ? null : mid; renderAcreditacion(); }
+    else if (accion === "toggle-foto-visor") { const foto = ACR_DRAFT.fotos.find((f) => f.id === Number(btn.getAttribute("data-id"))); if (foto) foto.seleccionada = !foto.seleccionada; renderAcreditacion(); }
     else if (accion === "siguiente-a-form") { ACR_VISTA = "form"; renderAcreditacion(); }
     else if (accion === "toggle-datos-generales") { ACR_DATOS_GENERALES_ABIERTO = !ACR_DATOS_GENERALES_ABIERTO; renderAcreditacion(); }
     else if (accion === "agregar-acompanante") { ACR_DRAFT.acompanantes.push({ nombre: "", cargo: "" }); renderAcreditacion(); }
@@ -1470,7 +1451,7 @@ function attachEventos(overlay) {
     else if (accion === "editor-texto-cancelar") { ACR_FOTO_EDIT.textoPendiente = null; renderAcreditacion(); }
     else if (accion === "editor-texto-colocar") colocarTextoPendiente();
     else if (accion === "editor-reset-recorte") { ACR_FOTO_EDIT.rect = { left: 0, top: 0, right: 1, bottom: 1 }; dibujarEditor(); }
-    else if (accion === "editor-cancelar") { const e = ACR_FOTO_EDIT; ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; seguirFlujoTrasEditor(e && e.esAlta, e && e.fotoId); }
+    else if (accion === "editor-cancelar") { const e = ACR_FOTO_EDIT; ACR_VISTA = "galeria"; ACR_FOTO_EDIT = null; ACR_FOTO_VISOR_ID = e && e.fotoId; renderAcreditacion(); }
     else if (accion === "editor-aplicar") finalizarEdicionFoto();
   });
 }
@@ -1531,10 +1512,15 @@ function construirBloquesAuto(informe) {
   const b = [];
   const push = (t, v, extra) => b.push(Object.assign({ t }, typeof v === "string" ? { texto: v } : { items: v }, extra || {}));
   push("pIzq", "A quien concierna"); push("pIzq", "Estimados presentes,");
-  let intro = `Este informe tiene el propósito de servir como reporte de acreditación del avance de la instalación de los sellos cortafuego para el proyecto "${informe.proyecto || "—"}"`;
-  if (informe.ubicacion) intro += `, ubicado en "${informe.ubicacion}"`;
-  if (informe.cliente) intro += `, a cargo del contratista "${informe.cliente}"`;
-  if (informe.empresaInstaladora) intro += ` e instalado por "${informe.empresaInstaladora}"`;
+  let intro = `Este informe tiene el propósito de servir como reporte de acreditación del avance de la instalación de los sellos cortafuego para el proyecto ${informe.proyecto || "—"}`;
+  if (informe.ubicacion) intro += `, ubicado en ${informe.ubicacion}`;
+  const mismoInstalador = informe.cliente && informe.empresaInstaladora
+    && informe.cliente.trim().toLowerCase() === informe.empresaInstaladora.trim().toLowerCase();
+  if (informe.cliente && mismoInstalador) intro += `, a cargo del contratista e instalador ${informe.cliente}`;
+  else {
+    if (informe.cliente) intro += `, a cargo del contratista ${informe.cliente}`;
+    if (informe.empresaInstaladora) intro += ` e instalado por ${informe.empresaInstaladora}`;
+  }
   intro += ".";
   intro += frasePersonas(informe);
   if (informe.zonas && informe.zonas.length) intro += ` El recorrido de revisión se realiza en ${informe.zonas.join(", ")}.`;
@@ -1558,7 +1544,6 @@ function construirBloquesAuto(informe) {
     push("p", "Los sistemas de sellos cortafuegos de juntas listados por ASTM E2307 (Intertek o UL) considerados en las revisiones realizadas durante la visita son los siguientes:");
     push("lista", muroCortina.map(descripcionSistemaUL));
   }
-  push("titulo", "Las revisiones");
   push("p", "Las revisiones evidenciadas en el presente informe se realizan durante el recorrido de forma aleatoria con pruebas destructivas o mediciones en sitio que verifiquen las condiciones del sello cortafuego instalado con respecto a los mínimos indicados por los sistemas UL anteriormente listados. Se incluyen en anexos fotos del recorrido como referencia visual del estado de los requerimientos mínimos solicitados por los ensambles.");
   push("titulo", "Resultado de la inspección:");
   if (informe.observaciones) push("p", informe.observaciones);
@@ -1593,7 +1578,6 @@ function construirBloquesAuto(informe) {
 
 // Títulos que se dibujan en negrita en el PDF. Se detectan al parsear de vuelta.
 const ACR_TITULOS = [
-  "Las revisiones",
   "Resultado de la inspección:",
   "Cumplimientos verificados:",
   "Hallazgos de no cumplimiento:",
@@ -1699,7 +1683,7 @@ async function generarPDFInformeAcreditacion(informeId) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "portrait" });
     const titulo = "Informe de Acreditación de Sellos Cortafuego";
-    const marginL = 72, anchoTexto = 468, FS = 10.5, LH = 14;
+    const marginL = 72, anchoTexto = 468, FS = 10.5, LH = 12;
     let safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 };
     let y = safe.top;
     function nuevaPagina() { doc.addPage(); safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 }; y = safe.top; }
@@ -1743,8 +1727,7 @@ async function generarPDFInformeAcreditacion(informeId) {
     escribirParrafo("Atentamente,", { espacioDespues: 34 });
     doc.setDrawColor(120, 120, 120); doc.line(marginL, y, marginL + 220, y); y += 14;
     escribirParrafo(nombreInspectorFirma(informe.inspector), { negrita: true, espacioDespues: 2 });
-    escribirParrafo("Departamento de Ingeniería Superba", { espacioDespues: 2 });
-    escribirParrafo((window.fechaLegible ? fechaLegible(informe.fecha) : informe.fecha) || "", { espacioDespues: 0 });
+    escribirParrafo("Departamento de Ingeniería Superba", { espacioDespues: 0 });
     const fotos = (informe.fotos || []).filter((f) => f.seleccionada);
     if (fotos.length) {
       nuevaPagina();
