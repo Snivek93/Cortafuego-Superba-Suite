@@ -223,6 +223,7 @@ function nuevoBorradorInforme() {
     observaciones: "",
     textoInformeManual: null,
     planoRefs: [],
+    tipoInforme: "avance", // "avance" | "final"
   };
 }
 function estadoChecklistDefault(categoria, subtipo) {
@@ -659,6 +660,14 @@ function renderDatosGeneralesHTML() {
       </button>
       ${abierto ? `
         <div class="acr-field-row">
+          <label class="acr-field-label">Tipo de informe
+            <select data-acr-field="tipoInforme">
+              <option value="avance" ${d.tipoInforme !== "final" ? "selected" : ""}>Avance</option>
+              <option value="final" ${d.tipoInforme === "final" ? "selected" : ""}>Final</option>
+            </select>
+          </label>
+        </div>
+        <div class="acr-field-row">
           <label class="acr-field-label">Proyecto
             <input type="text" data-acr-field="proyecto" value="${escapeHtml(d.proyecto)}">
           </label>
@@ -809,8 +818,10 @@ function renderModalElemento() {
   let contenidoHtml;
   if (f.categoria === "penetrante") {
     const esCombustible = esTuberiaCombustible(f.tipo);
-    const faltaDiametro = esCombustible && !f.diametro;
-    const opciones = (f.material && f.tipo && f.ubicacion && !faltaDiametro) ? opcionesProductoPenetrante(f.material, f.tipo, f.ubicacion, f.espacioAnular, f.diametro) : [];
+    const diametroPulgNum = parseFloat(f.diametroPulg);
+    const faltaDiametro = esCombustible && !(f.diametroPulg && !isNaN(diametroPulgNum) && diametroPulgNum > 0);
+    const diametroCategoria = esCombustible && !faltaDiametro ? (diametroPulgNum > 2 ? "mayor2" : "menor2") : "";
+    const opciones = (f.material && f.tipo && f.ubicacion && !faltaDiametro) ? opcionesProductoPenetrante(f.material, f.tipo, f.ubicacion, f.espacioAnular, diametroCategoria) : [];
     contenidoHtml = `
       <div class="acr-modal-seccion">
         <div class="acr-modal-seccion-titulo">Tipo de penetrante</div>
@@ -832,12 +843,9 @@ function renderModalElemento() {
       </div>
       ${esCombustible ? `
       <div class="acr-modal-seccion">
-        <div class="acr-modal-seccion-titulo">Diámetro de la tubería</div>
-        <div class="lev-chip-grid lev-chip-grid-compact">
-          ${acrChip("diametro", "menor2", '≤ 2"', f.diametro === "menor2")}
-          ${acrChip("diametro", "mayor2", '> 2"', f.diametro === "mayor2")}
-        </div>
-        <p class="hint" style="margin:2px 0 0">El diámetro define si el sistema correcto usa Pasta/Sellador (≤2") o Cinta/Collarín (&gt;2").</p>
+        <div class="acr-modal-seccion-titulo">Diámetro de la tubería (pulgadas)</div>
+        <input type="number" step="0.125" min="0" inputmode="decimal" class="acr-field-label" style="width:100%;font-size:16px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius-sm)" data-acr-elform-input="diametroPulg" value="${f.diametroPulg || ""}" placeholder='Ej. 4 o 6.5'>
+        <p class="hint" style="margin:4px 0 0">El diámetro exacto define el sistema (Pasta/Sellador ≤2", Cinta/Collarín &gt;2") y, si aplica cinta, el número de vueltas correcto.</p>
       </div>` : ""}` : ""}
       ${f.material && f.tipo && f.ubicacion && !faltaDiametro ? (opciones.length ? `
         <div class="acr-modal-seccion">
@@ -917,8 +925,8 @@ function bindModalElementoEventos(overlay) {
       let valor = chip.getAttribute("data-valor");
       if (campo === "espacioAnular") valor = valor === "1";
       ACR_ELEMENTO_FORM[campo] = valor;
-      if (campo === "material" || campo === "ubicacion" || campo === "espacioAnular" || campo === "diametro") ACR_ELEMENTO_FORM.producto = "";
-      if (campo === "tipo") { ACR_ELEMENTO_FORM.barreras = ""; ACR_ELEMENTO_FORM.posicion = ""; ACR_ELEMENTO_FORM.producto = ""; ACR_ELEMENTO_FORM.diametro = ""; }
+      if (campo === "material" || campo === "ubicacion" || campo === "espacioAnular") ACR_ELEMENTO_FORM.producto = "";
+      if (campo === "tipo") { ACR_ELEMENTO_FORM.barreras = ""; ACR_ELEMENTO_FORM.posicion = ""; ACR_ELEMENTO_FORM.producto = ""; ACR_ELEMENTO_FORM.diametroPulg = ""; }
       if (campo === "barreras") { ACR_ELEMENTO_FORM.posicion = ""; ACR_ELEMENTO_FORM.producto = ""; }
       if (campo === "posicion") { ACR_ELEMENTO_FORM.producto = ""; }
       renderModalElemento();
@@ -927,6 +935,31 @@ function bindModalElementoEventos(overlay) {
     if (evt.target.closest("[data-acr-elmodal-cerrar]")) { cerrarModalElemento(); return; }
     if (evt.target.closest("[data-acr-elmodal-confirmar]")) { confirmarNuevoElemento(); return; }
   });
+  overlay.addEventListener("input", (evt) => {
+    const input = evt.target.closest("[data-acr-elform-input]");
+    if (!input) return;
+    const campo = input.getAttribute("data-acr-elform-input");
+    ACR_ELEMENTO_FORM[campo] = input.value;
+    ACR_ELEMENTO_FORM.producto = "";
+    // Re-renderizar perdería el foco del input numérico mientras se escribe;
+    // solo hace falta actualizar las opciones de producto que dependen del
+    // diámetro, sin regenerar todo el modal.
+    const cont = overlay.querySelector(".instr-modal-content");
+    if (cont) {
+      const scrollPrevio = cont.scrollTop;
+      const activeEl = document.activeElement;
+      const wasFocused = activeEl === input;
+      const cursorPos = wasFocused ? input.selectionStart : null;
+      renderModalElemento();
+      const overlay2 = document.getElementById("acr-elemento-overlay");
+      const contNuevo = overlay2 ? overlay2.querySelector(".instr-modal-content") : null;
+      if (contNuevo) contNuevo.scrollTop = scrollPrevio;
+      if (wasFocused) {
+        const inputNuevo = overlay2 ? overlay2.querySelector('[data-acr-elform-input="' + campo + '"]') : null;
+        if (inputNuevo) { inputNuevo.focus(); if (cursorPos != null) inputNuevo.setSelectionRange(cursorPos, cursorPos); }
+      }
+    }
+  });
 }
 
 let ACR_TEXTO_INFORME_EDITANDO = false;
@@ -934,6 +967,61 @@ let ACR_TEXTO_INFORME_EDITANDO = false;
 // Abre el visor de planos en modo "capa de informe": misma imagen y calibración
 // del plano real, pero con trazos/pines propios de este informe — aislados de
 // los pines de Levantamiento y de otros informes.
+// --- Plano marcado en el PDF del informe (Recorte automático o vista completa) ---
+// Calcula el rectángulo (en fracción 0-1) que envuelve todas las anotaciones
+// de un planoRef, con margen. Devuelve null si no hay ninguna anotación.
+function bboxAnotacionesPlano(ref) {
+  let minX = 1, minY = 1, maxX = 0, maxY = 0, hayAlgo = false;
+  const marcar = (x, y) => { hayAlgo = true; minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
+  (ref.pines || []).forEach((p) => marcar(p.xFrac, p.yFrac));
+  (ref.rectangulos || []).forEach((r) => { marcar(r.xFrac, r.yFrac); marcar(r.xFrac + r.wFrac, r.yFrac + r.hFrac); });
+  (ref.lineas || []).forEach((l) => { marcar(l.x1Frac, l.y1Frac); marcar(l.x2Frac, l.y2Frac); });
+  (ref.trazos || []).forEach((t) => (t.puntos || []).forEach((p) => marcar(p.xFrac, p.yFrac)));
+  (ref.cotas || []).forEach((c) => { marcar(c.x1Frac, c.y1Frac); marcar(c.x2Frac, c.y2Frac); });
+  if (!hayAlgo) return null;
+  // Margen alrededor de las marcas (15% del tamaño del bbox, mínimo 8% de la hoja)
+  const anchoBbox = maxX - minX, altoBbox = maxY - minY;
+  const margenX = Math.max(anchoBbox * 0.15, 0.08), margenY = Math.max(altoBbox * 0.15, 0.08);
+  return {
+    left: Math.max(0, minX - margenX), top: Math.max(0, minY - margenY),
+    right: Math.min(1, maxX + margenX), bottom: Math.min(1, maxY + margenY),
+  };
+}
+// Decide si conviene recortar: si el bbox de las marcas ya cubre gran parte
+// de la hoja (>55% de ancho o alto), no vale la pena recortar — casi sería
+// la hoja completa de todas formas.
+function convieneRecortarPlano(bbox) {
+  if (!bbox) return false;
+  return (bbox.right - bbox.left) < 0.55 && (bbox.bottom - bbox.top) < 0.55;
+}
+// Genera el dataURL final del plano para el PDF: plano completo con marcas,
+// o recortado a la zona marcada según convieneRecortarPlano() (a menos que
+// forzarCompleto lo pida explícitamente).
+async function generarImagenPlanoParaPDF(planoId, ref, forzarCompleto) {
+  const real = (window.PLANOS || []).find((p) => p.id === planoId);
+  if (!real || !window.dibujarPlanoConMarcasCanvas) return null;
+  const planoVirtual = { id: real.id, nombre: real.nombre, dataUrl: real.dataUrl, width: real.width, height: real.height, pines: ref.pines, trazos: ref.trazos, rectangulos: ref.rectangulos, lineas: ref.lineas, cotas: ref.cotas };
+  let dataUrlCompleto;
+  try { dataUrlCompleto = await window.dibujarPlanoConMarcasCanvas(planoVirtual); } catch (e) { return null; }
+  const bbox = bboxAnotacionesPlano(ref);
+  if (forzarCompleto || !convieneRecortarPlano(bbox)) return { dataUrl: dataUrlCompleto, recortado: false };
+  // Recortar el dataUrl completo a la zona del bbox usando un canvas aparte
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const sx = bbox.left * real.width, sy = bbox.top * real.height;
+      const sw = (bbox.right - bbox.left) * real.width, sh = (bbox.bottom - bbox.top) * real.height;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(sw)); canvas.height = Math.max(1, Math.round(sh));
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      resolve({ dataUrl: canvas.toDataURL("image/jpeg", 0.9), recortado: true });
+    };
+    img.onerror = () => resolve({ dataUrl: dataUrlCompleto, recortado: false });
+    img.src = dataUrlCompleto;
+  });
+}
 function abrirPlanoDelInforme(planoId) {
   if (!window.abrirVisorPlanosConCapaInforme) {
     if (window.mostrarToast) mostrarToast("El módulo de Planos no está cargado.", "error");
@@ -942,7 +1030,7 @@ function abrirPlanoDelInforme(planoId) {
   if (!ACR_DRAFT.planoRefs) ACR_DRAFT.planoRefs = [];
   let ref = ACR_DRAFT.planoRefs.find(r => r.planoId === planoId);
   if (!ref) {
-    ref = { planoId, pines: [], trazos: [], rectangulos: [], lineas: [], cotas: [] };
+    ref = { planoId, pines: [], trazos: [], rectangulos: [], lineas: [], cotas: [], incluirEnPDF: false, modoPDF: "auto", notaPDF: "" };
     ACR_DRAFT.planoRefs.push(ref);
   }
   window.abrirVisorPlanosConCapaInforme(planoId, ref, () => {
@@ -960,6 +1048,7 @@ function renderSeccionPlanosHTML() {
   const items = planos.map(p => {
     const ref = refs.find(r => r.planoId === p.id);
     const tieneAnotaciones = ref && (ref.trazos.length || ref.rectangulos.length || ref.lineas.length || ref.pines.length);
+    const incluir = tieneAnotaciones && ref.incluirEnPDF;
     return `
       <div class="acr-plano-item">
         <img src="${p.dataUrl}" class="acr-plano-thumb" alt="${escapeHtml(p.nombre)}">
@@ -970,7 +1059,27 @@ function renderSeccionPlanosHTML() {
         <button type="button" class="secondary" data-acr-action="abrir-plano-informe" data-id="${p.id}">
           <svg class="icon"><use href="#i-edit"/></svg>${tieneAnotaciones ? "Editar" : "Anotar"}
         </button>
-      </div>`;
+      </div>
+      ${tieneAnotaciones ? `
+      <div class="acr-plano-pdf-opciones">
+        <label class="acr-checkbox-label">
+          <input type="checkbox" data-acr-action="toggle-plano-pdf" data-id="${p.id}" ${incluir ? "checked" : ""}>
+          Incluir este plano en el PDF del informe (antes de las fotos)
+        </label>
+        ${incluir ? `
+          <div class="acr-field-row">
+            <label class="acr-field-label">Vista
+              <select data-acr-plano-campo="modoPDF" data-id="${p.id}">
+                <option value="auto" ${ref.modoPDF !== "completo" ? "selected" : ""}>Recorte automático de la zona marcada</option>
+                <option value="completo" ${ref.modoPDF === "completo" ? "selected" : ""}>Plano completo</option>
+              </select>
+            </label>
+          </div>
+          <label class="acr-field-label">Nota / pie de la imagen (qué se marcó o por qué se incluye)
+            <textarea data-acr-plano-campo="notaPDF" data-id="${p.id}" rows="2" placeholder="Ej. Se señala el recorrido de losa donde se ubican los sellos revisados en esta visita.">${escapeHtml(ref.notaPDF || "")}</textarea>
+          </label>
+        ` : ""}
+      </div>` : ""}`;
   }).join("");
   return `<div class="acr-planos-lista">${items}</div>`;
 }
@@ -1095,8 +1204,7 @@ function barreraFrase(el) {
   return el.ubicacion === "Pared" ? "en pared de concreto" : "en losa de concreto";
 }
 function diametroFrase(el) {
-  if (el.diametro === "menor2") return " con diámetro menor a 2 pulgadas";
-  if (el.diametro === "mayor2") return " con diámetro mayor a 2 pulgadas";
+  if (el.diametroPulg) return ` con diámetro de ${fraccion(el.diametroPulg)}`;
   return "";
 }
 function sujetoElemento(el) {
@@ -1117,7 +1225,10 @@ function espesorFrase(el) {
 }
 function traslapeFrase(el) { return el.traslape ? ` y traslape mínimo de ${fraccion(el.traslape)}` : ""; }
 function criterioCumple(el) {
-  if (elementoUsaCinta(el)) return "vueltas";
+  if (elementoUsaCinta(el)) {
+    if (el.numVueltasCinta) return `${el.numVueltasCinta} vuelta${el.numVueltasCinta === 1 ? "" : "s"} de cinta intumescente`;
+    return "vueltas";
+  }
   const esp = espesorFrase(el);
   if (esp) return `${esp}${traslapeFrase(el)}`;
   return "instalación indicada por el sistema";
@@ -1176,6 +1287,15 @@ function recorrerEstados(d, visitar) {
       visitar(el, estado, `En ${zona}: `);
     });
   });
+}
+// Detecta si existen otros informes guardados del mismo proyecto (por nombre,
+// comparación insensible a mayúsculas/espacios) — para saber si el informe
+// final puede referirse a "informes anteriores y visitas previas" o si, al
+// ser la primera y única visita, esa frase no aplica.
+function hayInformesAnterioresDelProyecto(informe) {
+  const nombre = (informe.proyecto || "").trim().toLowerCase();
+  if (!nombre) return false;
+  return INFORMES_ACREDITACION.some((otro) => otro.id !== informe.id && (otro.proyecto || "").trim().toLowerCase() === nombre);
 }
 function hayHallazgos(d) {
   let hay = false;
@@ -1590,6 +1710,15 @@ function bindCamposTexto(cont) {
       else { ACR_DRAFT[campo] = el.value; }
     });
   });
+  cont.querySelectorAll("[data-acr-plano-campo]").forEach((el) => {
+    const campo = el.getAttribute("data-acr-plano-campo");
+    const id = Number(el.getAttribute("data-id"));
+    const evento = el.tagName === "SELECT" ? "change" : "input";
+    el.addEventListener(evento, () => {
+      const ref = (ACR_DRAFT.planoRefs || []).find((r) => r.planoId === id);
+      if (ref) ref[campo] = el.value;
+    });
+  });
   const inputZona = document.getElementById("acr-input-zona");
   if (inputZona) inputZona.addEventListener("keydown", (evt) => { if (evt.key === "Enter") { evt.preventDefault(); agregarZonaDesdeInput(); } });
   const inputFotos = document.getElementById("acr-input-fotos");
@@ -1784,6 +1913,13 @@ function attachEventos(overlay) {
     else if (accion === "agregar-zona") agregarZonaDesdeInput();
     else if (accion === "quitar-zona") { const z = ACR_DRAFT.zonas[idx]; ACR_DRAFT.zonas.splice(idx, 1); if (z) delete ACR_DRAFT.checklist.porZona[z]; renderAcreditacion(); }
     else if (accion === "abrir-plano-informe") abrirPlanoDelInforme(id);
+    else if (accion === "toggle-plano-pdf") {
+      if (!ACR_DRAFT.planoRefs) ACR_DRAFT.planoRefs = [];
+      let ref = ACR_DRAFT.planoRefs.find((r) => r.planoId === id);
+      if (!ref) { ref = { planoId: id, pines: [], trazos: [], rectangulos: [], lineas: [], cotas: [], incluirEnPDF: false, modoPDF: "auto", notaPDF: "" }; ACR_DRAFT.planoRefs.push(ref); }
+      ref.incluirEnPDF = btn.checked;
+      renderAcreditacion();
+    }
     else if (accion === "abrir-elemento-penetrante") abrirModalElemento("penetrante", null);
     else if (accion === "abrir-elemento-junta") abrirModalElemento("junta", null);
     else if (accion === "precargar-levantamiento") precargarElementosDesdeLevantamiento();
@@ -1830,10 +1966,21 @@ function confirmarNuevoElemento() {
   if (!completo) { if (window.mostrarToast) mostrarToast("Completá la selección antes de añadir.", "error"); return; }
   let nuevoElemento;
   if (f.categoria === "penetrante") {
-    const opciones = opcionesProductoPenetrante(f.material, f.tipo, f.ubicacion, f.espacioAnular, f.diametro);
+    const diametroPulgNum = parseFloat(f.diametroPulg);
+    const tieneDiametro = f.diametroPulg && !isNaN(diametroPulgNum) && diametroPulgNum > 0;
+    const diametroCategoria = esTuberiaCombustible(f.tipo) && tieneDiametro ? (diametroPulgNum > 2 ? "mayor2" : "menor2") : "";
+    const opciones = opcionesProductoPenetrante(f.material, f.tipo, f.ubicacion, f.espacioAnular, diametroCategoria);
     const encontrado = opciones.find((o) => o.producto === f.producto);
     if (!encontrado) { if (window.mostrarToast) mostrarToast("No se pudo agregar — probá elegir el producto de nuevo.", "error"); return; }
-    nuevoElemento = { id: ACR_ELEMENTO_EDITANDO_ID != null ? ACR_ELEMENTO_EDITANDO_ID : Date.now() + Math.random(), categoria: "penetrante", subtipo: null, material: f.material, tipoPenetrante: f.tipo, ubicacion: f.ubicacion, espacioAnular: f.espacioAnular, diametro: f.diametro || null, producto: f.producto, sistemaUL: encontrado.sistemaUL, espesor: encontrado.espesor, traslape: null };
+    nuevoElemento = { id: ACR_ELEMENTO_EDITANDO_ID != null ? ACR_ELEMENTO_EDITANDO_ID : Date.now() + Math.random(), categoria: "penetrante", subtipo: null, material: f.material, tipoPenetrante: f.tipo, ubicacion: f.ubicacion, espacioAnular: f.espacioAnular, diametroPulg: tieneDiametro ? diametroPulgNum : null, producto: f.producto, sistemaUL: encontrado.sistemaUL, espesor: encontrado.espesor, traslape: null };
+    // Vueltas de cinta reales, usando la misma tabla oficial que el motor de
+    // cálculo de Levantamiento (vueltasCintaPenetrante) — solo aplica para
+    // productos de cinta intumescente en tuberías combustibles.
+    if (tieneDiametro && elementoUsaCinta(nuevoElemento) && window.vueltasCintaPenetrante) {
+      const row = { L: f.tipo, M: f.material, N: f.ubicacion, P: f.producto, D: diametroPulgNum, E: 0 };
+      const nv = window.vueltasCintaPenetrante(row);
+      if (typeof nv === "number") nuevoElemento.numVueltasCinta = nv;
+    }
   } else {
     const junta = window.juntaParaTipo ? window.juntaParaTipo(f.tipo) : null;
     const fila = resolverFilaJunta(junta, f.tipo, f.barreras, f.posicion, f.producto);
@@ -1881,7 +2028,7 @@ function construirBloquesAuto(informe) {
   const b = [];
   const push = (t, v, extra) => b.push(Object.assign({ t }, typeof v === "string" ? { texto: v } : { items: v }, extra || {}));
   push("pIzq", "A quien concierna"); push("pIzq", "Estimados presentes,");
-  let intro = `Este informe tiene el propósito de servir como reporte de acreditación del avance de la instalación de los sellos cortafuego para el proyecto ${informe.proyecto || "—"}`;
+  let intro = `Este informe tiene el propósito de servir como reporte de acreditación ${informe.tipoInforme === "final" ? "final" : "del avance"} de la instalación de los sellos cortafuego para el proyecto ${informe.proyecto || "—"}`;
   if (informe.ubicacion) intro += `, ubicado en ${informe.ubicacion}`;
   const mismoInstalador = informe.cliente && informe.empresaInstaladora
     && informe.cliente.trim().toLowerCase() === informe.empresaInstaladora.trim().toLowerCase();
@@ -1928,6 +2075,10 @@ function construirBloquesAuto(informe) {
     push("p", seg);
   }
   if (hayHallazgos(informe)) push("p", "Con base en lo anterior se comprueba que, a la fecha de la visita del presente informe, la instalación de los productos y sistemas debe mejorarse conforme a los hallazgos de incumplimiento comentados anteriormente. Se realizarán visitas posteriores para verificar la corrección en los puntos que se requieran para lograr el cumplimiento.");
+  else if (informe.tipoInforme === "final") {
+    const antecedente = hayInformesAnterioresDelProyecto(informe) ? ", en los informes anteriores y en las visitas previas realizadas," : "";
+    push("p", `Con base en lo anterior${antecedente} y tomando en consideración que las revisiones aleatorias de los sellos cortafuego se efectúan según las posibilidades y limitaciones de acceso a las distintas zonas del proyecto, se verifica que la instalación de los productos y ensambles de sellos cortafuego revisados en el proyecto ha seguido de forma adecuada los lineamientos mínimos indicados en los sistemas seleccionados, respaldados por las normas ASTM y UL, conforme a la normativa NFPA y al Reglamento Nacional de Protección Contra Incendios de Costa Rica. Se aclara que el presente informe tiene como alcance únicamente la revisión de los sellos cortafuego en las barreras cortafuego; por lo tanto, la integridad y capacidad de resistencia al fuego propia de la barrera (pared o losa), así como cualquier solución con parches, cenefas o cajones, debe ser validada y revisada por parte del proveedor de los materiales correspondientes a dicha aplicación y su respectivo ensamble.`);
+  }
   else push("p", "Con base en lo anterior se comprueba que, a la fecha de la visita del presente informe, el avance en la instalación de los productos y sistemas se mantiene de forma correcta conforme a los lineamientos y espesores indicados en los sistemas seleccionados respaldados por las normas ASTM y UL.");
   push("p", "A todo aquel que concierne, se recuerda que la compartimentación se debe realizar de forma integral y este informe se limita a la revisión de los sellos cortafuego en el alcance del contratista acá mencionado. La compartimentación se constituye de barreras cortafuego como paredes y losas, puertas y ventanas cortafuego, sellos cortafuego de pasantes que atraviesen las barreras y sellos cortafuego de juntas entre las barreras de distintos materiales; por lo que, para garantizar un adecuado comportamiento integral de la compartimentación, cualquier sello adicional de otro contratista debe estar presente con su respectiva normativa de respaldo.");
   push("p", "El presente informe refleja el estado de los sellos cortafuego observado a la fecha de la visita indicada y no cubre condiciones, modificaciones o daños ocasionados con posterioridad a esa fecha, ya sea por otros contratistas o por trabajos subsecuentes en el proyecto.");
@@ -2051,8 +2202,8 @@ async function generarPDFInformeAcreditacion(informeId) {
   try {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "portrait" });
-    const titulo = "Informe de Acreditación de Sellos Cortafuego";
-    const marginL = 72, anchoTexto = 468, FS = 10.5, LH = 12;
+    const titulo = `Informe de Acreditación ${informe.tipoInforme === "final" ? "Final" : "de Avance"} de Sellos Cortafuego`;
+    const marginL = 72, anchoTexto = 468, FS = 10.5, LH = 14.5;
     let safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 };
     let y = safe.top;
     function nuevaPagina() { doc.addPage(); safe = window.dibujarLetterheadPDF ? window.dibujarLetterheadPDF(doc, titulo) : { top: 140, bottom: 735 }; y = safe.top; }
@@ -2077,7 +2228,7 @@ async function generarPDFInformeAcreditacion(informeId) {
         if (opts.justificar && !ultima) dibujarLineaJustificada(linea, x, y, ancho); else doc.text(linea, x, y);
         y += LH;
       });
-      y += opts.espacioDespues != null ? opts.espacioDespues : 8;
+      y += opts.espacioDespues != null ? opts.espacioDespues : 12;
     }
     doc.setTextColor(20, 20, 20);
     construirBloquesInforme(informe).forEach((bloque) => {
@@ -2097,6 +2248,28 @@ async function generarPDFInformeAcreditacion(informeId) {
     doc.setDrawColor(120, 120, 120); doc.line(marginL, y, marginL + 220, y); y += 14;
     escribirParrafo(nombreInspectorFirma(informe.inspector), { negrita: true, espacioDespues: 2 });
     escribirParrafo("Departamento de Ingeniería Superba", { espacioDespues: 0 });
+    // Plano del recorrido marcado (si el usuario lo activó desde la sección
+    // "Plano del recorrido" del formulario) — va antes de las fotos.
+    const planoRefsAIncluir = (informe.planoRefs || []).filter((r) => r.incluirEnPDF && (r.trazos.length || r.rectangulos.length || r.lineas.length || r.pines.length));
+    for (const ref of planoRefsAIncluir) {
+      const plano = (window.PLANOS || []).find((p) => p.id === ref.planoId);
+      if (!plano || !window.dibujarPlanoConMarcasCanvas) continue;
+      let resultado;
+      try { resultado = await generarImagenPlanoParaPDF(ref.planoId, ref, ref.modoPDF === "completo"); } catch (e) { continue; }
+      if (!resultado) continue;
+      nuevaPagina();
+      escribirParrafo("PLANO DEL RECORRIDO", { negrita: true, size: FS + 1, espacioDespues: 14 });
+      let w = 420, h = 320;
+      try { const props = doc.getImageProperties(resultado.dataUrl); if (props && props.width && props.height) { const escala = Math.min(420 / props.width, 460 / props.height); w = props.width * escala; h = props.height * escala; } } catch (e) {}
+      const imgX = marginL + (anchoTexto - w) / 2;
+      asegurar(h + 30);
+      try { doc.addImage(resultado.dataUrl, "JPEG", imgX, y, w, h, undefined, "FAST"); } catch (e) {}
+      y += h + 14;
+      doc.setFont("helvetica", "italic"); doc.setFontSize(FS - 1);
+      const notaBase = ref.notaPDF && ref.notaPDF.trim() ? ref.notaPDF.trim() : `Plano ${plano.nombre}${resultado.recortado ? " — recorte de la zona marcada durante el recorrido." : " — marcado durante el recorrido."}`;
+      doc.splitTextToSize(notaBase, anchoTexto).forEach((l) => { asegurar(LH); doc.text(l, marginL + anchoTexto / 2, y, { align: "center" }); y += LH; });
+      doc.setFont("helvetica", "normal"); y += 20;
+    }
     const fotos = (informe.fotos || []).filter((f) => f.seleccionada);
     if (fotos.length) {
       nuevaPagina();
@@ -2118,14 +2291,14 @@ async function generarPDFInformeAcreditacion(informeId) {
     const normas = Array.from(new Set(informe.elementos.map(normaOrganismo)));
     const sistemas = [];
     const vistos = new Set();
-    informe.elementos.forEach((el) => { if (vistos.has(el.sistemaUL)) return; vistos.add(el.sistemaUL); sistemas.push({ sistema: el.sistemaUL, link: linkSistemaDeElemento(el) }); });
+    informe.elementos.forEach((el) => { if (vistos.has(el.sistemaUL)) return; vistos.add(el.sistemaUL); sistemas.push({ sistema: el.sistemaUL, link: linkSistemaDeElemento(el), descripcion: descripcionSistemaUL(el) }); });
     if (normas.length) {
       nuevaPagina();
       escribirParrafo("ANEXOS: NORMAS", { negrita: true, size: FS + 2, espacioDespues: 16 });
       normas.forEach((n) => escribirParrafo(n, { espacioDespues: 4 }));
       y += 10;
       escribirParrafo("Sistemas incluidos a continuación:", { negrita: true, espacioDespues: 8 });
-      sistemas.forEach((s) => escribirParrafo(`•  ${s.sistema}`, { espacioDespues: 2 }));
+      sistemas.forEach((s) => escribirParrafo(`•  ${s.descripcion}`, { espacioDespues: 4 }));
     }
     const total = doc.internal.getNumberOfPages();
     for (let p = 1; p <= total; p++) { doc.setPage(p); if (window.dibujarNumeroPaginaPDF) dibujarNumeroPaginaPDF(doc, p, total); }

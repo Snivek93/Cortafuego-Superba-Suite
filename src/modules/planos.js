@@ -66,6 +66,23 @@ const PLANO_GROSORES = [
   { valor: 1, nombre: "Medio", puntoPx: 10 },
   { valor: 2, nombre: "Grueso", puntoPx: 14 },
 ];
+// Color de los textos nuevos — mismo botón de color del riel, activo solo
+// cuando la herramienta es "texto" (igual patrón que PLANO_COLOR_PIN).
+let PLANO_COLOR_TEXTO = "#e2001a";
+// Tamaño de fuente del texto, como fracción del ancho del plano (igual
+// unidad que usa el editor de fotos — así el tamaño se ve consistente sin
+// importar la resolución del plano rasterizado).
+let PLANO_TAMANO_TEXTO = 0.02;
+const PLANO_TAMANOS_TEXTO = [0.012, 0.02, 0.032, 0.048];
+// Texto que se está escribiendo/editando ahora mismo: { id, xFrac, yFrac,
+// esNuevo } — mientras existe, se muestra un <input> HTML flotente encima
+// del SVG en esa posición (ver renderInputTextoFlotante). id: null si es
+// un texto nuevo que todavía no se confirmó.
+let PLANO_TEXTO_EDITANDO = null;
+// Id del texto ya colocado que está seleccionado (se puede arrastrar o
+// cambiarle el tamaño desde el riel).
+let PLANO_TEXTO_SELECCIONADO_ID = null;
+let PLANO_TEXTO_ARRASTRE = null; // { id, offXFrac, offYFrac } mientras se arrastra un texto seleccionado
 // Lápiz: trazo fino, opaco — para apuntes/detalle. Marcador: trazo grueso,
 // semitransparente tipo resaltador — para señalar recorridos/zonas.
 const TRAZO_ESTILOS = {
@@ -161,6 +178,7 @@ async function subirPlano(file) {
     trazos: [],
     rectangulos: [],
     lineas: [],
+    textos: [], // etiquetas de texto libre sobre el plano — ver herramienta "Texto"
     cotas: [], // mediciones persistentes con la herramienta "Regla" — ver procesarMedicion()
     escala: null, // { pxPorCm: number } — se llena al calibrar (ver "Regla y calibración")
   };
@@ -236,6 +254,7 @@ function planoActivo() {
     rectangulos: ref.rectangulos,
     lineas: ref.lineas,
     cotas: ref.cotas,
+    textos: ref.textos || (ref.textos = []),
   };
 }
 
@@ -463,6 +482,65 @@ function renderVisorPlanos() {
 
 // Rail de herramientas + barra secundaria (hints/zoom) + canvas — separado de
 // renderVisorPlanos() para que el template principal no quede gigante.
+function renderInputTextoFlotante(plano) {
+  if (!PLANO_TEXTO_EDITANDO) return "";
+  const e = PLANO_TEXTO_EDITANDO;
+  const t = (plano.textos || []).find((x) => x.id === e.id);
+  const tamano = t ? (t.tamano || PLANO_TAMANO_TEXTO) : PLANO_TAMANO_TEXTO;
+  const tamanoPx = Math.max(plano.width, plano.height) * tamano;
+  const color = t ? t.color : PLANO_COLOR_TEXTO;
+  const x = e.xFrac * plano.width, y = e.yFrac * plano.height;
+  return `
+    <input type="text" id="planos-texto-input-flotante" class="planos-texto-input-flotante"
+      style="left:${x}px; top:${y}px; font-size:${tamanoPx}px; color:${color};"
+      value="${escapeHtml(e.textoActual || "")}" placeholder="Escribí...">`;
+}
+function confirmarTextoFlotante() {
+  const e = PLANO_TEXTO_EDITANDO;
+  if (!e) return;
+  const plano = planoActivo();
+  const texto = (e.textoActual || "").trim();
+  if (!plano) { PLANO_TEXTO_EDITANDO = null; renderVisorPlanos(); return; }
+  if (!plano.textos) plano.textos = [];
+  if (e.id == null) {
+    // Texto nuevo: solo se guarda si tiene contenido.
+    if (texto) {
+      const nuevo = { id: Date.now() + Math.random(), xFrac: e.xFrac, yFrac: e.yFrac, texto, color: PLANO_COLOR_TEXTO, tamano: PLANO_TAMANO_TEXTO };
+      PLANO_UNDO_STACK.push(snapshotPlano(plano));
+      if (PLANO_UNDO_STACK.length > 25) PLANO_UNDO_STACK.shift();
+      PLANO_REDO_STACK = [];
+      plano.textos.push(nuevo);
+      marcarCambio();
+    }
+  } else {
+    const t = plano.textos.find((x) => x.id === e.id);
+    if (t) {
+      if (texto) {
+        PLANO_UNDO_STACK.push(snapshotPlano(plano));
+        if (PLANO_UNDO_STACK.length > 25) PLANO_UNDO_STACK.shift();
+        PLANO_REDO_STACK = [];
+        t.texto = texto;
+        marcarCambio();
+      } else {
+        // Se vació el texto al editar: se borra el elemento.
+        PLANO_UNDO_STACK.push(snapshotPlano(plano));
+        if (PLANO_UNDO_STACK.length > 25) PLANO_UNDO_STACK.shift();
+        PLANO_REDO_STACK = [];
+        plano.textos = plano.textos.filter((x) => x.id !== e.id);
+        PLANO_TEXTO_SELECCIONADO_ID = null;
+        marcarCambio();
+      }
+    }
+  }
+  PLANO_TEXTO_EDITANDO = null;
+  renderVisorPlanos();
+}
+function tamanoTextoSeleccionado() {
+  const plano = planoActivo();
+  if (!plano || PLANO_TEXTO_SELECCIONADO_ID == null) return PLANO_TAMANO_TEXTO;
+  const t = (plano.textos || []).find((x) => x.id === PLANO_TEXTO_SELECCIONADO_ID);
+  return t ? (t.tamano || PLANO_TAMANO_TEXTO) : PLANO_TAMANO_TEXTO;
+}
 function renderVisorHerramientasYCanvas(plano) {
   const grosorActual = PLANO_GROSORES.find(g => g.valor === PLANO_GROSOR) || PLANO_GROSORES[3];
   const hint = PLANO_PIN_CONTEXTO ? "Tocá el plano para ubicar esta fila"
@@ -472,7 +550,7 @@ function renderVisorHerramientasYCanvas(plano) {
   // El botón de color edita el color de los PINES cuando esa es la herramienta
   // activa, y el color de dibujo/cota en cualquier otro caso — un solo botón,
   // significado contextual (ver item 10 pedido por Kevin).
-  const colorActual = PLANO_MODO === "punto" ? PLANO_COLOR_PIN : PLANO_COLOR_MARCADOR;
+  const colorActual = PLANO_MODO === "punto" ? PLANO_COLOR_PIN : PLANO_MODO === "texto" ? PLANO_COLOR_TEXTO : PLANO_COLOR_MARCADOR;
 
   return `
       <div class="planos-tools-rail ${PLANO_TOOLS_COLLAPSED ? "planos-tools-collapsed" : ""}" id="planos-tools-rail">
@@ -483,6 +561,7 @@ function renderVisorHerramientasYCanvas(plano) {
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "rectangulo" ? "planos-modo-active" : ""}" data-planos-modo="rectangulo" title="Recuadro"><svg class="icon"><use href="#i-rectangle"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "linea" ? "planos-modo-active" : ""}" data-planos-modo="linea" title="Línea recta"><svg class="icon"><use href="#i-line"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "punto" ? "planos-modo-active" : ""}" data-planos-modo="punto" title="Pin"><svg class="icon"><use href="#i-pin"/></svg></button>
+          <button type="button" class="planos-modo-btn ${PLANO_MODO === "texto" ? "planos-modo-active" : ""}" data-planos-modo="texto" title="Texto"><svg class="icon"><use href="#i-list"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "calibrar" ? "planos-modo-active" : ""}" data-planos-modo="calibrar" title="Calibrar escala"><svg class="icon"><use href="#i-compass-tool"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "regla" ? "planos-modo-active" : ""}" data-planos-modo="regla" title="Medir"><svg class="icon"><use href="#i-ruler"/></svg></button>
           <button type="button" class="planos-modo-btn ${PLANO_MODO === "borrador" ? "planos-modo-active" : ""}" data-planos-modo="borrador" title="Borrador (toca un trazo para quitarlo)"><svg class="icon"><use href="#i-eraser"/></svg></button>
@@ -511,6 +590,18 @@ function renderVisorHerramientasYCanvas(plano) {
             ` : ""}
           </div>
           <div class="planos-rail-flyout-wrap">
+            ${PLANO_MODO === "texto" ? `
+            <button type="button" id="planos-rail-tamano-texto-btn" class="planos-modo-btn planos-rail-swatch-btn" title="Tamaño de texto">
+              <span class="planos-rail-tamano-texto-preview">A</span>
+            </button>
+            ${PLANO_RAIL_FLYOUT === "tamanoTexto" ? `
+              <div class="planos-rail-flyout planos-rail-flyout-vertical" id="planos-tamano-texto-flyout">
+                <div class="planos-grosor-group">
+                  ${PLANO_TAMANOS_TEXTO.map((t, i) => `<button type="button" class="planos-grosor-btn ${t === (PLANO_TEXTO_SELECCIONADO_ID != null ? tamanoTextoSeleccionado() : PLANO_TAMANO_TEXTO) ? "planos-grosor-activo" : ""}" data-planos-tamano-texto="${t}" aria-label="Tamaño ${i + 1}"><span style="font-size:${10 + i * 5}px; font-weight:700;">A</span></button>`).join("")}
+                </div>
+              </div>
+            ` : ""}
+            ` : `
             <button type="button" id="planos-rail-grosor-btn" class="planos-modo-btn planos-rail-swatch-btn" title="Grosor">
               <span class="planos-rail-grosor-linea" style="height:${Math.max(2, Math.round(grosorActual.puntoPx * 0.45))}px;"></span>
             </button>
@@ -527,9 +618,13 @@ function renderVisorHerramientasYCanvas(plano) {
                 ` : ""}
               </div>
             ` : ""}
+            `}
           </div>
           <div class="planos-rail-divider"></div>
           <button type="button" id="planos-btn-rehacer" class="planos-modo-btn" aria-label="Rehacer" title="Rehacer (deshacer el último Deshacer)"><svg class="icon"><use href="#i-redo"/></svg></button>
+          ${PLANO_MODO === "texto" && PLANO_TEXTO_SELECCIONADO_ID != null ? `
+          <button type="button" id="planos-btn-borrar-texto" class="planos-modo-btn" aria-label="Borrar texto seleccionado" title="Borrar texto seleccionado"><svg class="icon"><use href="#i-trash"/></svg></button>
+          ` : ""}
           <button type="button" id="planos-btn-deshacer" class="planos-modo-btn" aria-label="Deshacer" title="Deshacer última acción en el plano"><svg class="icon"><use href="#i-undo"/></svg></button>
         </div>
         <button type="button" id="planos-tools-toggle" class="planos-tools-toggle" aria-label="Mostrar/ocultar herramientas" title="Mostrar/ocultar herramientas">
@@ -563,7 +658,14 @@ function renderVisorHerramientasYCanvas(plano) {
               return `<polyline points="${t.puntos.map(pt => `${pt.xFrac * plano.width},${pt.yFrac * plano.height}`).join(" ")}" fill="none" stroke="${t.color}" stroke-opacity="${t.opacidad != null ? t.opacidad : estilo.opacidad}" stroke-width="${Math.max(plano.width, plano.height) * estilo.grosorFactor * grosor}" stroke-linecap="round" stroke-linejoin="round"/>`;
             }).join("")}
             ${(plano.cotas || []).map(c => svgCota(plano, c)).join("")}
+            ${(plano.textos || []).filter(t => !PLANO_TEXTO_EDITANDO || t.id !== PLANO_TEXTO_EDITANDO.id).map(t => {
+              const tamanoPx = Math.max(plano.width, plano.height) * (t.tamano || PLANO_TAMANO_TEXTO);
+              const seleccionado = t.id === PLANO_TEXTO_SELECCIONADO_ID;
+              const x = t.xFrac * plano.width, y = t.yFrac * plano.height;
+              return `<text x="${x}" y="${y}" font-size="${tamanoPx}" font-weight="700" font-family="Arial, sans-serif" fill="${t.color}" stroke="rgba(0,0,0,0.65)" stroke-width="${Math.max(2, tamanoPx * 0.1)}" paint-order="stroke" dominant-baseline="middle" data-planos-texto-id="${t.id}" style="cursor:pointer;${seleccionado ? "outline:1px dashed white;" : ""}">${escapeHtml(t.texto)}</text>`;
+            }).join("")}
           </svg>
+          ${renderInputTextoFlotante(plano)}
           <div class="planos-pines-layer">
             ${(plano.pines || []).map((pin, i) => `
               <button type="button" class="planos-pin" data-planos-pin-id="${pin.id}" style="left:${pin.xFrac * 100}%; top:${pin.yFrac * 100}%; background:${pin.color || "#e2001a"};" title="${escapeHtml(pin.nota || (pin.filaId != null ? "Vinculado a fila" : "Nota"))}"><span>${i + 1}</span></button>
@@ -740,6 +842,7 @@ function attachVisorPlanosEvents(overlay) {
     btn.addEventListener("click", () => {
       PLANO_MODO = btn.dataset.planosModo;
       PLANO_RAIL_FLYOUT = null; // cambiar de herramienta cierra cualquier flyout de color/grosor abierto
+      if (PLANO_MODO !== "texto") { PLANO_TEXTO_SELECCIONADO_ID = null; PLANO_TEXTO_EDITANDO = null; }
       renderVisorPlanos();
     });
   });
@@ -755,13 +858,39 @@ function attachVisorPlanosEvents(overlay) {
     PLANO_RAIL_FLYOUT = PLANO_RAIL_FLYOUT === "grosor" ? null : "grosor";
     renderVisorPlanos();
   });
+  const railTamanoTextoBtn = document.getElementById("planos-rail-tamano-texto-btn");
+  if (railTamanoTextoBtn) railTamanoTextoBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    PLANO_RAIL_FLYOUT = PLANO_RAIL_FLYOUT === "tamanoTexto" ? null : "tamanoTexto";
+    renderVisorPlanos();
+  });
+  document.querySelectorAll("[data-planos-tamano-texto]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const val = parseFloat(btn.dataset.planosTamanoTexto);
+      PLANO_TAMANO_TEXTO = val;
+      if (PLANO_TEXTO_SELECCIONADO_ID != null) {
+        const plano = planoActivo();
+        const t = plano && (plano.textos || []).find((x) => x.id === PLANO_TEXTO_SELECCIONADO_ID);
+        if (t) { t.tamano = val; marcarCambio(); }
+      }
+      PLANO_RAIL_FLYOUT = null;
+      renderVisorPlanos();
+    });
+  });
   document.querySelectorAll("[data-planos-color]").forEach(btn => {
     btn.addEventListener("click", () => {
-      // El botón de color es el mismo para dibujo y para pines — pinta uno u
-      // otro estado según qué herramienta esté activa en ese momento (ver
+      // El botón de color es el mismo para dibujo, pines y texto — pinta uno
+      // u otro estado según qué herramienta esté activa en ese momento (ver
       // colorActual en renderVisorHerramientasYCanvas).
       if (PLANO_MODO === "punto") {
         PLANO_COLOR_PIN = btn.dataset.planosColor;
+      } else if (PLANO_MODO === "texto") {
+        PLANO_COLOR_TEXTO = btn.dataset.planosColor;
+        if (PLANO_TEXTO_SELECCIONADO_ID != null) {
+          const plano = planoActivo();
+          const t = plano && (plano.textos || []).find((x) => x.id === PLANO_TEXTO_SELECCIONADO_ID);
+          if (t) { t.color = btn.dataset.planosColor; marcarCambio(); }
+        }
       } else {
         PLANO_COLOR_MARCADOR = btn.dataset.planosColor;
       }
@@ -795,6 +924,32 @@ function attachVisorPlanosEvents(overlay) {
   if (btnDeshacer) btnDeshacer.addEventListener("click", planoDeshacer);
   const btnRehacer = document.getElementById("planos-btn-rehacer");
   if (btnRehacer) btnRehacer.addEventListener("click", planoRehacer);
+  const btnBorrarTexto = document.getElementById("planos-btn-borrar-texto");
+  if (btnBorrarTexto) btnBorrarTexto.addEventListener("click", () => {
+    const plano = planoActivo();
+    if (!plano || PLANO_TEXTO_SELECCIONADO_ID == null) return;
+    PLANO_UNDO_STACK.push(snapshotPlano(plano));
+    if (PLANO_UNDO_STACK.length > 25) PLANO_UNDO_STACK.shift();
+    PLANO_REDO_STACK = [];
+    plano.textos = (plano.textos || []).filter((t) => t.id !== PLANO_TEXTO_SELECCIONADO_ID);
+    PLANO_TEXTO_SELECCIONADO_ID = null;
+    marcarCambio();
+    renderVisorPlanos();
+  });
+
+  const inputTextoFlotante = document.getElementById("planos-texto-input-flotante");
+  if (inputTextoFlotante) {
+    inputTextoFlotante.focus();
+    const val = inputTextoFlotante.value; inputTextoFlotante.value = ""; inputTextoFlotante.value = val; // cursor al final
+    inputTextoFlotante.addEventListener("input", () => {
+      if (PLANO_TEXTO_EDITANDO) PLANO_TEXTO_EDITANDO.textoActual = inputTextoFlotante.value;
+    });
+    inputTextoFlotante.addEventListener("keydown", (evt) => {
+      if (evt.key === "Enter") { evt.preventDefault(); confirmarTextoFlotante(); }
+      else if (evt.key === "Escape") { evt.preventDefault(); PLANO_TEXTO_EDITANDO = null; renderVisorPlanos(); }
+    });
+    inputTextoFlotante.addEventListener("blur", () => { if (PLANO_TEXTO_EDITANDO) confirmarTextoFlotante(); });
+  }
 
 
   const zoomMenos = document.getElementById("planos-zoom-menos");
@@ -902,6 +1057,24 @@ function attachVisorPlanosEvents(overlay) {
       if (PLANO_FORMA_EN_CURSO) {
         continuarForma(e);
       }
+      if (PLANO_TEXTO_ARRASTRE) {
+        const img = document.getElementById("planos-img");
+        if (img) {
+          const rect = img.getBoundingClientRect();
+          const xFrac = (e.clientX - rect.left) / rect.width - PLANO_TEXTO_ARRASTRE.offXFrac;
+          const yFrac = (e.clientY - rect.top) / rect.height - PLANO_TEXTO_ARRASTRE.offYFrac;
+          const plano = planoActivo();
+          const t = plano && (plano.textos || []).find((x) => x.id === PLANO_TEXTO_ARRASTRE.id);
+          if (t) {
+            const nx = Math.max(0, Math.min(1, xFrac)), ny = Math.max(0, Math.min(1, yFrac));
+            if (Math.abs(nx - t.xFrac) > 0.002 || Math.abs(ny - t.yFrac) > 0.002) PLANO_TEXTO_ARRASTRE.seMovio = true;
+            t.xFrac = nx;
+            t.yFrac = ny;
+            const textoEl = document.querySelector(`[data-planos-texto-id="${t.id}"]`);
+            if (textoEl) { textoEl.setAttribute("x", t.xFrac * plano.width); textoEl.setAttribute("y", t.yFrac * plano.height); }
+          }
+        }
+      }
       if (PLANO_MODO === "borrador" && PLANO_PUNTEROS_ACTIVOS.size === 1 && !PLANO_DRAG_ACTIVO) {
         borrarCercaDe(e);
       }
@@ -911,6 +1084,22 @@ function attachVisorPlanosEvents(overlay) {
       if (PLANO_PUNTEROS_ACTIVOS.size < 2) PLANO_PINCH_DIST_INICIAL = null;
       if (PLANO_TRAZO_EN_CURSO) finalizarTrazo();
       if (PLANO_FORMA_EN_CURSO) finalizarForma(e);
+      if (PLANO_TEXTO_ARRASTRE) {
+        const arr = PLANO_TEXTO_ARRASTRE;
+        PLANO_TEXTO_ARRASTRE = null;
+        if (!arr.seMovio && arr.yaEstabaSeleccionado) {
+          // Tap simple sobre un texto que ya estaba seleccionado: abrir edición.
+          // El undo que se apiló en pointerdown para el posible arrastre se
+          // descarta (deshacer) porque no hubo cambio real que registrar.
+          PLANO_UNDO_STACK.pop();
+          const plano = planoActivo();
+          const t = plano && (plano.textos || []).find((x) => x.id === arr.id);
+          if (t) PLANO_TEXTO_EDITANDO = { id: arr.id, xFrac: t.xFrac, yFrac: t.yFrac, textoActual: t.texto };
+        } else {
+          marcarCambio();
+        }
+        renderVisorPlanos();
+      }
       if (PLANO_PUNTEROS_ACTIVOS.size === 0) {
         PLANO_DRAG_ACTIVO = false;
         wrap.style.cursor = cursorParaModo(PLANO_MODO);
@@ -925,13 +1114,53 @@ function attachVisorPlanosEvents(overlay) {
     // Click simple (no arrastre) en modo "punto": coloca un pin en esa posición.
     const img = document.getElementById("planos-img");
     if (img) img.addEventListener("click", (e) => {
-      if (PLANO_MODO !== "punto") return;
-      const rect = img.getBoundingClientRect();
-      const xFrac = (e.clientX - rect.left) / rect.width;
-      const yFrac = (e.clientY - rect.top) / rect.height;
-      colocarPin(xFrac, yFrac);
+      if (PLANO_MODO === "punto") {
+        const rect = img.getBoundingClientRect();
+        const xFrac = (e.clientX - rect.left) / rect.width;
+        const yFrac = (e.clientY - rect.top) / rect.height;
+        colocarPin(xFrac, yFrac);
+        return;
+      }
+      if (PLANO_MODO === "texto") {
+        if (PLANO_TEXTO_EDITANDO) return; // ya hay uno en edición, no crear otro encima
+        PLANO_TEXTO_SELECCIONADO_ID = null;
+        const rect = img.getBoundingClientRect();
+        const xFrac = (e.clientX - rect.left) / rect.width;
+        const yFrac = (e.clientY - rect.top) / rect.height;
+        PLANO_TEXTO_EDITANDO = { id: null, xFrac, yFrac, textoActual: "" };
+        renderVisorPlanos();
+      }
     });
   }
+
+  // Tocar un texto ya colocado (en modo texto): lo selecciona y prepara el
+  // arrastre. Si al soltar no hubo movimiento real Y el texto YA estaba
+  // seleccionado desde antes de este toque, se interpreta como "tap para
+  // editar" (mismo patrón que apps de diseño: 1er toque selecciona, 2do
+  // toque sobre lo ya seleccionado edita). No se usa dblclick del navegador
+  // porque el pointerdown ya dispara un re-render que reemplaza el nodo DOM,
+  // y el navegador nunca vería el segundo click como parte del mismo elemento.
+  document.querySelectorAll("[data-planos-texto-id]").forEach(el => {
+    el.addEventListener("pointerdown", (e) => {
+      if (PLANO_MODO !== "texto" || PLANO_TEXTO_EDITANDO) return;
+      e.stopPropagation();
+      const id = Number(el.getAttribute("data-planos-texto-id"));
+      const plano = planoActivo();
+      const t = plano && (plano.textos || []).find((x) => x.id === id);
+      if (!t) return;
+      const yaEstabaSeleccionado = PLANO_TEXTO_SELECCIONADO_ID === id;
+      PLANO_TEXTO_SELECCIONADO_ID = id;
+      PLANO_UNDO_STACK.push(snapshotPlano(plano));
+      if (PLANO_UNDO_STACK.length > 25) PLANO_UNDO_STACK.shift();
+      PLANO_REDO_STACK = [];
+      PLANO_PUNTEROS_ACTIVOS.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const rectImg = document.getElementById("planos-img").getBoundingClientRect();
+      const xFracToque = (e.clientX - rectImg.left) / rectImg.width;
+      const yFracToque = (e.clientY - rectImg.top) / rectImg.height;
+      PLANO_TEXTO_ARRASTRE = { id, offXFrac: xFracToque - t.xFrac, offYFrac: yFracToque - t.yFrac, seMovio: false, yaEstabaSeleccionado };
+      renderVisorPlanos();
+    });
+  });
 
   // Tocar un pin ya colocado ofrece quitarlo (no importa el modo activo —
   // siempre se puede borrar un pin tocándolo directo).
@@ -1198,6 +1427,18 @@ function dibujarPlanoConMarcasCanvas(plano) {
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(texto, 0, 0);
         ctx.restore();
+      });
+      (plano.textos || []).forEach(t => {
+        const tamanoPx = Math.max(plano.width, plano.height) * (t.tamano || PLANO_TAMANO_TEXTO);
+        const x = t.xFrac * plano.width, y = t.yFrac * plano.height;
+        ctx.font = `700 ${tamanoPx}px Arial, sans-serif`;
+        ctx.textBaseline = "middle";
+        ctx.lineJoin = "round"; ctx.miterLimit = 2;
+        ctx.strokeStyle = "rgba(0,0,0,0.65)";
+        ctx.lineWidth = Math.max(2, tamanoPx * 0.1);
+        ctx.strokeText(t.texto, x, y);
+        ctx.fillStyle = t.color;
+        ctx.fillText(t.texto, x, y);
       });
       // Pin con forma de "gota" (círculo + cola apuntando al punto exacto),
       // replicando el pin de la app en vez del círculo genérico de antes —
@@ -1511,6 +1752,7 @@ function snapshotPlano(plano) {
     rectangulos: JSON.parse(JSON.stringify(plano.rectangulos || [])),
     lineas: JSON.parse(JSON.stringify(plano.lineas || [])),
     cotas: JSON.parse(JSON.stringify(plano.cotas || [])),
+    textos: JSON.parse(JSON.stringify(plano.textos || [])),
   };
 }
 
@@ -1533,6 +1775,7 @@ function aplicarSnapshotPlano(snap) {
     ref.rectangulos = snap.rectangulos || [];
     ref.lineas = snap.lineas || [];
     ref.cotas = snap.cotas || [];
+    ref.textos = snap.textos || [];
     marcarCambio();
     return true;
   }
@@ -1543,6 +1786,7 @@ function aplicarSnapshotPlano(snap) {
   plano.rectangulos = snap.rectangulos || [];
   plano.lineas = snap.lineas || [];
   plano.cotas = snap.cotas || [];
+  plano.textos = snap.textos || [];
   marcarCambio();
   return true;
 }
@@ -1685,4 +1929,5 @@ window.abrirVisorPlanosConCapaInforme = abrirVisorPlanosConCapaInforme;
 window.abrirVisorPlanosEnPin = abrirVisorPlanosEnPin;
 window.exportarPlanosPDF = exportarPlanosPDF;
 window.confirmarPinPendiente = confirmarPinPendiente;
+window.dibujarPlanoConMarcasCanvas = dibujarPlanoConMarcasCanvas;
 })();
