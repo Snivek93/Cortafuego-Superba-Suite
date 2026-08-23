@@ -1248,7 +1248,7 @@ function inicializarCanvasEditor() {
   ligarFlyoutsRailFoto();
   if (e.img) {
     const availW = Math.max(200, wrap.clientWidth || window.innerWidth - 20);
-    const availH = Math.max(200, wrap.clientHeight || window.innerHeight - 170);
+    const availH = Math.max(200, wrap.clientHeight || window.innerHeight - 180);
     const escala = Math.min(availW / e.img.naturalWidth, availH / e.img.naturalHeight, 1);
     canvas.width = Math.round(e.img.naturalWidth * escala); canvas.height = Math.round(e.img.naturalHeight * escala);
     dibujarEditor(); ligarPunterosEditor(canvas); return;
@@ -1258,7 +1258,7 @@ function inicializarCanvasEditor() {
     if (ACR_FOTO_EDIT !== e) return;
     e.img = img;
     const availW = Math.max(200, wrap.clientWidth || window.innerWidth - 20);
-    const availH = Math.max(200, wrap.clientHeight || window.innerHeight - 170);
+    const availH = Math.max(200, wrap.clientHeight || window.innerHeight - 180);
     const escala = Math.min(availW / img.naturalWidth, availH / img.naturalHeight, 1);
     canvas.width = Math.round(img.naturalWidth * escala); canvas.height = Math.round(img.naturalHeight * escala);
     dibujarEditor(); ligarPunterosEditor(canvas);
