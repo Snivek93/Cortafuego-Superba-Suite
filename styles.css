@@ -683,6 +683,11 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .acr-foto-check-borrar.active { background: var(--hilti-red); border-color: var(--hilti-red); }
 .acr-foto-check-borrar.active .icon { opacity: 1; }
 .acr-fotos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.acr-foto-item { touch-action: none; }
+.acr-foto-arrastrando { opacity: 0.4; }
+.acr-foto-drop-antes { box-shadow: -4px 0 0 var(--hilti-red); }
+.acr-foto-drop-despues { box-shadow: 4px 0 0 var(--hilti-red); }
+.acr-galeria-dragover { outline: 3px dashed var(--hilti-red); outline-offset: 6px; border-radius: var(--radius); background: rgba(226,0,26,0.04); }
 .acr-foto-item { display: flex; flex-direction: column; gap: 6px; }
 .acr-foto-thumb-wrap { position: relative; cursor: pointer; border-radius: var(--radius-sm); overflow: hidden; border: 2px solid transparent; }
 .acr-foto-seleccionada .acr-foto-thumb-wrap { border-color: var(--hilti-red); }
@@ -691,10 +696,10 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .acr-foto-check-btn .icon { width: 14px; height: 14px; margin: 0; opacity: 0; }
 .acr-foto-check-btn.active { background: var(--hilti-red); border-color: var(--hilti-red); }
 .acr-foto-check-btn.active .icon { opacity: 1; }
-.acr-foto-icon-btn { position: absolute; top: 6px; width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.acr-foto-icon-btn { position: absolute; width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
 .acr-foto-icon-btn .icon { width: 14px; height: 14px; margin: 0; }
-.acr-foto-icon-editar { left: 6px; }
-.acr-foto-icon-borrar { left: 38px; }
+.acr-foto-icon-borrar { top: 6px; left: 6px; }
+.acr-foto-icon-editar { bottom: 6px; right: 6px; }
 .acr-foto-desc-preview { margin: 0; font-size: var(--fs-sm); color: var(--text-secondary); cursor: pointer; line-height: 1.3; }
 .acr-foto-desc-preview .hint { font-size: var(--fs-sm); }
 .acr-visor-overlay button, .acr-visor-overlay .lev-chip, #acr-elemento-overlay button, #acr-elemento-overlay .lev-chip { touch-action: manipulation; }
