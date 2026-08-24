@@ -6,6 +6,7 @@
 let CURRENT_FILE_HANDLE = null;
 let CURRENT_FILE_NAME = null;
 let ULTIMO_GUARDADO = null;
+let FALLO_AUTOGUARDADO = false;
 const FS_ACCESS_OK = typeof window.showSaveFilePicker === "function" && typeof window.showOpenFilePicker === "function";
 
 function actualizarIndicadorArchivo() {
@@ -14,6 +15,17 @@ function actualizarIndicadorArchivo() {
   const wrap = document.getElementById("save-status");
   if (!badge || !timeEl || !wrap) return;
   const nombreTxt = CURRENT_FILE_NAME ? ` · ${CURRENT_FILE_NAME}` : "";
+  // El fallo de autoguardado manda sobre cualquier otro estado: si no se pudo
+  // guardar, el indicador se queda en rojo hasta que un guardado funcione. Un
+  // toast no sirve acá porque se va solo a los 4 segundos y el usuario puede
+  // seguir trabajando media hora creyendo que está todo guardado.
+  if (FALLO_AUTOGUARDADO) {
+    badge.className = "save-status-badge error";
+    badge.textContent = "!";
+    timeEl.textContent = "sin guardar";
+    wrap.title = "No se pudo guardar automáticamente. Exportá el proyecto (.fss) para no perder el trabajo.";
+    return;
+  }
   if (ULTIMO_GUARDADO) {
     badge.className = "save-status-badge ok";
     badge.textContent = "✓";
@@ -160,30 +172,161 @@ function nuevoProyecto() {
   }
 }
 
-const AUTOSAVE_KEY = "hiltiCortafuegoAutoguardado_v1";
+// ---------------------------------------------------------------------------
+// AUTOGUARDADO — IndexedDB
+// ---------------------------------------------------------------------------
+// Antes esto vivía en localStorage, que en Safari iOS tope a ~5 MB. Con 6-20
+// fotos por informe en base64 eso se llena y setItem lanza QuotaExceededError,
+// que antes se tragaba un catch vacío: el usuario perdía la jornada sin aviso.
+// IndexedDB no tiene ese techo (desde Safari 17 la cuota va hasta el 20-80%
+// del disco según el tipo de app).
+//
+// OJO — lo que esto NO resuelve: el borrado de almacenamiento a los 7 días de
+// iOS le pega igual a IndexedDB que a localStorage. Contra eso están: usar la
+// app desde el ícono de pantalla de inicio (no una pestaña de Safari),
+// navigator.storage.persist(), y exportar .fss de vez en cuando.
+const AUTOSAVE_KEY = "hiltiCortafuegoAutoguardado_v1"; // clave vieja; solo se usa para migrar
+const IDB_NOMBRE = "firestopSuite";
+const IDB_STORE = "autoguardado";
+const IDB_CLAVE = "actual";
+let IDB_PROMESA = null;
+
+function abrirIDB() {
+  if (IDB_PROMESA) return IDB_PROMESA;
+  IDB_PROMESA = new Promise((resolve, reject) => {
+    if (!window.indexedDB) { reject(new Error("IndexedDB no disponible en este navegador")); return; }
+    const req = indexedDB.open(IDB_NOMBRE, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("No se pudo abrir IndexedDB"));
+    req.onblocked = () => reject(new Error("IndexedDB bloqueada por otra pestaña"));
+  });
+  return IDB_PROMESA;
+}
+function idbGuardar(valor) {
+  return abrirIDB().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(valor, IDB_CLAVE);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("Error al escribir"));
+    tx.onabort = () => reject(tx.error || new Error("Transacción abortada (¿sin espacio?)"));
+  }));
+}
+function idbLeer() {
+  return abrirIDB().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const req = tx.objectStore(IDB_STORE).get(IDB_CLAVE);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error || new Error("Error al leer"));
+  }));
+}
+function idbBorrar() {
+  return abrirIDB().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).delete(IDB_CLAVE);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("Error al borrar"));
+  }));
+}
+
+// Le pide al navegador que no expulse estos datos cuando ande apretado de
+// espacio. Es best-effort: si lo niega, no pasa nada malo. Hay que pedirlo en
+// cada arranque porque algunos navegadores lo resetean al cerrar.
+async function pedirAlmacenamientoPersistente() {
+  try {
+    if (!navigator.storage || !navigator.storage.persist) return;
+    if (await navigator.storage.persisted()) return;
+    await navigator.storage.persist();
+  } catch (e) { /* best-effort: no hay datos en riesgo si falla */ }
+}
+
+function avisarFalloGuardado(err) {
+  console.error("Autoguardado falló:", err);
+  const primeraVez = !FALLO_AUTOGUARDADO;
+  FALLO_AUTOGUARDADO = true;
+  actualizarIndicadorArchivo();
+  // El toast solo la primera vez: el indicador rojo es el que queda fijo.
+  if (primeraVez && window.mostrarToast) {
+    mostrarToast("No se pudo guardar automáticamente. Exportá el proyecto (.fss) ya para no perder el trabajo.", "error");
+  }
+}
+
 let autosaveTimer = null;
-function guardarAutoAhora() {
+let guardadoEnCurso = false;
+let guardadoPendiente = false;
+async function guardarAutoAhora() {
+  // Si ya hay una escritura en vuelo, se marca pendiente y se reintenta al
+  // terminar — evita que dos guardados se pisen y queden fuera de orden.
+  if (guardadoEnCurso) { guardadoPendiente = true; return; }
+  guardadoEnCurso = true;
   try {
     const payload = datosProyectoActual();
     payload.guardadoEn = new Date().toISOString();
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
+    await idbGuardar(payload);
+    if (FALLO_AUTOGUARDADO) FALLO_AUTOGUARDADO = false;
     marcarGuardado();
-  } catch (e) {}
+  } catch (e) {
+    avisarFalloGuardado(e);
+  } finally {
+    guardadoEnCurso = false;
+    if (guardadoPendiente) { guardadoPendiente = false; guardarAutoAhora(); }
+  }
 }
 function marcarCambio() {
   if (autosaveTimer) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(guardarAutoAhora, 600);
 }
-function cargarAutoguardado() {
+
+// Migración desde el localStorage viejo: se corre una sola vez, la primera vez
+// que la app arranca con IndexedDB vacío. Solo borra el localStorage DESPUÉS de
+// confirmar que la escritura en IndexedDB funcionó.
+async function migrarDesdeLocalStorage() {
+  let txt = null;
+  try { txt = localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return null; }
+  if (!txt) return null;
+  let data;
+  try { data = JSON.parse(txt); } catch (e) { return null; }
+  if (!data) return null;
   try {
-    const txt = localStorage.getItem(AUTOSAVE_KEY);
-    if (!txt) return null;
-    const data = JSON.parse(txt);
-    if (!data || !Array.isArray(data.filas) || data.filas.length === 0) return null;
-    return data;
-  } catch (e) { return null; }
+    await idbGuardar(data);
+    localStorage.removeItem(AUTOSAVE_KEY);
+    console.info("Autoguardado migrado de localStorage a IndexedDB.");
+  } catch (e) {
+    // Si no se pudo escribir en IndexedDB, se deja el localStorage intacto y se
+    // devuelven los datos igual para no perder la sesión del usuario.
+    console.error("No se pudo migrar el autoguardado a IndexedDB:", e);
+  }
+  return data;
+}
+function autoguardadoTieneContenido(data) {
+  if (!data) return false;
+  // Antes esto solo miraba `filas`, así que un proyecto con informes o planos
+  // pero sin filas de levantamiento se descartaba al recargar. Bug real.
+  return (Array.isArray(data.filas) && data.filas.length > 0)
+    || (Array.isArray(data.planos) && data.planos.length > 0)
+    || (Array.isArray(data.informes) && data.informes.length > 0)
+    || (Array.isArray(data.itemsManuales) && data.itemsManuales.length > 0)
+    || (Array.isArray(data.filasJuntas) && data.filasJuntas.length > 0);
+}
+async function cargarAutoguardado() {
+  let data = null;
+  try {
+    data = await idbLeer();
+  } catch (e) {
+    avisarFalloGuardado(e);
+    // Aunque IndexedDB falle, se intenta leer el localStorage viejo por si hay
+    // algo rescatable de antes de la migración.
+    try { const txt = localStorage.getItem(AUTOSAVE_KEY); if (txt) data = JSON.parse(txt); } catch (e2) {}
+    return autoguardadoTieneContenido(data) ? data : null;
+  }
+  if (!data) data = await migrarDesdeLocalStorage();
+  return autoguardadoTieneContenido(data) ? data : null;
 }
 function borrarAutoguardado() {
+  idbBorrar().catch((e) => console.error("No se pudo borrar el autoguardado:", e));
   try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
 }
 
@@ -237,7 +380,7 @@ function borrarTodo() {
   );
 }
 
-function initApp() {
+async function initApp() {
   const yearEl = document.getElementById("footer-year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -491,13 +634,14 @@ function initApp() {
   });
 
   actualizarBotonDeshacer();
+  pedirAlmacenamientoPersistente();
 
   if (cargoEmbebido) {
     renderTable();
     renderLevantamientoTab();
     mostrarToast(`Proyecto cargado automáticamente: ${ROWS.length} fila(s).`);
   } else {
-    const auto = cargarAutoguardado();
+    const auto = await cargarAutoguardado();
     if (auto) {
       ROWS = auto.filas.map(f => Object.assign(nuevaFila(), f, { _id: typeof f._id === "number" ? f._id : ROW_SEQ++ }));
       ROW_SEQ = Math.max(ROW_SEQ, ...ROWS.map(r => r._id), 0) + 1;
