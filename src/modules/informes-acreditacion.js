@@ -195,6 +195,7 @@ let ACR_FOTO_CONFIRMAR_BORRAR = null; // { ids: [...] } cuando se pidió confirm
 let ACR_CHECKLIST_EXPANDIDO = new Set();
 let ACR_OBSERVACION_ABIERTA = new Set();
 let ACR_DATOS_GENERALES_ABIERTO = true;
+let ACR_OBS_GENERAL_ABIERTA = false;
 function claveChecklist(elId, zona) { return `${elId}|${zona || ""}`; }
 const ACR_PALETA = ["#e2001a", "#ff9900", "#0072ce", "#111111", "#ffffff"];
 
@@ -265,6 +266,7 @@ function abrirNuevoInforme() {
   ACR_EDITANDO_ID = null;
   ACR_VISTA = "galeria";
   ACR_DATOS_GENERALES_ABIERTO = !(ACR_DRAFT.proyecto && ACR_DRAFT.cliente && ACR_DRAFT.empresaInstaladora);
+  ACR_OBS_GENERAL_ABIERTA = false;
   renderAcreditacion();
 }
 function abrirEditarInforme(id) {
@@ -274,6 +276,7 @@ function abrirEditarInforme(id) {
   ACR_EDITANDO_ID = id;
   ACR_VISTA = "galeria";
   ACR_DATOS_GENERALES_ABIERTO = true;
+  ACR_OBS_GENERAL_ABIERTA = false;
   renderAcreditacion();
 }
 function duplicarInforme(id) {
@@ -600,11 +603,17 @@ function renderChecklistParaElemento(el, zona) {
   const obsAbierta = ACR_OBSERVACION_ABIERTA.has(clave) || !!estado.observacion;
   return `
     <div class="acr-checklist-elemento">
-      <button type="button" class="acr-checklist-elemento-header" data-acr-action="toggle-expandir-checklist" data-elid="${el.id}" data-zona="${escapeHtml(zona || "")}">
-        <span class="acr-checklist-elemento-titulo">${escapeHtml(nombreElemento(el))} <span class="hint">${escapeHtml(descripcionElemento(el))}</span></span>
-        <span class="acr-checklist-estado-badge ${estado.cumple ? "ok" : "warn"}">${estado.cumple ? "Cumple" : "No cumple"}</span>
-        <svg class="icon acr-chevron ${expandido ? "acr-chevron-abierto" : ""}"><use href="#i-chevron-down"/></svg>
-      </button>
+      <div class="acr-checklist-elemento-header">
+        <button type="button" class="acr-checklist-elemento-toggle" data-acr-action="toggle-expandir-checklist" data-elid="${el.id}" data-zona="${escapeHtml(zona || "")}">
+          <span class="acr-checklist-elemento-titulo">${escapeHtml(nombreElemento(el))} <span class="hint">${escapeHtml(descripcionElemento(el))}</span></span>
+          <span class="acr-checklist-estado-badge ${estado.cumple ? "ok" : "warn"}">${estado.cumple ? "Cumple" : "No cumple"}</span>
+          <svg class="icon acr-chevron ${expandido ? "acr-chevron-abierto" : ""}"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="acr-checklist-elemento-actions">
+          <button type="button" class="secondary icon-only-btn" data-acr-action="editar-elemento" data-id="${el.id}" title="Editar"><svg class="icon"><use href="#i-edit"/></svg></button>
+          <button type="button" class="secondary icon-only-btn" data-acr-action="quitar-elemento" data-id="${el.id}" title="Quitar"><svg class="icon"><use href="#i-trash"/></svg></button>
+        </div>
+      </div>
       ${expandido ? `
         <div class="acr-toggle-cumple">
           <button type="button" class="${estado.cumple ? "active" : ""}" data-acr-action="toggle-cumple" data-elid="${el.id}" data-zona="${escapeHtml(zona || "")}">Cumple</button>
@@ -722,12 +731,7 @@ function renderFormularioHTML() {
 
       <div class="acr-subseccion">
         <div class="acr-subseccion-titulo">Tipos de penetrante / juntas presentes</div>
-        ${renderElementosLista()}
         ${renderSelectorElemento()}
-      </div>
-
-      <div class="acr-subseccion">
-        <div class="acr-subseccion-titulo">Checklist de cumplimiento</div>
         ${renderChecklistSeccion()}
       </div>
 
@@ -743,9 +747,11 @@ function renderFormularioHTML() {
       </div>
 
       <div class="acr-subseccion">
+        ${ACR_OBS_GENERAL_ABIERTA || d.observaciones ? `
         <label class="acr-field-label">Observaciones adicionales / notas (van antes del texto de cumplimiento en el informe final)
           <textarea data-acr-field="observaciones" rows="3">${escapeHtml(d.observaciones)}</textarea>
-        </label>
+        </label>` : `
+        <button type="button" class="acr-link-btn" data-acr-action="abrir-observacion-general">+ Agregar observaciones adicionales</button>`}
       </div>
 
       <div class="acr-subseccion">
@@ -775,6 +781,7 @@ function acrChipIcon(campo, valor, label, activo, iconIds) {
 function acrChipCombo(campos, valores, label, activo) {
   return `<button type="button" class="lev-chip ${activo ? "lev-chip-active" : ""}" data-acr-elform-combo="${campos.join(",")}" data-valores="${escapeHtml(valores.join("|"))}">${escapeHtml(label)}</button>`;
 }
+const DIAMETROS_PULG_PRESET = [2.5, 3, 4, 6, 8, 10, 12];
 const COMBOS_UBICACION_MATERIAL = [
   { label: "Pared de Concreto", ubicacion: "Pared", material: "Concreto" },
   { label: "Pared de Panel de Yeso", ubicacion: "Pared", material: "Panel de Yeso" },
@@ -786,7 +793,7 @@ function abrirModalElemento(categoria, editandoId) {
     if (!el) return;
     ACR_ELEMENTO_EDITANDO_ID = editandoId;
     ACR_ELEMENTO_FORM = el.categoria === "penetrante"
-      ? { categoria: "penetrante", material: el.material, tipo: el.tipoPenetrante, ubicacion: el.ubicacion, espacioAnular: el.espacioAnular, diametro: el.diametro || "", producto: el.producto }
+      ? { categoria: "penetrante", material: el.material, tipo: el.tipoPenetrante, ubicacion: el.ubicacion, espacioAnular: el.espacioAnular, diametroPulg: el.diametroPulg != null ? String(el.diametroPulg) : "", producto: el.producto }
       : { categoria: "junta", tipo: el.juntaTipo, barreras: el.juntaBarreras, posicion: el.juntaPosicion, producto: el.producto };
   } else {
     ACR_ELEMENTO_EDITANDO_ID = null;
@@ -818,7 +825,9 @@ function renderModalElemento() {
   let contenidoHtml;
   if (f.categoria === "penetrante") {
     const esCombustible = esTuberiaCombustible(f.tipo);
+    const esAislada = /Aislada/i.test(f.tipo || "");
     const diametroPulgNum = parseFloat(f.diametroPulg);
+    const enOtroDiametro = !!f.diametroOtro || (f.diametroPulg && !DIAMETROS_PULG_PRESET.some((dp) => Math.abs(diametroPulgNum - dp) < 0.001));
     const faltaDiametro = esCombustible && !(f.diametroPulg && !isNaN(diametroPulgNum) && diametroPulgNum > 0);
     const diametroCategoria = esCombustible && !faltaDiametro ? (diametroPulgNum > 2 ? "mayor2" : "menor2") : "";
     const opciones = (f.material && f.tipo && f.ubicacion && !faltaDiametro) ? opcionesProductoPenetrante(f.material, f.tipo, f.ubicacion, f.espacioAnular, diametroCategoria) : [];
@@ -843,9 +852,15 @@ function renderModalElemento() {
       </div>
       ${esCombustible ? `
       <div class="acr-modal-seccion">
-        <div class="acr-modal-seccion-titulo">Diámetro de la tubería (pulgadas)</div>
-        <input type="number" step="0.125" min="0" inputmode="decimal" class="acr-field-label" style="width:100%;font-size:16px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius-sm)" data-acr-elform-input="diametroPulg" value="${f.diametroPulg || ""}" placeholder='Ej. 4 o 6.5'>
-        <p class="hint" style="margin:4px 0 0">El diámetro exacto define el sistema (Pasta/Sellador ≤2", Cinta/Collarín &gt;2") y, si aplica cinta, el número de vueltas correcto.</p>
+        <div class="acr-modal-seccion-titulo">${esAislada ? "Diámetro exterior total (con aislante)" : "Diámetro de la tubería"}</div>
+        <div class="lev-chip-grid lev-chip-grid-compact">
+          ${DIAMETROS_PULG_PRESET.map((dp) => acrChip("diametroPulg", String(dp), `${dp}"`, !enOtroDiametro && Math.abs(diametroPulgNum - dp) < 0.001)).join("")}
+          <button type="button" class="lev-chip ${enOtroDiametro ? "lev-chip-active" : ""}" data-acr-diametro-otro>Otro</button>
+        </div>
+        ${enOtroDiametro ? `<input type="number" step="0.125" min="0" inputmode="decimal" class="acr-field-label" style="width:100%;font-size:16px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:8px" data-acr-elform-input="diametroPulg" value="${f.diametroPulg || ""}" placeholder='Ej. 5 o 6.5' autofocus>` : ""}
+        <p class="hint" style="margin:4px 0 0">${esAislada
+          ? "Medí por fuera del aislante. Ese diámetro total (tubería + aislante) es el que define el sistema y las vueltas de cinta — no el diámetro de la tubería sola."
+          : `El diámetro exacto define el sistema (Pasta/Sellador ≤2", Cinta/Collarín &gt;2") y, si aplica cinta, el número de vueltas correcto.`}</p>
       </div>` : ""}` : ""}
       ${f.material && f.tipo && f.ubicacion && !faltaDiametro ? (opciones.length ? `
         <div class="acr-modal-seccion">
@@ -856,7 +871,16 @@ function renderModalElemento() {
     const tipos = (window.todosLosTipos ? window.todosLosTipos() : []).map((x) => x.tipo);
     const junta = f.tipo && window.juntaParaTipo ? window.juntaParaTipo(f.tipo) : null;
     const barreras = f.tipo && junta && window.barrerasParaTipo ? window.barrerasParaTipo(junta, f.tipo) : [];
+    // Si la materialidad tiene una sola opción posible, se autoselecciona y no
+    // se le pregunta al usuario — evita un tap redundante cuando no hay
+    // elección real que hacer.
+    if (barreras.length === 1 && f.barreras !== barreras[0]) { f.barreras = barreras[0]; f.posicion = ""; f.producto = ""; }
     const posiciones = f.tipo && f.barreras && window.posicionesParaCombo ? window.posicionesParaCombo(junta, f.tipo, f.barreras) : [];
+    // Mismo criterio para Posición: si con la materialidad ya elegida solo
+    // hay una posición posible (Paralelo/Perpendicular u otra), se salta el
+    // paso. Si hay más de una y cambian de sistema (como Concreto-Yeso), sí
+    // se pregunta porque ahí la posición cambia el sistema UL aplicable.
+    if (posiciones.length === 1 && f.posicion !== posiciones[0]) { f.posicion = posiciones[0]; f.producto = ""; }
     const productos = f.tipo && f.barreras && f.posicion && window.productosParaCombo ? window.productosParaCombo(junta, f.tipo, f.barreras, f.posicion) : [];
     const iconoTipo = window.iconoJuntaTipo ? window.iconoJuntaTipo(junta, f.tipo) : null;
     contenidoHtml = `
@@ -868,12 +892,12 @@ function renderModalElemento() {
           return acrChipIcon("tipo", t, t, f.tipo === t, icono);
         }).join("")}</div>
       </div>
-      ${f.tipo ? `
+      ${f.tipo && barreras.length > 1 ? `
       <div class="acr-modal-seccion">
         <div class="acr-modal-seccion-titulo">Materialidad de bordes</div>
         <div class="lev-chip-grid">${barreras.map((b) => acrChip("barreras", b, b, f.barreras === b)).join("")}</div>
       </div>` : ""}
-      ${f.barreras ? `
+      ${f.barreras && posiciones.length > 1 ? `
       <div class="acr-modal-seccion">
         <div class="acr-modal-seccion-titulo">Posición</div>
         <div class="lev-chip-grid lev-chip-grid-compact">${posiciones.map((p) => {
@@ -925,10 +949,18 @@ function bindModalElementoEventos(overlay) {
       let valor = chip.getAttribute("data-valor");
       if (campo === "espacioAnular") valor = valor === "1";
       ACR_ELEMENTO_FORM[campo] = valor;
+      if (campo === "diametroPulg") { ACR_ELEMENTO_FORM.diametroOtro = false; ACR_ELEMENTO_FORM.producto = ""; }
       if (campo === "material" || campo === "ubicacion" || campo === "espacioAnular") ACR_ELEMENTO_FORM.producto = "";
-      if (campo === "tipo") { ACR_ELEMENTO_FORM.barreras = ""; ACR_ELEMENTO_FORM.posicion = ""; ACR_ELEMENTO_FORM.producto = ""; ACR_ELEMENTO_FORM.diametroPulg = ""; }
+      if (campo === "tipo") { ACR_ELEMENTO_FORM.barreras = ""; ACR_ELEMENTO_FORM.posicion = ""; ACR_ELEMENTO_FORM.producto = ""; ACR_ELEMENTO_FORM.diametroPulg = ""; ACR_ELEMENTO_FORM.diametroOtro = false; }
       if (campo === "barreras") { ACR_ELEMENTO_FORM.posicion = ""; ACR_ELEMENTO_FORM.producto = ""; }
       if (campo === "posicion") { ACR_ELEMENTO_FORM.producto = ""; }
+      renderModalElemento();
+      return;
+    }
+    if (evt.target.closest("[data-acr-diametro-otro]")) {
+      ACR_ELEMENTO_FORM.diametroOtro = true;
+      ACR_ELEMENTO_FORM.diametroPulg = "";
+      ACR_ELEMENTO_FORM.producto = "";
       renderModalElemento();
       return;
     }
@@ -1931,6 +1963,7 @@ function attachEventos(overlay) {
     else if (accion === "toggle-check") { const estado = obtenerEstadoChecklist(elid, zona); const item = btn.getAttribute("data-item"); const i = estado.marcados.indexOf(item); if (i === -1) estado.marcados.push(item); else estado.marcados.splice(i, 1); renderAcreditacion(); }
     else if (accion === "toggle-expandir-checklist") { const clave = claveChecklist(elid, zona); if (ACR_CHECKLIST_EXPANDIDO.has(clave)) ACR_CHECKLIST_EXPANDIDO.delete(clave); else ACR_CHECKLIST_EXPANDIDO.add(clave); renderAcreditacion(); }
     else if (accion === "abrir-observacion") { ACR_OBSERVACION_ABIERTA.add(claveChecklist(elid, zona)); renderAcreditacion(); }
+    else if (accion === "abrir-observacion-general") { ACR_OBS_GENERAL_ABIERTA = true; renderAcreditacion(); }
     else if (accion === "abrir-texto-informe") abrirModalTextoInforme();
     else if (accion === "editor-modo") { ACR_FOTO_EDIT.modo = btn.getAttribute("data-modo"); ACR_FOTO_EDIT.flyout = null; ACR_FOTO_EDIT.textoSeleccionado = null; renderAcreditacion(); }
     else if (accion === "toggle-herramientas") { ACR_FOTO_EDIT.herramientasAbiertas = !ACR_FOTO_EDIT.herramientasAbiertas; renderAcreditacion(); }
