@@ -661,9 +661,11 @@ body.tf-open .lev-form-sticky, body.tf-open #levantamiento-fullscreen { padding-
 .acr-producto-opcion.active { border-color: var(--hilti-red); background: var(--err-bg); }
 .acr-producto-opcion .hint { margin: 0; }
 .acr-checklist-elemento { border: 1px solid var(--border); border-radius: var(--radius); padding: 0; margin-bottom: 10px; display: flex; flex-direction: column; background: var(--surface); overflow: hidden; }
-.acr-checklist-elemento-header { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: transparent; cursor: pointer; padding: 12px 14px; font: inherit; color: var(--ink); }
+.acr-checklist-elemento-header { display: flex; align-items: center; gap: 6px; width: 100%; padding: 12px 14px; }
+.acr-checklist-elemento-toggle { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; text-align: left; border: none; background: transparent; cursor: pointer; padding: 0; margin: 0; font: inherit; color: var(--ink); }
+.acr-checklist-elemento-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .acr-checklist-elemento-titulo { font-weight: 600; flex: 1; min-width: 0; }
-.acr-checklist-elemento-header > .acr-checklist-elemento-titulo .hint { display: block; }
+.acr-checklist-elemento-toggle > .acr-checklist-elemento-titulo .hint { display: block; }
 .acr-checklist-estado-badge { font-size: var(--fs-xs); font-weight: 700; padding: 3px 9px; border-radius: 999px; flex-shrink: 0; }
 .acr-checklist-estado-badge.ok { background: var(--ok-bg); color: var(--ok); }
 .acr-checklist-estado-badge.warn { background: var(--warn-bg); color: var(--warn); }
