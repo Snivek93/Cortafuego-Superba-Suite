@@ -2026,8 +2026,19 @@ function confirmarNuevoElemento() {
     // Vueltas de cinta reales, usando la misma tabla oficial que el motor de
     // cálculo de Levantamiento (vueltasCintaPenetrante) — solo aplica para
     // productos de cinta intumescente en tuberías combustibles.
+    // OJO: vueltasCintaPenetrante espera M=ubicación (Entrepiso/Pared) y
+    // N=material (Concreto/Panel de Yeso) — misma convención que usa
+    // opcionesProductoPenetrante() y precargarElementosDesdeLevantamiento()
+    // en este mismo archivo (ubicacion: r.M, material: r.N). Este row los
+    // tenía INVERTIDOS desde siempre: con M=material y N=ubicacion, ninguna
+    // de las dos comparaciones internas de la tabla (M==="Entrepiso",
+    // N==="Panel de Yeso") podía dar cierto nunca, así que SIEMPRE caía a
+    // la tabla de pared de concreto — Panel de Yeso y Entrepiso/Losa
+    // calculaban mal el número de vueltas sin que nada lo mostrara para
+    // notarlo. Kevin, 08/09/2026: encontrado al agregar el aviso visible
+    // de vueltas que pidió.
     if (tieneDiametro && elementoUsaCinta(nuevoElemento) && window.vueltasCintaPenetrante) {
-      const row = { L: f.tipo, M: f.material, N: f.ubicacion, P: f.producto, D: diametroPulgNum, E: 0 };
+      const row = { L: f.tipo, M: f.ubicacion, N: f.material, P: f.producto, D: diametroPulgNum, E: 0 };
       const nv = window.vueltasCintaPenetrante(row);
       if (typeof nv === "number") nuevoElemento.numVueltasCinta = nv;
     }
